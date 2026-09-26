@@ -164,6 +164,24 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.staticTexts["京町・実験接続点"].waitForExistence(timeout:5))
   attach(app,"Home-full-screen-map")
  }
+ @MainActor func testDestinationPanelDragsDownAndBackUp() throws {
+  let app=launchMap()
+  app.buttons["京町・実験接続点を避難先にする"].tap()
+  let panel=app.otherElements["destinationPanel"]
+  let handle=app.buttons["destinationPanelHandle"]
+  XCTAssertTrue(panel.waitForExistence(timeout:5))
+  XCTAssertTrue(handle.exists)
+  let expandedHeight=panel.frame.height
+  let start=app.staticTexts["京町・実験接続点"].coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5))
+  start.press(forDuration:0.1,thenDragTo:start.withOffset:CGVector(dx:0,dy:230))
+  XCTAssertLessThan(panel.frame.height,expandedHeight-80)
+  XCTAssertEqual(handle.label,"避難先パネルを展開")
+  let compactStart=handle.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5))
+  compactStart.press(forDuration:0.1,thenDragTo:compactStart.withOffset:CGVector(dx:0,dy:-230))
+  XCTAssertGreaterThan(panel.frame.height,expandedHeight-30)
+  XCTAssertEqual(handle.label,"避難先パネルを縮小")
+  XCTAssertTrue(app.buttons["通行不可を避ける経路を確認"].exists)
+ }
  @MainActor func testReportSelectionConfirmationAndRestartPersistence() throws {
   let app=launchMap();resolveStorage(app);let register=app.buttons["通行不可を登録"];register.tap()
   app.buttons["roadListAlternative"].tap()
