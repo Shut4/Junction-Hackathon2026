@@ -1,5 +1,10 @@
 import Foundation
 public struct RouteStep: Identifiable, Sendable { public var id: String; public var from: String; public var to: String; public var distance: Double; public var shape: [Coordinate] }
+extension RouteStep {
+    /// Pseudo step from an off-road position straight to the nearest usable road. Not a network edge.
+    public static let approachID = "approach"
+    public var isApproach: Bool { id == Self.approachID }
+}
 public struct WalkRoute: Sendable {
     public var steps: [RouteStep]
     public var distance: Double
@@ -62,6 +67,21 @@ public struct Router: Sendable {
         guard let route=route(from:p,on:edgeID,to:end,blocked:blocked) else { return .failure(.noRoute) }
         return .success(route)
     }
+    /// Route from a position that is not on any road (inside the region): a straight approach step to a nearby
+    /// unblocked edge, then the network route. Of the edges near the closest one, picks the shortest total.
+    public func resolveOffRoadRoute(from p:Coordinate,to end:String,blocked:Set<String>,slack:Double=30,limit:Int=8)->Result<WalkRoute,RouteFailure> {
+        guard network.bounds.contains(p),nodeIDs.contains(end) else { return .failure(.outsideNetwork) }
+        let near=network.edges.filter { !blocked.contains($0.id) }.map { ($0.id,Geometry.project(p,onto:$0.shape)) }.sorted { $0.1.distance < $1.1.distance }
+        guard let closest=near.first?.1.distance else { return .failure(.noRoute) }
+        var best:WalkRoute?
+        for (id,projection) in near.prefix(limit) where projection.distance <= closest+slack {
+            guard var found=route(from:p,on:id,to:end,blocked:blocked) else { continue }
+            found.steps.insert(RouteStep(id:RouteStep.approachID,from:"current",to:"entry",distance:projection.distance,shape:[p,projection.coordinate]),at:0)
+            found.distance += projection.distance
+            if best == nil || found.distance < best!.distance { best=found }
+        }
+        return best.map { .success($0) } ?? .failure(.noRoute)
+    }
     public func route(from p: Coordinate, on edgeID: String, to end: String, blocked: Set<String>) -> WalkRoute? {
         guard let e = network.edges.first(where: { $0.id == edgeID }), !blocked.contains(e.id) else { return nil }
         let projection = Geometry.project(p, onto: e.shape)
@@ -105,7 +125,8 @@ public enum TurnGuidance {
         return "次の接続点で\(angle>0 ? "右":"左")に曲がる経路です。横断箇所と足元を同行者と確認してください。"
     }
 }
-public enum LocationVerdict: Sendable { case matched(String), uncertain(String), outside }
+/// `offRoad`: inside the region and accurate enough, but no road within the match radius (distance to the closest road).
+public enum LocationVerdict: Sendable { case matched(String), uncertain(String), outside, offRoad(Double) }
 public enum PositionGate {
     public static func evaluate(_ p: LocationSample, network: Network, now: Date = Date()) -> LocationVerdict {
         guard p.accuracy >= 0, p.accuracy <= 35 else { return .uncertain("位置の精度が不足しています。空が見える場所で位置の更新を待っています。") }
@@ -113,7 +134,10 @@ public enum PositionGate {
         guard age >= -2, age <= 30 else { return .uncertain("位置情報が更新されていません。新しい位置を待っています。") }
         guard network.bounds.contains(p.coordinate) else { return .outside }
         let options = RoadMatcher(network: network).candidates(at:p.coordinate,radius:max(10,p.accuracy))
-        guard let first = options.first else { return .uncertain("位置に対応する歩行区間がありません。") }
+        guard let first = options.first else {
+            let closest = network.edges.map { Geometry.project(p.coordinate, onto: $0.shape).distance }.min()
+            return closest.map { .offRoad($0) } ?? .uncertain("位置に対応する歩行区間がありません。")
+        }
         let competitive=options.dropFirst().prefix { $0.distance-first.distance < max(5,p.accuracy) }
         if competitive.contains(where: { !sameJunction(first.id,$0.id,position:p.coordinate,tolerance:max(5,p.accuracy),network:network) }) {
             return .uncertain("道路候補が複数あります。方向案内を保留します。")
