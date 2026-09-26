@@ -15,6 +15,12 @@ struct HomeScreen:View {
     @State private var searchOpen=false
     @FocusState private var searchFocused:Bool
     @Environment(\.dynamicTypeSize) private var textSize
+    private var reportRemovalDialogIsPresented:Binding<Bool> {
+        Binding(
+            get: { store.pendingReportRemoval != nil },
+            set: { if !$0 { store.pendingReportRemoval = nil } }
+        )
+    }
     var body:some View {
         GeometryReader { geometry in
             ZStack(alignment:.top) {
@@ -42,6 +48,17 @@ struct HomeScreen:View {
         .confirmationDialog("避難先の入口・受入状況と経路を同行者と確認してください",isPresented:Binding(get:{pendingMode != nil},set:{ if !$0 { pendingMode=nil } }),titleVisibility:.visible,presenting:pendingMode) { mode in
             Button(mode == .map ? "確認してナビを開始":"確認して全面カメラで案内開始") { store.startGuidance(mode) }
             Button("取消",role:.cancel) {}
+        }
+        .confirmationDialog("この通行禁止区域を削除しますか？",isPresented:reportRemovalDialogIsPresented,titleVisibility:.visible) {
+            Button("通行禁止区域を削除",role:.destructive) {
+                if let report = store.pendingReportRemoval { store.remove(report.id) }
+                store.pendingReportRemoval = nil
+            }
+            Button("キャンセル",role:.cancel) { store.pendingReportRemoval=nil }
+        } message: {
+            if let report = store.pendingReportRemoval {
+                Text("\(store.edge(report.segmentID)?.name ?? "選択した道路区間")を経路検索の対象に戻します。")
+            }
         }
     }
     private var searchBar:some View {
