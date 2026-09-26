@@ -303,5 +303,44 @@ final class CoreTests:XCTestCase {
         if case .outside=PositionGate.evaluate(LocationSample(coordinate:Coordinate(34,131),accuracy:5,timestamp:Date()),network:n) {} else { XCTFail("outside the region stays unsupported") }
         if case .uncertain=PositionGate.evaluate(LocationSample(coordinate:south,accuracy:80,timestamp:Date()),network:n) {} else { XCTFail("poor accuracy still holds") }
     }
+    func testHeadLevelPixelMappingFollowsPortraitOrientation() {
+        // Buffer column below the centre = lower on screen; buffer row above the centre = right on screen.
+        let p=HeadLevelGeometry.devicePoint(u:340,v:200,depth:2,fx:500,fy:500,cx:320,cy:240)
+        XCTAssertLessThan(p.y,0);XCTAssertGreaterThan(p.x,0);XCTAssertEqual(p.z,-2)
+    }
+    func testHeadLevelDetectsHighObstacleAndIgnoresGround() {
+        let upright=SIMD3<Float>(0,-1,0)
+        // Floor points ahead 1–3 m, 1.3 m below the lens.
+        let floor=(0..<60).map { SIMD3<Float>(Float($0%5)*0.1-0.2,-1.3,-1-Float($0)/30) }
+        let clear=HeadLevelGeometry.evaluate(points:floor,gravity:upright,cameraHeight:1.3)
+        XCTAssertNil(clear.hit);XCTAssertTrue(clear.floorMeasured);XCTAssertEqual(clear.floor,-1.3,accuracy:0.05)
+        // A sign board 1.5 m ahead at 1.4–1.8 m above the floor.
+        let board=(0..<20).map { SIMD3<Float>(Float($0%4)*0.1-0.15,0.1+Float($0)/50,-1.5) }
+        let hit=try? XCTUnwrap(HeadLevelGeometry.evaluate(points:floor+board,gravity:upright,cameraHeight:1.3).hit)
+        XCTAssertEqual(hit?.stage,.caution);XCTAssertEqual(hit?.distance ?? 0,1.5,accuracy:0.01)
+        let near=board.map { SIMD3<Float>($0.x,$0.y,-0.8) }
+        XCTAssertEqual(HeadLevelGeometry.evaluate(points:floor+near,gravity:upright,cameraHeight:1.3).hit?.stage,.danger)
+        // Outside the corridor (1 m to the right) or knee height: no warning.
+        XCTAssertNil(HeadLevelGeometry.evaluate(points:floor+board.map { SIMD3<Float>($0.x+1,$0.y,$0.z) },gravity:upright,cameraHeight:1.3).hit)
+        XCTAssertNil(HeadLevelGeometry.evaluate(points:floor+board.map { SIMD3<Float>($0.x,-0.9,$0.z) },gravity:upright,cameraHeight:1.3).hit)
+    }
+    func testHeadLevelUsesGravityWhenPhoneIsTilted() {
+        // Phone tilted 30° down: the same world point appears rotated in the device frame.
+        let t=Float.pi/6,g=SIMD3<Float>(0,-cos(t),-sin(t))
+        let rotate={ (w:SIMD3<Float>) in SIMD3<Float>(w.x,w.y*cos(t)-w.z*sin(t),w.y*sin(t)+w.z*cos(t)) }
+        let board=(0..<20).map { rotate(SIMD3<Float>(0,0.3,-1.5-Float($0)/100)) }
+        let hit=HeadLevelGeometry.evaluate(points:board,gravity:g,cameraHeight:1.3).hit
+        XCTAssertEqual(hit?.distance ?? 0,1.5,accuracy:0.05);XCTAssertEqual(hit?.height ?? 0,1.6,accuracy:0.05)
+    }
+    func testHeadLevelAnnouncerNeedsPersistenceAndEscalates() {
+        var a=HeadLevelAnnouncer()
+        let caution=HeadLevelHit(distance:1.8,lateral:0,height:1.5,count:20,stage:.caution),danger=HeadLevelHit(distance:0.8,lateral:0.3,height:1.5,count:20,stage:.danger)
+        XCTAssertNil(a.update(caution,now:0))
+        XCTAssertEqual(a.update(caution,now:0.2)?.text,"頭の高さ、正面約2メートルに障害物があります。")
+        XCTAssertNil(a.update(caution,now:1))
+        XCTAssertEqual(a.update(danger,now:1.2)?.text,"止まってください。頭の高さ、右寄りすぐ近くに障害物。")
+        XCTAssertNil(a.update(danger,now:2));XCTAssertNotNil(a.update(danger,now:6.3))
+        XCTAssertNil(a.update(nil,now:6.5));XCTAssertNil(a.update(nil,now:8));XCTAssertNil(a.update(caution,now:8.2));XCTAssertNotNil(a.update(caution,now:8.4))
+    }
 }
 extension Result { var failureValue:Failure? { if case .failure(let e)=self { return e };return nil } }
