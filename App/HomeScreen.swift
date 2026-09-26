@@ -9,6 +9,8 @@ struct HomeScreen:View {
     @State private var pendingMode:GuidanceMode?
     @State private var details=false
     @State private var expanded=false
+    @State private var destinationPanelCollapsed=false
+    @GestureState private var destinationPanelDrag:CGFloat=0
     @State private var panelHeight:CGFloat=180
     @StateObject private var search=DestinationSearch()
     @State private var query=""
@@ -27,12 +29,15 @@ struct HomeScreen:View {
                     if !searchOpen {
                         floatingButtons.padding(.horizontal,12)
                         if let place=store.inspected { PlaceCard(place:place).padding(.horizontal,12).padding(.bottom,4).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 } }
-                        else { bottomPanel(maxHeight:geometry.size.height*(expanded || textSize.isAccessibilitySize ? 0.62:0.42)).padding(.horizontal,12) }
+                        else if store.currentDestination != nil || store.selectedTarget != nil {
+                            destinationPanel(maxHeight:min(geometry.size.height*(textSize.isAccessibilitySize ? 0.72:0.58),max(220,geometry.size.height-300))).padding(.horizontal,12)
+                        } else { bottomPanel(maxHeight:geometry.size.height*(expanded || textSize.isAccessibilitySize ? 0.62:0.42)).padding(.horizontal,12) }
                     }
                 }.padding(.top,4)
             }
         }
         .toolbar(.hidden,for:.navigationBar)
+        .onChange(of:store.targetName) { _,_ in destinationPanelCollapsed=false }
         .onChange(of:searchFocused) { _,focused in if focused { searchOpen=true } }
         .task(id:query) { guard searchOpen,query != search.resultsQuery else { return };search.cancel();search.results=[];try? await Task.sleep(for:.milliseconds(300));guard !Task.isCancelled,query != search.resultsQuery else { return };search.suggest(query,network:store.network) }
         .sheet(isPresented:$destinations) { NavigationStack { DestinationPickerScreen() } }
@@ -122,6 +127,41 @@ struct HomeScreen:View {
         .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))
         .onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 }
         .padding(.bottom,4)
+    }
+    private func destinationPanel(maxHeight:CGFloat)->some View {
+        let compactHeight=min(180,maxHeight*0.45)
+        let restingHeight=destinationPanelCollapsed ? compactHeight:maxHeight
+        let height=min(max(restingHeight-destinationPanelDrag,compactHeight),maxHeight)
+        return VStack(spacing:0) {
+            Button { withAnimation(.spring(response:0.35,dampingFraction:0.85)) { destinationPanelCollapsed.toggle() } } label: {
+                Capsule().fill(Color.secondary.opacity(0.45)).frame(width:40,height:5).frame(maxWidth:.infinity,minHeight:24).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(destinationPanelCollapsed ? "避難先パネルを展開":"避難先パネルを縮小")
+            .accessibilityIdentifier("destinationPanelHandle")
+            ScrollView { panelContent }
+                .scrollBounceBehavior(.basedOnSize)
+                .scrollDisabled(destinationPanelCollapsed)
+                .frame(maxHeight:.infinity,alignment:.top)
+        }
+        .frame(height:height)
+        .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))
+        .contentShape(RoundedRectangle(cornerRadius:24))
+        .simultaneousGesture(destinationPanelGesture(fullHeight:maxHeight,compactHeight:compactHeight))
+        .onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 }
+        .padding(.bottom,4)
+        .accessibilityIdentifier("destinationPanel")
+    }
+    private func destinationPanelGesture(fullHeight:CGFloat,compactHeight:CGFloat)->some Gesture {
+        DragGesture(minimumDistance:10)
+            .updating($destinationPanelDrag) { value,state,_ in state=value.translation.height }
+            .onEnded { value in
+                let restingHeight=destinationPanelCollapsed ? compactHeight:fullHeight
+                let projectedHeight=restingHeight-value.predictedEndTranslation.height
+                withAnimation(.spring(response:0.35,dampingFraction:0.85)) {
+                    destinationPanelCollapsed=projectedHeight < (compactHeight+fullHeight)/2
+                }
+            }
     }
     private var panelContent:some View {
             VStack(alignment:.leading,spacing:12) {
