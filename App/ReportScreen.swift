@@ -10,26 +10,33 @@ struct ReportScreen:View {
     @State private var observed=Date()
     @State private var description=""
     @State private var review=false
+    @State private var reportToDelete:Report?
+    private var deleteDialogIsPresented:Binding<Bool> {
+        Binding(get:{ reportToDelete != nil },set:{ if !$0 { reportToDelete=nil } })
+    }
     var filtered:[WalkEdge] { store.edges.filter { query.isEmpty || store.edgeDescription($0).localizedCaseInsensitiveContains(query) || $0.id.contains(query) } }
     var body:some View { ScrollView { VStack(alignment:.leading,spacing:16) {
         if !listMode {
             Text("地図の道路をタップして選択").font(.headline)
             ZStack(alignment:.topLeading) {
-                GuideMap(store:store,mode:.report).frame(height:440).clipShape(RoundedRectangle(cornerRadius:18)).accessibilityIdentifier("reportRoadMap")
+                GuideMap(store:store,mode:.report,onBlockedReport:{ reportToDelete=$0 }).frame(height:440).clipShape(RoundedRectangle(cornerRadius:18)).accessibilityIdentifier("reportRoadMap")
                 VStack(alignment:.leading,spacing:6) {
                     legend(color:.teal,text:"選択できる道路（\(store.edges.count)区間）")
-                    legend(color:.red,text:"選択中・登録済み")
+                    legend(color:.red,text:"選択中・登録済み（タップで削除）")
                 }.padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:12)).padding(10).accessibilityElement(children:.combine)
             }
             SourceFooter()
-            Text("青緑の線が選択できる道路です。線の上をタップすると赤く選択、再タップで解除。ドラッグで地図移動、ピンチで拡大できます。登録は道路区間全体が対象です。歩道と車道を区別していない区間があります。")
+            Text("青緑の線をタップすると赤く選択、再タップで解除できます。登録済みの赤い線をタップすると削除確認を表示します。ドラッグで地図移動、ピンチで拡大できます。登録は道路区間全体が対象です。歩道と車道を区別していない区間があります。")
             DisclosureGroup("なぞって複数区間を選択") { Toggle("なぞり選択モード",isOn:$store.tracing).accessibilityHint("地図移動を停止して連続する道路をなぞれます") }
         }
         Button(listMode ? "地図で道路をタップして選ぶ":"VoiceOver用の区間一覧を開く") { listMode.toggle();store.tracing=false }.frame(minHeight:48).accessibilityIdentifier("roadListAlternative")
         Text(store.selectionMessage).font(.headline)
         if store.ambiguity {
             Text("タップ位置の道路候補を確認してください。")
-            ForEach(store.traceCandidates) { candidate in if let edge=store.edge(candidate.id) { Button(store.edgeDescription(edge)) { store.confirmRoadCandidate(edge.id) }.frame(minHeight:44).accessibilityIdentifier("roadCandidate."+edge.id) } }
+            ForEach(store.traceCandidates) { candidate in if let edge=store.edge(candidate.id) { Button(store.edgeDescription(edge)) {
+                if let report=store.reports.first(where: { $0.segmentID == edge.id }) { reportToDelete=report }
+                else { store.confirmRoadCandidate(edge.id) }
+            }.frame(minHeight:44).accessibilityIdentifier("roadCandidate."+edge.id) } }
         }
         Button("選択解除・やり直し",systemImage:"arrow.counterclockwise") { store.clearSelection() }.frame(minHeight:44)
         Text("選択 \(store.selected.count)区間").font(.title2.bold())
@@ -49,6 +56,15 @@ struct ReportScreen:View {
     }.padding() }.navigationTitle("通行不可登録")
     .toolbar { ToolbarItem(placement:.cancellationAction) { Button("取消") { store.tracing=false;store.clearSelection();dismiss() } } }
     .sheet(isPresented:$review) { NavigationStack { ScrollView { VStack(alignment:.leading,spacing:16) { Text("区間全体を通行不可にします").font(.title.bold());ForEach(store.edges.filter { store.selected.contains($0.id) }) { e in Text(store.edgeDescription(e)) };Text("種類：\(hazard.rawValue)");Text(observed,style:.date);Text(description);PrimaryButton(title:"この範囲を登録",symbol:"checkmark") { if store.register(hazard:hazard,date:observed,text:description) { review=false;store.tracing=false;dismiss() } };Button("戻って修正") { review=false }.frame(minHeight:48) }.padding() }.navigationTitle("登録内容の確認") } }
+    .confirmationDialog("この通行禁止区域を削除しますか？",isPresented:deleteDialogIsPresented,titleVisibility:.visible) {
+        Button("通行禁止区域を削除",role:.destructive) {
+            if let report=reportToDelete { store.removeReports(for:report.segmentID) }
+            reportToDelete=nil
+        }
+        Button("キャンセル",role:.cancel) { reportToDelete=nil }
+    } message: {
+        if let report=reportToDelete { Text("\(store.edge(report.segmentID)?.name ?? "選択した道路区間")を経路検索の対象に戻します。") }
+    }
     .onDisappear { store.tracing=false }
     }
     private func legend(color:Color,text:String)->some View { HStack(spacing:8) { Capsule().fill(color).frame(width:28,height:6).overlay(Capsule().stroke(.white,lineWidth:1));Text(text).font(.caption.bold()) } }

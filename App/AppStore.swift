@@ -14,6 +14,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Cached: previously recomputed from `reports` on every access, including per-edge loops.
     @Published private(set) var blocked=Set<String>()
     @Published var inspected:InspectedPlace?
+    @Published var pendingReportRemoval:Report?
     @Published var storageError: String?
     @Published var storageIncompatible = false
     @Published var selected = Set<String>()

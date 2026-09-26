@@ -6,12 +6,14 @@ enum GuideMapMode { case explore,report,navigation }
 final class GuidePin: MKPointAnnotation {
     enum Kind { case target,saved,blocked,simulated,dropped }
     var kind:Kind
-    init(kind:Kind) { self.kind=kind;super.init() }
+    var segmentID:String?
+    init(kind:Kind,segmentID:String? = nil) { self.kind=kind;self.segmentID=segmentID;super.init() }
 }
 struct GuideMap: UIViewRepresentable {
     @ObservedObject var store: AppStore
     var mode:GuideMapMode = .explore
     var onDestination: ((Coordinate)->Void)? = nil
+    var onBlockedReport: ((Report)->Void)? = nil
     var onTap: (()->Void)? = nil
     /// Keeps Apple's legal label, compass and focused content clear of floating panels.
     var insets=UIEdgeInsets.zero
@@ -36,7 +38,7 @@ struct GuideMap: UIViewRepresentable {
     }
     func updateUIView(_ map:MKMapView,context:Context) {
         let c=context.coordinator
-        c.store=store;c.onDestination=onDestination;c.onTap=onTap;c.mode=mode
+        c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
         if map.layoutMargins != insets { map.layoutMargins=insets }
         map.isScrollEnabled = !store.tracing;map.isZoomEnabled = !store.tracing;c.gesture?.isEnabled=store.tracing
         c.tapGesture?.isEnabled = !store.tracing
@@ -60,7 +62,7 @@ struct GuideMap: UIViewRepresentable {
                 let lines=edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
                 for title in [name+"Casing",name] { let multi=MKMultiPolyline(lines);multi.title=title;map.addOverlay(multi,level:.aboveRoads);c.dynamicOverlays.append(multi) }
             }
-            if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:"× 通行不可登録",subtitle:edge.name,map:map)) } }
+            if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:"× 通行不可登録",subtitle:"\(edge.name)・タップして削除",segmentID:edge.id,map:map)) } }
             if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:"選択した避難先・受入状況未確認",map:map)) }
             if let dropped=store.inspected,dropped.droppedPin { c.dynamicPins.append(pin(dropped.coordinate,kind:.dropped,title:dropped.name,subtitle:"ドロップしたピン",map:map)) }
         }
@@ -72,9 +74,9 @@ struct GuideMap: UIViewRepresentable {
         if mode == .navigation && c.following { c.follow(map:map) }
     }
     @discardableResult private func add(_ shape:[Coordinate],title:String,map:MKMapView)->MKPolyline { let line=MKPolyline(coordinates:shape.map(\.clLocation),count:shape.count);line.title=title;map.addOverlay(line,level:.aboveRoads);return line }
-    @discardableResult private func pin(_ p:Coordinate,kind:GuidePin.Kind,title:String,subtitle:String,map:MKMapView)->GuidePin { let pin=GuidePin(kind:kind);pin.coordinate=p.clLocation;pin.title=title;pin.subtitle=subtitle;map.addAnnotation(pin);return pin }
+    @discardableResult private func pin(_ p:Coordinate,kind:GuidePin.Kind,title:String,subtitle:String,segmentID:String? = nil,map:MKMapView)->GuidePin { let pin=GuidePin(kind:kind,segmentID:segmentID);pin.coordinate=p.clLocation;pin.title=title;pin.subtitle=subtitle;map.addAnnotation(pin);return pin }
     @MainActor final class Coordinator:NSObject,MKMapViewDelegate {
-        var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var gesture:UIPanGestureRecognizer?;var tapGesture:UITapGestureRecognizer?;var points:[Coordinate]=[];var onDestination:((Coordinate)->Void)?;var onTap:(()->Void)?
+        var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var gesture:UIPanGestureRecognizer?;var tapGesture:UITapGestureRecognizer?;var points:[Coordinate]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
         var mode:GuideMapMode = .explore;var focusToken=0;var simulatedPin:GuidePin?;var following=false;var lastFollowed:Date?
         init(store:AppStore) { self.store=store }
         func apply(_ focus:MapFocus,map:MKMapView,insets:UIEdgeInsets) {
@@ -125,7 +127,7 @@ struct GuideMap: UIViewRepresentable {
             // ~22pt touch tolerance, clamped to 6–30 m so short roads next to each other remain distinguishable.
             let touch=sender.location(in:map),c=map.convert(touch,toCoordinateFrom:map),side=map.convert(CGPoint(x:touch.x+22,y:touch.y),toCoordinateFrom:map)
             let coordinate=Coordinate(c.latitude,c.longitude)
-            store.tapRoad(coordinate,radius:max(6,min(30,coordinate.distance(to:Coordinate(side.latitude,side.longitude)))))
+            if let report=store.tapRoad(coordinate,radius:max(6,min(30,coordinate.distance(to:Coordinate(side.latitude,side.longitude))))) { onBlockedReport?(report) }
         }
         @objc func chooseDestination(_ sender:UILongPressGestureRecognizer) {
             guard sender.state == .began,!store.tracing,let map=sender.view as? MKMapView else { return }
@@ -169,6 +171,7 @@ struct GuideMap: UIViewRepresentable {
             guard mode == .explore else { return }
             if let feature=annotation as? MKMapFeatureAnnotation { store.inspect(feature:feature) }
             else if let pin=annotation as? GuidePin,pin.kind == .saved,let d=store.destinations.first(where:{ $0.name == pin.title }) { store.inspect(saved:d) }
+            else if let pin=annotation as? GuidePin,pin.kind == .blocked,let id=pin.segmentID { store.pendingReportRemoval=store.reports.first(where: { $0.segmentID == id }) }
         }
         func mapView(_ mapView:MKMapView,didDeselect annotation:any MKAnnotation) {
             guard mode == .explore,mapView.selectedAnnotations.isEmpty else { return }
