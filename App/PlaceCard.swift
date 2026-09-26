@@ -1,7 +1,7 @@
 import SwiftUI
 @preconcurrency import MapKit
 
-/// A place the user tapped on the home map (POI, saved point, dropped pin or search result), shown as a Google Maps–style card.
+/// A place the user tapped on the home map (POI, dropped pin or search result), shown as a Google Maps–style card.
 struct InspectedPlace:Identifiable {
     let id=UUID()
     var name:String
@@ -9,7 +9,6 @@ struct InspectedPlace:Identifiable {
     var address:String?
     var coordinate:Coordinate
     var mapItem:MKMapItem?
-    var saved:Destination?
     var droppedPin=false
     var loading=false
 }
@@ -42,10 +41,6 @@ extension AppStore {
             }
         }
     }
-    func inspect(saved destination:Destination) {
-        guard let p=place(destination.nodeID) else { return }
-        inspected=InspectedPlace(name:destination.name,category:"保存済みの実験接続点",address:destination.note,coordinate:p.coordinate,saved:destination)
-    }
     func inspectDroppedPin(_ coordinate:Coordinate) {
         inspected=InspectedPlace(name:"ドロップしたピン",category:String(format:"%.5f, %.5f",coordinate.latitude,coordinate.longitude),coordinate:coordinate,droppedPin:true,loading:true)
         let id=inspected?.id
@@ -62,7 +57,6 @@ extension AppStore {
     func useInspectedAsDestination(calculateRoute:Bool) {
         guard let place=inspected else { return }
         inspected=nil
-        if let saved=place.saved { chooseSavedDestination(saved);if calculateRoute { calculate(usePosition:true) };return }
         chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? "地図で選んだ避難先"):place.name)
         if calculateRoute,let first=destinationConnections.first,destinationConnections.count==1 { confirmConnection(first.nodeID);calculate(usePosition:true) }
     }
