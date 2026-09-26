@@ -1,31 +1,18 @@
 import SwiftUI
 
-/// Compass-relative HUD arrow. Not anchored to the world; accuracy depends on GPS and the magnetometer.
+/// Direction card under the 3D ground arrow: text and a read-aloud button. The arrow itself is `GroundArrowView`.
+/// Not anchored to the world; accuracy depends on GPS and the magnetometer.
 struct ARDirectionIndicator:View {
     @EnvironmentObject var store:AppStore
     var body:some View {
-        let state=guidance
+        let state=store.cameraDirection
         VStack(spacing:6) {
-            if let angle=state.angle {
-                Image(systemName:"location.north.fill").font(.system(size:72,weight:.bold)).foregroundStyle(abs(angle)<15 ? Color.green:Color.yellow)
-                    .rotationEffect(.degrees(angle)).shadow(color:.black.opacity(0.6),radius:6).animation(.easeOut(duration:0.25),value:angle).accessibilityHidden(true)
-            } else { Image(systemName:"questionmark.circle").font(.system(size:48)).foregroundStyle(.white.opacity(0.8)).accessibilityHidden(true) }
+            if state.angle == nil { Image(systemName:"questionmark.circle").font(.system(size:48)).foregroundStyle(.white.opacity(0.8)).accessibilityHidden(true) }
             Text(state.text).font(.headline).multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
             Button("方向を読み上げ",systemImage:"speaker.wave.2") { store.speech.say(state.spoken) }.font(.subheadline.bold()).buttonStyle(.bordered).tint(.white)
         }
         .foregroundStyle(.white).padding(14).background(RoundedRectangle(cornerRadius:20).fill(.black.opacity(0.45)))
         .accessibilityElement(children:.contain).accessibilityLabel(state.spoken).accessibilityIdentifier("arDirection")
-    }
-    private var guidance:(angle:Double?,text:String,spoken:String) {
-        guard store.navigating,let p=store.progress,let sample=store.location.sample else { return (nil,"経路案内中のみ方向を表示します","経路案内中ではありません") }
-        guard store.positionRoutable else { return (nil,"位置を確認中。方向を保留します","位置を確認中のため方向を保留します") }
-        guard let heading=store.heading,store.headingReliable else { return (nil,"方位の精度が低いため矢印を表示しません","方位の精度が低いため方向を保留します") }
-        let angle=RouteTracker.relativeBearing(from:sample.coordinate,to:p.lookahead,heading:heading)
-        let degrees=Int(abs(angle).rounded())
-        let direction=abs(angle)<15 ? "正面方向":abs(angle)>150 ? "後ろ方向・約\(degrees)°":"\(angle>0 ? "右":"左")へ約\(degrees)°"
-        let text="\(direction)\n次の接続点まで約\(Int(p.distanceToStepEnd.rounded())) m・\(p.maneuver.text)"
-        let spoken="進む方向は\(abs(angle)<15 ? "ほぼ正面":abs(angle)>150 ? "後ろ":"\(angle>0 ? "右":"左")に約\(degrees)度")です。方位は概算です。足元と周囲を同行者と確認してください。"
-        return (angle,text,spoken)
     }
 }
 
@@ -65,6 +52,9 @@ struct CameraScreen:View {
             Color.black.ignoresSafeArea()
             CameraPreview(session:store.camera.engine.session).ignoresSafeArea().accessibilityHidden(true)
             if store.developer && store.showBoxes { DetectionOverlay(detections:store.camera.detections,minConfidence:store.boxMinConfidence,showLabels:store.showBoxLabels).ignoresSafeArea() }
+            if store.navigating && store.showARArrow,let angle=store.cameraDirection.angle {
+                GroundArrowView(angle:angle,cameraHeight:store.arrowCameraHeight,distance:store.arrowDistance,fieldOfView:store.camera.verticalFieldOfView).ignoresSafeArea().allowsHitTesting(false).accessibilityHidden(true)
+            }
             if !store.camera.running && !(store.navigating && store.showARArrow) { stoppedHint }
             VStack(spacing:8) {
                 if !textSize.isAccessibilitySize { HStack { backButton;Spacer() } }
@@ -75,6 +65,8 @@ struct CameraScreen:View {
                 if textSize.isAccessibilitySize { accessibilityControls } else { controlBar }
             }.padding(.horizontal,12).padding(.vertical,8)
         }
+        // Spoken direction cues for the arrow, only while this screen is shown.
+        .task { store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
         .sheet(isPresented:$settings) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .confirmationDialog("案内・カメラ・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("停止",role:.destructive) { store.camera.stop();store.stopNavigation() };Button("取消",role:.cancel) {} }

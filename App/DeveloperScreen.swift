@@ -39,11 +39,13 @@ struct DeveloperScreen:View {
             Text("現在の検出 \(store.camera.detections.count)件\(store.camera.simulatedDetections ? "（模擬）":"")").font(.caption)
             Toggle("AR方向矢印を表示",isOn:$store.showARArrow)
             Slider(value:$store.headingOffset,in:-45...45,step:1) { Text("方位補正") };Text("方位補正 \(Int(store.headingOffset))°（端末の装着角のずれを補正）").font(.caption)
+            Slider(value:$store.arrowCameraHeight,in:0.8...1.8,step:0.05) { Text("カメラの高さ") };Text("カメラの高さ \(store.arrowCameraHeight,specifier:"%.2f") m（3D矢印の路面位置合わせ）").font(.caption)
+            Slider(value:$store.arrowDistance,in:1.5...6,step:0.5) { Text("矢印までの距離") };Text("矢印までの距離 \(store.arrowDistance,specifier:"%.1f") m").font(.caption)
             if store.simulated {
                 Slider(value:Binding(get:{ store.location.heading?.degrees ?? 0 },set:{ store.location.simulateHeading($0) }),in:0...359,step:1) { Text("模擬方位") }
                 Text("模擬方位 \(Int(store.location.heading?.degrees ?? 0))°").font(.caption)
             }
-            Text("BBOXはDeveloperModeでのみ全面カメラに重ねます。矢印は方位と位置からの概算で、世界座標には固定しません。").font(.caption)
+            Text("BBOXはDeveloperModeでのみ全面カメラに重ねます。矢印は方位と位置からの概算で、端末の傾きに合わせて仮想の路面に描きます。路面検出・世界座標への固定はしません。").font(.caption)
         }
         Section("実験位置") {
             Toggle("模擬位置・模擬報告",isOn:Binding(get:{store.simulated},set:{store.switchSimulation($0)})).accessibilityIdentifier("toggleSimulation")
