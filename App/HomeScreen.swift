@@ -49,9 +49,14 @@ struct HomeScreen:View {
             if searchOpen { Button("検索を閉じる",systemImage:"chevron.left") { closeSearch() }.labelStyle(.iconOnly).font(.title3.weight(.semibold)).frame(minWidth:44,minHeight:44) }
             else { Image(systemName:"magnifyingglass").font(.title3).foregroundStyle(.secondary).frame(width:28).accessibilityHidden(true) }
             TextField("目的地を入力",text:$query).focused($searchFocused).submitLabel(.search).onSubmit { performSearch() }.font(.title3).accessibilityIdentifier("destinationQuery")
-            if !query.isEmpty { Button("入力を消去",systemImage:"xmark.circle.fill") { query="";search.clear();searchOpen=true;searchFocused=true }.labelStyle(.iconOnly).foregroundStyle(.secondary).frame(minWidth:44,minHeight:44) }
-            if searchOpen { Button("取消") { closeSearch() }.frame(minHeight:44) }
-            else { Button("設定",systemImage:"gearshape.fill") { settings=true }.labelStyle(.iconOnly).font(.title3).foregroundStyle(.white).frame(width:44,height:44).background(Circle().fill(Color.blue)) }
+            if searchOpen || !query.isEmpty {
+                Button(query.isEmpty ? "検索を閉じる":"入力を消去",systemImage:"xmark.circle.fill") {
+                    if query.isEmpty { closeSearch() }
+                    else { query="";search.clear();searchOpen=true;searchFocused=true }
+                }
+                .labelStyle(.iconOnly).foregroundStyle(.secondary).frame(minWidth:44,minHeight:44).accessibilityIdentifier("searchAction")
+            }
+            if !searchOpen { Button("設定",systemImage:"gearshape.fill") { settings=true }.labelStyle(.iconOnly).font(.title3).foregroundStyle(.white).frame(width:44,height:44).background(Circle().fill(Color.blue)) }
         }
         .padding(.leading,14).padding(.trailing,6).padding(.vertical,6)
         .background(Capsule().fill(Color(.systemBackground)).shadow(color:.black.opacity(0.18),radius:8,y:3))
