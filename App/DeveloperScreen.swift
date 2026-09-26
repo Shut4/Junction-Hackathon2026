@@ -28,6 +28,8 @@ struct DeveloperScreen:View {
             if let p=store.progress { LabeledContent("進捗",value:"区間\(p.stepIndex+1)・残り\(Int(p.remainingDistance))m・\(p.maneuver.text)・経路から\(Int(p.offRouteDistance))m") }
             LabeledContent("案内",value:store.navigating ? "案内中（\(store.guidanceMode == .map ? "地図":"カメラ")）":"停止")
             LabeledContent("カメラ",value:store.camera.running ? String(format:"%.1f fps・推論%.0fms",store.camera.framesPerSecond,store.camera.inferenceLatency*1000):"停止")
+            LabeledContent("深度",value:store.camera.depthStatus)
+            LabeledContent("頭の高さの障害物",value:store.camera.headLevel.map { String(format:"%@ 前方%.2fm・横%.2fm・高さ%.2fm・%d点",$0.stage == .danger ? "危険":"注意",$0.distance,$0.lateral,$0.height,$0.count) } ?? "なし")
             LabeledContent("音声",value:"\(store.speech.status)・待機\(store.speech.pending)")
             LabeledContent("報告",value:"\(store.reports.count)件・\(store.simulated ? "模擬領域":"実領域")")
             LabeledContent("熱状態 / 電池",value:"\(ProcessInfo.processInfo.thermalState.rawValue) / \(UIDevice.current.batteryLevel>=0 ? String(format:"%.0f%%",UIDevice.current.batteryLevel*100):"取得不可")")
@@ -46,6 +48,21 @@ struct DeveloperScreen:View {
                 Text("模擬方位 \(Int(store.location.heading?.degrees ?? 0))°").font(.caption)
             }
             Text("BBOXはDeveloperModeでのみ全面カメラに重ねます。矢印は方位と位置からの概算で、端末の傾きに合わせて仮想の路面に描きます。路面検出・世界座標への固定はしません。").font(.caption)
+        }
+        Section("頭の高さの障害物（深度）") {
+            LabeledContent("深度",value:store.camera.depthStatus)
+            tune("進行方向の幅（片側） corridorHalfWidth",\.corridorHalfWidth,0.2...1.0,0.05,"m")
+            tune("最小距離 minDistance",\.minDistance,0.1...1.0,0.05,"m")
+            tune("最大距離 maxDistance",\.maxDistance,1.0...4.0,0.1,"m")
+            tune("高さの下限（床から） minHeight",\.minHeight,0.5...1.6,0.05,"m")
+            tune("高さの上限（床から） maxHeight",\.maxHeight,1.4...2.5,0.05,"m")
+            tune("危険とみなす距離 dangerDistance",\.dangerDistance,0.5...2.0,0.1,"m")
+            Stepper("必要な点の数 minPoints \(store.headLevelConfig.minPoints)",value:$store.headLevelConfig.minPoints,in:3...60)
+            Stepper("読み上げまでの連続検出 persistence \(store.headLevelTiming.persistence)回",value:$store.headLevelTiming.persistence,in:1...6)
+            Slider(value:$store.headLevelTiming.cooldown,in:1...15,step:0.5) { Text("同じ段階の再読み上げ間隔 cooldown") };Text("同じ段階の再読み上げ間隔 cooldown \(store.headLevelTiming.cooldown,specifier:"%.1f") 秒").font(.caption)
+            Slider(value:$store.headLevelTiming.clearAfter,in:0.2...3,step:0.1) { Text("解消とみなすまで clearAfter") };Text("解消とみなすまで clearAfter \(store.headLevelTiming.clearAfter,specifier:"%.1f") 秒").font(.caption)
+            Button("既定値に戻す") { store.resetHeadLevelTuning() }
+            Text("危険／注意は dangerDistance で切り替わります（それ以内が危険）。変数は Core/HeadLevel.swift の HeadLevelConfig・HeadLevelTiming。床を推定できない場合は「カメラの高さ」（arrowCameraHeight）を使います。判定は約0.2秒ごとです。").font(.caption)
         }
         Section("実験位置") {
             Toggle("模擬位置・模擬報告",isOn:Binding(get:{store.simulated},set:{store.switchSimulation($0)})).accessibilityIdentifier("toggleSimulation")
@@ -88,6 +105,13 @@ struct DeveloperScreen:View {
         .toolbar { ToolbarItem(placement:.primaryAction) { Button("ログ",systemImage:"list.bullet.rectangle") { showLog=true } } }
         .sheet(isPresented:$showLog) { NavigationStack { DebugLogScreen(modal:true) } }
         .confirmationDialog("模擬報告と模擬検出だけをリセットします",isPresented:$reset,titleVisibility:.visible) { Button("模擬データをリセット",role:.destructive) { store.resetSimulation() };Button("取消",role:.cancel) {} }
+    }
+    /// Slider for one `HeadLevelConfig` distance (Float) with its current value.
+    private func tune(_ title:String,_ key:WritableKeyPath<HeadLevelConfig,Float>,_ range:ClosedRange<Double>,_ step:Double,_ unit:String)->some View {
+        VStack(alignment:.leading,spacing:2) {
+            Slider(value:Binding(get:{ Double(store.headLevelConfig[keyPath:key]) },set:{ store.headLevelConfig[keyPath:key]=Float($0) }),in:range,step:step) { Text(title) }
+            Text("\(title) \(store.headLevelConfig[keyPath:key],specifier:"%.2f") \(unit)").font(.caption)
+        }
     }
     private func move(_ lat:Double,_ lon:Double) { if let p=store.location.sample { store.moveSimulation(to:Coordinate(p.coordinate.latitude+lat,p.coordinate.longitude+lon)) } }
 }
