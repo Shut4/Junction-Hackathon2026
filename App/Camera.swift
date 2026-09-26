@@ -4,6 +4,8 @@ import SwiftUI
 import CoreML
 import Darwin
 
+/// The bundled Core ML model name, set once in Info.plist (JGDetectionModel) and shared with Scripts/install_model.sh and Scripts/create_project.py.
+enum DetectionModel { static let name=Bundle.main.object(forInfoDictionaryKey:"JGDetectionModel") as? String ?? "" }
 final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate,@unchecked Sendable {
     let session = AVCaptureSession()
     let queue = DispatchQueue(label:"guide.camera")
@@ -23,7 +25,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
                     let output=AVCaptureVideoDataOutput();output.alwaysDiscardsLateVideoFrames=true;output.setSampleBufferDelegate(self,queue:queue)
                     guard session.canAddOutput(output) else { throw CameraError.noCamera };session.addOutput(output);configured=true
                 }
-                if request == nil, let url=Bundle.main.url(forResource:"vidvipo_yolov8n_2023-05-19",withExtension:"mlmodelc") {
+                if request == nil, let url=Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") {
                     let model=try MLModel(contentsOf:url);request=VNCoreMLRequest(model:try VNCoreMLModel(for:model));request?.imageCropAndScaleOption = .scaleFit
                 }
                 session.startRunning()
@@ -80,8 +82,8 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     private var sessionGeneration=0
     init() {
         UIDevice.current.isBatteryMonitoringEnabled=true
-        if Bundle.main.url(forResource:"vidvipo_yolov8n_2023-05-19",withExtension:"mlmodelc") != nil { modelStatus="導入済み・動作確認待ち" }
-        Task { @MainActor [modelStatus] in debugLog(.model,modelStatus == "未導入" ? .warning:.info,"Model bundle check",["model":"vidvipo_yolov8n_2023-05-19","status":modelStatus]) }
+        if Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") != nil { modelStatus="導入済み・動作確認待ち" }
+        Task { @MainActor [modelStatus] in debugLog(.model,modelStatus == "未導入" ? .warning:.info,"Model bundle check",["model":DetectionModel.name,"status":modelStatus]) }
         engine.result = { [weak self] detections,captured,start,end,error in
             Task { @MainActor in self?.receive(detections,captured:captured,start:start,end:end,error:error) }
         }
