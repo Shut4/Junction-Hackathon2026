@@ -46,22 +46,22 @@ struct DestinationPickerScreen:View {
     @State private var latitude=""
     @State private var longitude=""
     var body:some View { List {
-        Section("避難先を検索") {
+        Section("目的地を検索") {
             TextField("施設名・住所を入力",text:$query).submitLabel(.search).onSubmit { performSearch() }.accessibilityIdentifier("destinationQuery")
             Button("検索",systemImage:"magnifyingglass") { performSearch() }.disabled(search.searching).accessibilityIdentifier("destinationSearchButton")
             Text(search.status).font(.subheadline)
-            ForEach(Array(search.results.enumerated()),id:\.offset) { index,item in Button { let c=item.location.coordinate;store.chooseTarget(Coordinate(c.latitude,c.longitude),name:item.name ?? "選択した避難先");dismiss() } label: { VStack(alignment:.leading) { Text(item.name ?? "名称なし").font(.headline);Text(item.address?.fullAddress ?? "").font(.subheadline) } }.frame(minHeight:48).accessibilityIdentifier("destinationResult.\(index)") }
+            ForEach(Array(search.results.enumerated()),id:\.offset) { index,item in Button { let c=item.location.coordinate;store.chooseTarget(Coordinate(c.latitude,c.longitude),name:item.name ?? "選択した目的地");dismiss() } label: { VStack(alignment:.leading) { Text(item.name ?? "名称なし").font(.headline);Text(item.address?.fullAddress ?? "").font(.subheadline) } }.frame(minHeight:48).accessibilityIdentifier("destinationResult.\(index)") }
         }
         Section("保存済み地点（通信なしでも選択可能）") { ForEach(store.destinations) { d in Button(d.name) { store.chooseSavedDestination(d);dismiss() }.frame(minHeight:48) } }
         Section("座標で選ぶ") {
             TextField("緯度（例：33.885）",text:$latitude).keyboardType(.numbersAndPunctuation)
             TextField("経度（例：130.880）",text:$longitude).keyboardType(.numbersAndPunctuation)
-            Button("この座標を避難先にする") {
+            Button("この座標を目的地にする") {
                 guard let lat=Double(latitude),let lon=Double(longitude),lat.isFinite,lon.isFinite,abs(lat)<=90,abs(lon)<=180 else { store.notice="緯度・経度を確認してください";return }
                 store.chooseTarget(Coordinate(lat,lon),name:"指定した座標");dismiss()
             }.frame(minHeight:48)
         }
         Section { Text("任意の場所を選択できます。通行不可を除外した経路案内は、選択中の対応地域に保存された歩行ネットワーク内で提供します。検索には通信が必要です。施設の開設・受入状況を同行者と確認してください。") }
-    }.navigationTitle("避難先を選ぶ").toolbar { ToolbarItem(placement:.cancellationAction) { Button("閉じる") { dismiss() } } }.onDisappear { search.cancel() } }
+    }.navigationTitle("目的地を選ぶ").toolbar { ToolbarItem(placement:.cancellationAction) { Button("閉じる") { dismiss() } } }.onDisappear { search.cancel() } }
     func performSearch() { Task { await search.find(query,network:store.network) } }
 }

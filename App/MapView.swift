@@ -28,11 +28,10 @@ struct GuideMap: UIViewRepresentable {
             let span=mode == .explore ? MKCoordinateSpan(latitudeDelta:(b.north-b.south)*0.55,longitudeDelta:(b.east-b.west)*0.55):MKCoordinateSpan(latitudeDelta:(b.north-b.south)*0.35,longitudeDelta:(b.east-b.west)*0.35)
             map.setRegion(MKCoordinateRegion(center:CLLocationCoordinate2D(latitude:(b.south+b.north)/2,longitude:(b.west+b.east)/2),span:span),animated:false)
         }
-        let gesture=UIPanGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.pan(_:)));gesture.isEnabled=false;map.addGestureRecognizer(gesture);context.coordinator.gesture=gesture
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
-        let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;map.addGestureRecognizer(tap);context.coordinator.tapGesture=tap
+        let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;map.addGestureRecognizer(tap)
         context.coordinator.mode=mode
-        map.accessibilityLabel=mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで避難先を選択できます。避難先は検索欄と保存済み地点からも選べます。"
+        map.accessibilityLabel=mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。"
         if mode == .navigation { context.coordinator.following=true }
         return map
     }
@@ -40,8 +39,6 @@ struct GuideMap: UIViewRepresentable {
         let c=context.coordinator
         c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
         if map.layoutMargins != insets { map.layoutMargins=insets }
-        map.isScrollEnabled = !store.tracing;map.isZoomEnabled = !store.tracing;c.gesture?.isEnabled=store.tracing
-        c.tapGesture?.isEnabled = !store.tracing
         guard let network=store.network else { return }
         // Static layer (network and boundary) is built once per mode; only small dynamic layers are replaced.
         let baseKey="\(mode)|\(network.id)|\(network.version)"
@@ -66,7 +63,7 @@ struct GuideMap: UIViewRepresentable {
                 for title in [name+"Casing",name] { let multi=MKMultiPolyline(lines);multi.title=title;map.addOverlay(multi,level:.aboveRoads);c.dynamicOverlays.append(multi) }
             }
             if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:"× 通行不可登録",subtitle:"\(edge.name)・タップして削除",segmentID:edge.id,map:map)) } }
-            if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:"選択した避難先・受入状況未確認",map:map)) }
+            if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:"選択した目的地・受入状況未確認",map:map)) }
             if let dropped=store.inspected,dropped.droppedPin { c.dynamicPins.append(pin(dropped.coordinate,kind:.dropped,title:dropped.name,subtitle:"ドロップしたピン",map:map)) }
         }
         if store.simulated,let sample=store.location.sample {
@@ -79,7 +76,7 @@ struct GuideMap: UIViewRepresentable {
     @discardableResult private func add(_ shape:[Coordinate],title:String,map:MKMapView)->MKPolyline { let line=MKPolyline(coordinates:shape.map(\.clLocation),count:shape.count);line.title=title;map.addOverlay(line,level:.aboveRoads);return line }
     @discardableResult private func pin(_ p:Coordinate,kind:GuidePin.Kind,title:String,subtitle:String,segmentID:String? = nil,map:MKMapView)->GuidePin { let pin=GuidePin(kind:kind,segmentID:segmentID);pin.coordinate=p.clLocation;pin.title=title;pin.subtitle=subtitle;map.addAnnotation(pin);return pin }
     @MainActor final class Coordinator:NSObject,MKMapViewDelegate {
-        var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var gesture:UIPanGestureRecognizer?;var tapGesture:UITapGestureRecognizer?;var points:[Coordinate]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
+        var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
         var mode:GuideMapMode = .explore;var focusToken=0;var simulatedPin:GuidePin?;var following=false;var lastFollowed:Date?
         init(store:AppStore) { self.store=store }
         func apply(_ focus:MapFocus,map:MKMapView,insets:UIEdgeInsets) {
@@ -133,19 +130,8 @@ struct GuideMap: UIViewRepresentable {
             if let report=store.tapRoad(coordinate,radius:max(6,min(30,coordinate.distance(to:Coordinate(side.latitude,side.longitude))))) { onBlockedReport?(report) }
         }
         @objc func chooseDestination(_ sender:UILongPressGestureRecognizer) {
-            guard sender.state == .began,!store.tracing,let map=sender.view as? MKMapView else { return }
+            guard sender.state == .began,let map=sender.view as? MKMapView else { return }
             let c=map.convert(sender.location(in:map),toCoordinateFrom:map);onDestination?(Coordinate(c.latitude,c.longitude))
-        }
-        @objc func pan(_ sender:UIPanGestureRecognizer) {
-            guard let map=sender.view as? MKMapView else { return }
-            let touch=sender.location(in:map),coordinate=map.convert(touch,toCoordinateFrom:map)
-            let p=Coordinate(coordinate.latitude,coordinate.longitude)
-            if sender.state == .began { points=[p] }
-            else if sender.state == .changed { if points.last?.distance(to:p) ?? 10 > 1 { points.append(p) } }
-            else if sender.state == .ended {
-                points.append(p);let side=map.convert(CGPoint(x:touch.x+18,y:touch.y),toCoordinateFrom:map)
-                store.finishTrace(points,radius:max(4,min(25,p.distance(to:Coordinate(side.latitude,side.longitude)))))
-            } else if sender.state == .cancelled { points=[];store.selectionMessage="なぞり操作を取り消しました" }
         }
         func mapView(_ mapView:MKMapView,rendererFor overlay:any MKOverlay)->MKOverlayRenderer {
             if let multi=overlay as? MKMultiPolyline {

@@ -54,7 +54,7 @@ struct NavigationModeScreen:View {
                 barButton("通行不可",symbol:"exclamationmark.triangle.fill") { report=true }
                 barButton("経路一覧",symbol:"list.number") { steps=true }
             }
-            Button("地図・避難先選択へ",systemImage:"map") { store.closeGuidance() }.font(.subheadline).frame(minHeight:36)
+            Button("地図・目的地選択へ",systemImage:"map") { store.closeGuidance() }.font(.subheadline).frame(minHeight:36)
         }
         .padding(14).background(RoundedRectangle(cornerRadius:22).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:8,y:-2))
     }
@@ -81,7 +81,7 @@ struct InstructionBanner:View {
                 }.accessibilityElement(children:.combine)
                 Text(store.nextInstruction).font(.callout).opacity(0.95)
             } else {
-                Text(store.navigating ? store.nextInstruction:store.route == nil ? "経路が未設定です。避難先を選び、経路を確認して開始してください":store.nextInstruction).font(.title3.bold())
+                Text(store.navigating ? store.nextInstruction:store.route == nil ? "経路が未設定です。目的地を選び、経路を確認して開始してください":store.nextInstruction).font(.title3.bold())
             }
             if store.matchedEdge == nil { Label(store.positionState,systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
         }
