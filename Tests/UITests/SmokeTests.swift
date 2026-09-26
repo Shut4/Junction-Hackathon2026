@@ -209,9 +209,20 @@ final class SmokeTests:XCTestCase {
   let suggestion=app.buttons["destinationSuggestion.0"]
   XCTAssertTrue(suggestion.waitForExistence(timeout:25))
   attach(app,"Direct-input-search-suggestions")
-  app.buttons["入力を消去"].tap()
+  let searchAction=app.buttons["searchAction"]
+  XCTAssertEqual(searchAction.label,"入力を消去")
+  XCTAssertGreaterThanOrEqual(searchAction.frame.width,44)
+  XCTAssertGreaterThanOrEqual(searchAction.frame.height,44)
+  XCTAssertFalse(app.buttons["取消"].exists)
+  searchAction.tap()
   XCTAssertFalse((query.value as? String ?? "").contains("Kokura"))
   XCTAssertFalse(app.buttons["destinationSuggestion.0"].exists)
+  XCTAssertEqual(searchAction.label,"検索を閉じる")
+  attach(app,"Direct-input-search-empty")
+  searchAction.tap()
+  XCTAssertFalse(searchAction.exists)
+  XCTAssertTrue(app.buttons["設定"].exists)
+  query.tap()
   query.typeText("33.8845, 130.880\n")
   XCTAssertTrue(app.staticTexts["指定した座標"].waitForExistence(timeout:5))
  }
