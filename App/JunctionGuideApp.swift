@@ -19,12 +19,18 @@ import SwiftUI
 
 struct RootView:View {
     @EnvironmentObject var store:AppStore
+    @Environment(\.scenePhase) private var phase
     @AppStorage("tutorialComplete") private var tutorialComplete=false
+    @StateObject private var permissions=TutorialPermissions()
     var body:some View {
         Group {
-            if tutorialComplete { NavigationStack { HomeScreen() } }
-            else { TutorialScreen() }
+            if !permissions.checked { ProgressView("権限を確認中") }
+            else if tutorialComplete && permissions.hasRequiredPermissions { NavigationStack { HomeScreen() } }
+            else { TutorialScreen(permissions:permissions,recoveryStep:tutorialComplete ? (permissions.locationAuthorized ? 3:2):nil) }
         }.tint(.blue)
+        .task { await permissions.refresh() }
+        .onChange(of:phase) { _,value in if value == .active { Task { await permissions.refresh() } } }
+        .onChange(of:permissions.hasRequiredPermissions) { _,allowed in if !allowed { store.pause() } }
         .onChange(of:store.notice) { _,message in if let message { NoticePresenter.show(message) { store.notice=nil } } }
     }
 }

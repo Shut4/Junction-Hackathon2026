@@ -1,10 +1,46 @@
 import XCTest
 final class SmokeTests:XCTestCase {
+ override func setUp() {
+  super.setUp()
+  addUIInterruptionMonitor(withDescription:"位置情報・カメラ・通知の許可") { alert in
+   for label in ["Appの使用中は許可","アプリの使用中は許可","Allow While Using App","許可","Allow","OK"] {
+    let button=alert.buttons[label]
+    if button.exists { button.tap();return true }
+   }
+   return false
+  }
+ }
+ @MainActor func answerPermissionAlert(_ app:XCUIApplication,allow:Bool=true) {
+  let systemAlert=XCUIApplication(bundleIdentifier:"com.apple.springboard").alerts.firstMatch
+  let appAlert=app.alerts.firstMatch
+  let alert:XCUIElement?
+  if systemAlert.waitForExistence(timeout:2) { alert=systemAlert }
+  else if appAlert.exists { alert=appAlert }
+  else { alert=nil }
+  guard let alert else { return }
+  let labels=allow ? ["Appの使用中は許可","アプリの使用中は許可","Allow While Using App","許可","Allow","OK"]:["許可しない","Don't Allow","Don’t Allow"]
+  for label in labels {
+   let button=alert.buttons[label]
+   if button.exists { button.tap();return }
+  }
+  XCTFail("許可ダイアログの選択肢を見つけられません: \(alert.buttons.allElementsBoundByIndex.map { $0.label })")
+ }
+ @MainActor func completeRequiredPermissions(_ app:XCUIApplication) {
+  for label in ["位置情報の許可を確認","カメラの許可を確認"] {
+   let button=app.buttons[label]
+   if button.waitForExistence(timeout:5) {
+    XCTAssertFalse(app.buttons["tutorialNext"].exists)
+    button.tap();answerPermissionAlert(app)
+   }
+  }
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
+ }
  @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false)->XCUIApplication {
   let app=XCUIApplication();app.launchArguments=["-tutorialComplete","YES","--ui-testing","--reset-test-data"]
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
-  app.launch();return app
+  app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
+  app.launch();completeRequiredPermissions(app);return app
  }
  @MainActor func reach(_ button:XCUIElement,app:XCUIApplication,count:Int=10) {
   for _ in 0..<count where !button.isHittable { app.swipeUp() }
@@ -35,17 +71,48 @@ final class SmokeTests:XCTestCase {
   for _ in 0..<3 where !app.navigationBars["設定"].exists { gear.tap();_=app.navigationBars["設定"].waitForExistence(timeout:3) }
   let link=app.buttons["DeveloperModeを開く"];reach(link,app:app,count:15);link.tap()
  }
- @MainActor func testTutorialPermissionsAndOptionalContinuation() throws {
-  let app=XCUIApplication();app.launchArguments=["--reset-tutorial","--ui-testing","--reset-test-data"];app.launch()
+ @MainActor func testTutorialPermissionsAndRequiredAccess() throws {
+  let app=XCUIApplication();app.launchArguments=["--reset-tutorial","--ui-testing","--reset-test-data"]
+  app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera);app.launch()
   XCTAssertTrue(app.staticTexts["選んだ場所までの避難を支援"].waitForExistence(timeout:10))
   let next=app.buttons["tutorialNext"];reach(next,app:app);next.tap()
   XCTAssertTrue(app.staticTexts["通知の許可"].exists);XCTAssertTrue(app.buttons["通知の許可を確認"].exists)
+  app.buttons["通知の許可を確認"].tap();answerPermissionAlert(app)
+  XCTAssertTrue(app.buttons["位置情報の許可を確認"].waitForExistence(timeout:10))
+  XCTAssertFalse(next.exists)
+  app.buttons["位置情報の許可を確認"].tap();answerPermissionAlert(app)
+  XCTAssertTrue(app.buttons["カメラの許可を確認"].waitForExistence(timeout:10))
+  XCTAssertFalse(next.exists)
+  app.buttons["カメラの許可を確認"].tap();answerPermissionAlert(app)
+  XCTAssertTrue(app.staticTexts["地図とカメラで案内"].waitForExistence(timeout:10))
   reach(next,app:app);next.tap()
-  XCTAssertTrue(app.staticTexts["位置情報の許可"].exists);XCTAssertTrue(app.buttons["位置情報の許可を確認"].exists)
-  reach(next,app:app);next.tap()
-  XCTAssertTrue(app.staticTexts["カメラの許可"].exists)
-  reach(next,app:app);next.tap();reach(next,app:app);next.tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
+ }
+ @MainActor func testCameraPermissionRevocationBlocksHome() throws {
+  let app=launchMap()
+  app.terminate();app.resetAuthorizationStatus(for:.camera);app.launch()
+  XCTAssertTrue(app.buttons["カメラの許可を確認"].waitForExistence(timeout:10))
+  XCTAssertFalse(app.otherElements["homeMap"].exists)
+  XCTAssertFalse(app.buttons["tutorialNext"].exists)
+ }
+ @MainActor func testDeniedCameraPermissionStaysOnRequiredPage() throws {
+  let app=XCUIApplication();app.launchArguments=["-tutorialComplete","YES","--ui-testing","--reset-test-data"]
+  app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera);app.launch()
+  let location=app.buttons["位置情報の許可を確認"]
+  if location.waitForExistence(timeout:5) { location.tap();answerPermissionAlert(app) }
+  let camera=app.buttons["カメラの許可を確認"];XCTAssertTrue(camera.waitForExistence(timeout:10))
+  addUIInterruptionMonitor(withDescription:"カメラを拒否") { alert in
+   for label in ["許可しない","Don't Allow","Don’t Allow"] {
+    let button=alert.buttons[label]
+    if button.exists { button.tap();return true }
+   }
+   return false
+  }
+  camera.tap();answerPermissionAlert(app,allow:false)
+  XCTAssertTrue(app.staticTexts["カメラ：許可なし"].waitForExistence(timeout:10))
+  XCTAssertTrue(app.buttons["iOS設定を開く"].exists)
+  XCTAssertFalse(app.buttons["tutorialNext"].exists)
+  XCTAssertFalse(app.otherElements["homeMap"].exists)
  }
  @MainActor func testHomeIsFullScreenMapWithFloatingSearch() throws {
   let app=launchMap()

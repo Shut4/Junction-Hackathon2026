@@ -6,7 +6,7 @@ struct SettingsScreen:View {
     @AppStorage("tutorialComplete") private var tutorialComplete=false
     @AppStorage("tutorialStep") private var tutorialStep=0
     var body:some View { List {
-        Section("使い方・権限") { Button("チュートリアルを確認") { tutorialStep=0;tutorialComplete=false;store.pause() };Button("iOSの権限設定を開く") { openAppSettings() };Text("通知・位置情報・カメラの許可はチュートリアルで確認できます。通知を許可しなくてもアプリ内音声は使えます。") }
+        Section("使い方・権限") { Button("チュートリアルを確認") { tutorialStep=0;tutorialComplete=false;store.pause() };Button("iOSの権限設定を開く") { openAppSettings() };Text("位置情報とカメラの許可はアプリの利用に必要です。通知は任意で、許可しなくてもアプリ内音声は使えます。") }
         if store.storageIncompatible { MigrationSection() }
         Section("状態") { Text(store.location.status);Text("モデル：\(store.camera.modelStatus)");Text(store.speech.status);Text(store.storageError ?? "報告の読み込み完了");Button("報告を再読み込み") { store.retryRead() };Button("位置取得を開始") { store.location.start() };Text("アプリは前景で実験します。背景移行時は案内とカメラを停止します。") }
         Section("道路データ") { Text(store.network?.source ?? "読込失敗");Text("版：\(store.network?.version ?? "不明")");Text("歩行区間 \(store.edges.count)・現地未確認");SourceFooter() }
