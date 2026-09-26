@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-import pathlib, hashlib
+import pathlib, hashlib, plistlib
 r=pathlib.Path(__file__).resolve().parent.parent
 files=sorted([*r.glob('App/*.swift'),*r.glob('Core/*.swift'),r/'Data/kokura-network.json',r/'App/PrivacyInfo.xcprivacy'])
-model=r/'App/Models/vidvipo_yolov8n_2023-05-19.mlmodelc'
+# The model name lives only in App/Info.plist (JGDetectionModel).
+model=r/'App/Models'/(plistlib.loads((r/'App/Info.plist').read_bytes())['JGDetectionModel']+'.mlmodelc')
 if model.exists(): files.append(model)
 def uid(s):return hashlib.sha1(s.encode()).hexdigest()[:24].upper()
 objects=[]

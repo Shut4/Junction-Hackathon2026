@@ -30,13 +30,15 @@ xcodebuild -project JunctionGuide.xcodeproj -scheme JunctionGuide \
 
 ## モデル配置
 
-指定モデルをこのPCでCore MLコンパイルし、ローカルの `App/Models/vidvipo_yolov8n_2023-05-19.mlmodelc` を同梱しています。モデルの原本・コンパイル済みファイルはGitの対象外です。モデル取得・条件の入力画面はありません。
+指定モデルをこのPCでCore MLコンパイルし、ローカルの `App/Models/vidvipo_yolov8x_2023-05-19.mlmodelc` を同梱しています。使用するモデル名は `App/Info.plist` の `JGDetectionModel` だけで指定し、アプリ・`Scripts/install_model.sh`・`Scripts/create_project.py` はこの値を読みます。モデルの原本・コンパイル済みファイルはGitの対象外です。モデル取得・条件の入力画面はありません。
 
 ローカル環境を作り直す場合:
 
 ```sh
-Scripts/install_model.sh <保存先>/vidvipo_yolov8n_2023-05-19.mlmodel
+Scripts/install_model.sh <保存先>/vidvipo_yolov8x_2023-05-19.mlmodel
 ```
+
+モデルを切り替える場合は `JGDetectionModel` を変更し、同名の `.mlmodel` で `install_model.sh` を実行します（例：`vidvipo_yolov8n_2023-05-19` に戻す）。ファイル名が設定と一致しない場合、スクリプトは停止します。
 
 モデルがない環境では `python3 Scripts/create_project.py` でモデル参照のないプロジェクトを生成でき、道路機能はビルドできます。生成スクリプトはプロジェクトと共有Schemeを再生成するため、Xcodeで独自に変更した設定がある場合は先に差分を確認してください。
 
