@@ -166,7 +166,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         debugLog(.navigation,.start,"Guidance started",["mode":mode.rawValue,"distanceM":Int(route?.distance ?? 0),"simulated":simulated])
         updatePosition()
     }
-    func openCamera() { guidanceMode = .camera;guidanceActive=true;debugLog(.navigation,.info,"Full camera opened",["navigating":navigating]) }
+    func openCamera() { guidanceMode = .camera;guidanceActive=true;if !camera.running { camera.start() };debugLog(.navigation,.info,"Full camera opened",["navigating":navigating]) }
     func switchGuidance(to mode:GuidanceMode) {
         guidanceMode=mode
         if mode == .camera { if !camera.running { camera.start() } } else { camera.stop() }
