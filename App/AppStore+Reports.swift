@@ -11,13 +11,19 @@ extension AppStore {
         debugLog(.map,result.edgeIDs.isEmpty ? .warning:.info,"Trace matched",["points":points.count,"radiusM":Int(radius),"edges":result.edgeIDs.count,"ambiguous":result.ambiguous])
     }
     func clearSelection() { selected.removeAll();trace.removeAll();traceCandidates.removeAll();ambiguity=false;selectionMessage="選択を解除しました" }
-    func tapRoad(_ coordinate:Coordinate,radius:Double) {
-        guard let network else { return }
+    func tapRoad(_ coordinate:Coordinate,radius:Double) -> Report? {
+        guard let network else { return nil }
         trace=[]
         let result=RoadMatcher(network:network).tap(coordinate,radius:radius)
         traceCandidates=result.candidates;ambiguity=result.ambiguous;selectionMessage=result.message
         debugLog(.map,result.edgeIDs.isEmpty && !result.ambiguous ? .warning:.info,"Road tap",["radiusM":Int(radius),"selected":result.edgeIDs.first,"candidates":result.candidates.count,"ambiguous":result.ambiguous])
-        if let id=result.edgeIDs.first { confirmTappedRoad(id) }
+        guard let id=result.edgeIDs.first else { return nil }
+        if let report=reports.first(where: { $0.segmentID == id }) {
+            selectionMessage="登録済みの通行禁止区域です。削除する場合は確認してください。"
+            return report
+        }
+        confirmTappedRoad(id)
+        return nil
     }
     func confirmTappedRoad(_ id:String) {
         guard let network,edge(id) != nil else { return }
@@ -52,6 +58,19 @@ extension AppStore {
         guard let network,storageError == nil else { return }
         do { let next=reports.filter { $0.id != id };try activeStore.save(next,network:network);reports=next;debugLog(.report,.info,"Report removed",["remaining":next.count]);refreshRequestedRoute() }
         catch { storageError=error.localizedDescription;debugLog(.storage,.error,"Report removal failed",["error":error.localizedDescription]);stopNavigation() }
+    }
+    func removeReports(for segmentID:String) {
+        guard let network,storageError == nil else { return }
+        do {
+            let removed=reports.filter { $0.segmentID == segmentID }.count
+            let next=reports.filter { $0.segmentID != segmentID }
+            try activeStore.save(next,network:network)
+            reports=next;selected.remove(segmentID)
+            selectionMessage="通行禁止区域を削除しました"
+            notice=selectionMessage
+            debugLog(.report,.info,"Blocked segment removed",["segment":segmentID,"reports":removed,"remaining":next.count])
+            refreshRequestedRoute()
+        } catch { storageError=error.localizedDescription;debugLog(.storage,.error,"Blocked segment removal failed",["error":error.localizedDescription]);stopNavigation() }
     }
     func migrationPreview()->(kept:Int,dropped:Int)? {
         guard let network,let preview=try? activeStore.migrationPreview(network:network) else { return nil }
