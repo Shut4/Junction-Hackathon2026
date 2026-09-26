@@ -262,4 +262,30 @@ final class CoreTests:XCTestCase {
         let backup=try XCTUnwrap(try s.archive(label:"v1"));XCTAssertTrue(FileManager.default.fileExists(atPath:backup.path));XCTAssertFalse(FileManager.default.fileExists(atPath:s.url.path))
         try s.save(preview.kept,network:next);XCTAssertEqual(try s.load(network:next).count,1)
     }
+    func testDirectionBucketsWithHysteresis() {
+        XCTAssertEqual(DirectionBucket.of(5),.ahead);XCTAssertEqual(DirectionBucket.of(-40),.slightLeft);XCTAssertEqual(DirectionBucket.of(90),.right);XCTAssertEqual(DirectionBucket.of(-170),.behind)
+        XCTAssertEqual(DirectionBucket.of(22,keeping:.ahead),.ahead);XCTAssertEqual(DirectionBucket.of(30,keeping:.ahead),.slightRight)
+    }
+    func testDirectionAnnouncerWaitsForStabilityGapAndRepeatsTurns() {
+        var a=DirectionAnnouncer()
+        XCTAssertNil(a.update(angle:90,reason:"",now:0));XCTAssertNil(a.update(angle:90,reason:"",now:1))
+        XCTAssertEqual(a.update(angle:90,reason:"",now:1.3),"右へ約90度、向きを変えてください。")
+        XCTAssertNil(a.update(angle:92,reason:"",now:5))
+        XCTAssertEqual(a.update(angle:92,reason:"",now:11.4),"右へ約90度、向きを変えてください。")
+        XCTAssertNil(a.update(angle:0,reason:"",now:12));XCTAssertNil(a.update(angle:0,reason:"",now:13))
+        XCTAssertEqual(a.update(angle:0,reason:"",now:15.5),"正面方向です。そのまま進んでください。")
+        XCTAssertNil(a.update(angle:0,reason:"",now:40))
+        XCTAssertNil(a.update(angle:nil,reason:"保留",now:41));XCTAssertEqual(a.update(angle:nil,reason:"保留",now:44),"保留");XCTAssertNil(a.update(angle:nil,reason:"保留",now:60))
+        a.reset();XCTAssertNil(a.update(angle:0,reason:"",now:61));XCTAssertEqual(a.update(angle:0,reason:"",now:62.5),"正面方向です。そのまま進んでください。")
+    }
+    func testCameraPoseFromGravity() {
+        let upright=CameraPose.from(gravityX:0,y:-1,z:0);XCTAssertEqual(upright.tilt,0,accuracy:1e-9);XCTAssertEqual(upright.roll,0,accuracy:1e-9)
+        XCTAssertEqual(CameraPose.from(gravityX:0,y:0,z:-1).tilt,.pi/2,accuracy:1e-9)
+        XCTAssertEqual(CameraPose.from(gravityX:0,y:-cos(0.3),z:-sin(0.3)).tilt,0.3,accuracy:1e-9)
+        XCTAssertEqual(CameraPose.from(gravityX:-sin(0.2),y:-cos(0.2),z:0).roll,0.2,accuracy:1e-9)
+    }
+    func testDirectionSpeechExpiresWithCustomLifetime() {
+        var q=SpeechQueue();let now=Date()
+        q.enqueue("右へ",obstacle:false,now:now,ttl:3);XCTAssertNil(q.next(now:now.addingTimeInterval(4)))
+    }
 }

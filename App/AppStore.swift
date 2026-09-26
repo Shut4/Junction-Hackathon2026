@@ -57,6 +57,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var boxMinConfidence:Double { didSet { UserDefaults.standard.set(boxMinConfidence,forKey:"dev.boxMinConfidence") } }
     @Published var showARArrow:Bool { didSet { UserDefaults.standard.set(showARArrow,forKey:"dev.showARArrow") } }
     @Published var headingOffset:Double { didSet { UserDefaults.standard.set(headingOffset,forKey:"dev.headingOffset") } }
+    /// Assumed lens height above the road and how far ahead the 3D ground arrow is drawn (metres).
+    @Published var arrowCameraHeight:Double { didSet { UserDefaults.standard.set(arrowCameraHeight,forKey:"dev.arrowCameraHeight") } }
+    @Published var arrowDistance:Double { didSet { UserDefaults.standard.set(arrowDistance,forKey:"dev.arrowDistance") } }
+    /// Spoken cues for the camera arrow direction (user setting).
+    @Published var speakDirection:Bool { didSet { UserDefaults.standard.set(speakDirection,forKey:"speakDirection");directionAnnouncer.reset() } }
+    var directionAnnouncer=DirectionAnnouncer()
     var simulationFilter=NoticeFilter()
     let speech = SpeechController()
     let location = LocationController()
@@ -91,6 +97,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         showBoxes=defaults.bool(forKey:"dev.showBoxes");showBoxLabels=defaults.object(forKey:"dev.showBoxLabels") as? Bool ?? true
         boxMinConfidence=defaults.object(forKey:"dev.boxMinConfidence") as? Double ?? 0.3;showARArrow=defaults.object(forKey:"dev.showARArrow") as? Bool ?? true
         headingOffset=defaults.double(forKey:"dev.headingOffset")
+        arrowCameraHeight=defaults.object(forKey:"dev.arrowCameraHeight") as? Double ?? 1.3;arrowDistance=defaults.object(forKey:"dev.arrowDistance") as? Double ?? 4
+        speakDirection=defaults.object(forKey:"speakDirection") as? Bool ?? true
         #if DEBUG
         // UI testing only: skips the 7-tap gesture. Never compiled into Release builds.
         if ProcessInfo.processInfo.arguments.contains("--developer-mode") { developer=true }
@@ -255,6 +263,26 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Compass heading of the top/back of the device including the developer calibration offset.
     var heading:Double? { location.heading.map { ($0.degrees+headingOffset+720).truncatingRemainder(dividingBy:360) } }
     var headingReliable:Bool { guard let h=location.heading else { return false };return h.accuracy >= 0 && h.accuracy <= 25 }
+    /// Direction to the route for the camera arrow. `angle` is nil (with the reason) whenever the arrow must be withheld.
+    var cameraDirection:(angle:Double?,text:String,spoken:String) {
+        guard navigating,let p=progress,let sample=location.sample else { return (nil,"経路案内中のみ方向を表示します","経路案内中ではありません") }
+        guard matchedEdge != nil else { return (nil,"位置を確認中。方向を保留します","位置を確認中のため方向を保留します") }
+        guard let heading,headingReliable else { return (nil,"方位の精度が低いため矢印を表示しません","方位の精度が低いため方向を保留します") }
+        let angle=RouteTracker.relativeBearing(from:sample.coordinate,to:p.lookahead,heading:heading)
+        let degrees=Int(abs(angle).rounded())
+        let direction=abs(angle)<15 ? "正面方向":abs(angle)>150 ? "後ろ方向・約\(degrees)°":"\(angle>0 ? "右":"左")へ約\(degrees)°"
+        let text="\(direction)\n次の接続点まで約\(Int(p.distanceToStepEnd.rounded())) m・\(p.maneuver.text)"
+        let spoken="進む方向は\(abs(angle)<15 ? "ほぼ正面":abs(angle)>150 ? "後ろ":"\(angle>0 ? "右":"左")に約\(degrees)度")です。方位は概算です。足元と周囲を同行者と確認してください。"
+        return (angle,text,spoken)
+    }
+    /// Called periodically while the camera guidance is shown; speaks direction changes via `DirectionAnnouncer`.
+    func announceDirection() {
+        guard speakDirection,navigating,showARArrow else { directionAnnouncer.reset();return }
+        let state=cameraDirection
+        guard let text=directionAnnouncer.update(angle:state.angle,reason:state.spoken,now:ProcessInfo.processInfo.systemUptime) else { return }
+        // Short lifetime: a queued cue that is already stale must not be spoken after the user has turned.
+        speech.say(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":state.angle.map { Int($0.rounded()) },"text":text])
+    }
     func updatePosition() {
         guard let sample=location.sample else { matchedEdge=nil;positionState=location.status;if navigating { hold(positionState) };return }
         if automaticNetworkSelection { selectNetwork(containing:sample.coordinate) }

@@ -80,6 +80,8 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     var onNotice: ((DetectionNotice)->Void)?
     var onMetric: ((MetricEvent)->Void)?
     private var sessionGeneration=0
+    /// Field of view of the sensor's long side in degrees. The portrait aspect-fill preview shows that side as the full screen height.
+    var verticalFieldOfView:Double { Double(AVCaptureDevice.default(.builtInWideAngleCamera,for:.video,position:.back)?.activeFormat.videoFieldOfView ?? 65) }
     init() {
         UIDevice.current.isBatteryMonitoringEnabled=true
         if Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") != nil { modelStatus="導入済み・動作確認待ち" }
