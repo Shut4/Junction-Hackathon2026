@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pathlib, hashlib, plistlib
 r=pathlib.Path(__file__).resolve().parent.parent
-files=sorted([*r.glob('App/*.swift'),*r.glob('Core/*.swift'),r/'Data/kokura-network.json',r/'App/PrivacyInfo.xcprivacy',r/'App/Assets.xcassets'])
+files=sorted([*r.glob('App/*.swift'),*r.glob('Core/*.swift'),*r.glob('Data/*-network.json'),r/'App/PrivacyInfo.xcprivacy',r/'App/Assets.xcassets'])
 # The model name lives only in App/Info.plist (JGDetectionModel).
 model=r/'App/Models'/(plistlib.loads((r/'App/Info.plist').read_bytes())['JGDetectionModel']+'.mlmodelc')
 if model.exists(): files.append(model)
