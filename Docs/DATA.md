@@ -1,12 +1,14 @@
-# 小倉の道路データ
+# 小倉・戸畑の道路データ
 
-- データ: `Data/kokura-network.json`
+- データ: `Data/kokura-network.json`、`Data/tobata-network.json`
 - 出典: © OpenStreetMap contributors / ODbL 1.0
-- 原本: `Data/raw/kokura-osm.json`
-- 取得クエリ: `Data/raw/query.txt`
+- 原本: `Data/raw/kokura-osm.json`、`Data/raw/tobata-osm.json`
+- 取得クエリ: `Data/raw/kokura-query.txt`、`Data/raw/tobata-query.txt`
 - 抽出矩形（0.4）: 北緯33.8775–33.8925、東経130.8710–130.8900（小倉駅の南北・紫川の両岸・小倉城周辺）
+- 戸畑の抽出矩形: 北緯33.8880–33.9010、東経130.8320–130.8520（九工大前駅、戸畑キャンパス、キャンパス南側の住宅地周辺）
 - 取得日時・OSM基準時刻: ネットワークJSONの`acquiredAt`、`version`。
 - 現在のネットワーク: 2365地点・3364区間・5実験接続点（区間の内訳：footway 1864、tertiary 512、unclassified 463、service 190、pedestrian 117、residential 79、primary 74、secondary 29、tertiary_link 20、path 15、primary_link 1）。
+- 戸畑ネットワーク: 671地点・1004区間・3実験接続点。実験接続点は九工大前駅付近、戸畑キャンパス正門付近、キャンパス南側。
 - 0.3の旧データ（footway/path/pedestrianのみ、298地点・400区間）は`Data/archive/`に原本・加工データ・クエリを残した。
 
 0.4では、歩行用の`footway/path/pedestrian`に加え、歩行者が通行する一般道（`living_street/residential/service/unclassified/tertiary/secondary/primary`と各link、`track`）を取得した。歩道の有無・幅・車道との分離は区別しておらず、車道由来の区間の`conditions`にその旨を記録している。`foot=no/private`、`access=no/private`（`foot=yes`等の例外を除く）、トンネル、屋内、階段、`corridor`、`area=yes`、ドライブスルーは除外した。
@@ -17,7 +19,7 @@
 
 歩行一方通行は`oneway:foot`から取得し、車両の`oneway`を歩行に転用しない。この取得器は完全なOSM経路エンジンではない。時間条件、ゲート、幅、路面、横断信号、すべてのaccess例外を解釈していないため、屋外評価前に対象経路を現地で絞る必要がある。
 
-目的地は、小倉駅南側・京町・魚町・小倉城付近・紫川東岸の座標候補に近いネットワーク地点（候補座標から4〜20m）を実験接続点として選んだ。施設入口へ接続できたと説明しない。抽出範囲全体のすべての道路へ対応しているわけではなく、保存された区間だけが対象。
+目的地は、小倉駅南側・京町・魚町・小倉城付近・紫川東岸の座標候補に近いネットワーク地点（候補座標から4〜20m）を実験接続点として選んだ。戸畑は九工大前駅付近、戸畑キャンパス正門付近、キャンパス南側の候補から34.5m以内のネットワーク地点を選んだ。いずれもOSM上の接続点であり、施設入口へ接続できたと説明しない。抽出範囲全体のすべての道路へ対応しているわけではなく、保存された区間だけが対象。
 
 ## 利用条件と表示
 
@@ -29,7 +31,9 @@ Apple地図の形状をトレースして道路データへ取り込んでいな
 
 ## 更新
 
-`python3 Scripts/build_network.py`は保存済みの原本を再加工する。原本がない場合は停止し、`--fetch`を付けたときだけOverpass APIへ取得に行く。再取得するときは旧原本・加工データを別名で保持してから新しい版を作る。現行アプリに自動取得・更新APIはない。
+`python3 Scripts/build_network.py --region kokura`または`--region tobata`は、地域ごとの保存済み原本を再加工する。原本がない場合は停止し、`--fetch`を付けたときだけOverpass APIへ取得に行く。再取得時は既存の原本・クエリ・加工データをタイムスタンプ付きで`Data/archive/`へコピーしてから新しい版を作る。現行アプリに自動取得・更新APIはない。
+
+アプリは両方の道路網をバンドルし、現在地を含む地域へ自動で切り替える。設定で手動選択もできる。地域間の経路は作らず、選択中の道路網外は対応範囲外として扱う。報告ファイルも道路網IDごとに分け、従来の`real-reports.json`は小倉用としてそのまま利用する。
 
 更新後は区間ID対応、連結成分、向き、目的地、閉鎖時の迂回を検査する。現行保存はネットワーク版が違うと案内を保留し、旧報告をそのまま保持する。報告のID移行は自動では行わない。
 

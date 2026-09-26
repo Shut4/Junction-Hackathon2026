@@ -57,8 +57,9 @@ struct HeadingSample { var degrees:Double;var accuracy:Double;var timestamp:Date
     var simulated = false
     var authorization:String { switch manager.authorizationStatus { case .authorizedWhenInUse:return "使用中のみ許可";case .authorizedAlways:return "常に許可";case .denied:return "拒否";case .restricted:return "制限";default:return "未確認" } }
     var headingAvailable:Bool { CLLocationManager.headingAvailable() }
-    override init() { super.init();manager.delegate=self;manager.desiredAccuracy=kCLLocationAccuracyBest;manager.distanceFilter=kCLDistanceFilterNone;manager.headingFilter=3;manager.headingOrientation = .portrait }
+    override init() { super.init();manager.delegate=self;manager.desiredAccuracy=kCLLocationAccuracyBest;manager.distanceFilter=kCLDistanceFilterNone;manager.pausesLocationUpdatesAutomatically=false;manager.headingFilter=3;manager.headingOrientation = .portrait }
     func start() {
+        guard !simulated else { return }
         if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization();debugLog(.permission,.request,"Location authorization requested",direction:.outgoing) }
         else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted { status="位置情報が許可されていません";debugLog(.permission,.warning,"Location not authorized",["status":authorization]) }
         else {

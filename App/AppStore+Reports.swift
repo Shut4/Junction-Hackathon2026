@@ -39,18 +39,18 @@ extension AppStore {
             reports=all
             debugLog(.report,.success,"Blocked segments saved",["segments":additions.count,"hazard":hazard.rawValue,"total":all.count,"simulated":simulated])
             clearSelection();notice="通行不可を保存しました"
-            if navigating { reroute(blockage:true) } else { route=nil }
+            refreshRequestedRoute()
             return true
         } catch { storageError="保存失敗：\(error.localizedDescription)";debugLog(.storage,.error,"Report save failed",["error":error.localizedDescription]);stopNavigation();notice=storageError;return false }
     }
     func retryRead() {
         guard let network else { return }
         loadReports(from:activeStore,network:network)
-        if storageError == nil { route=nil;notice="報告を読み込みました" } else { stopNavigation() }
+        if storageError == nil { notice="報告を読み込みました";refreshRequestedRoute() } else { stopNavigation() }
     }
     func remove(_ id:UUID) {
         guard let network,storageError == nil else { return }
-        do { let next=reports.filter { $0.id != id };try activeStore.save(next,network:network);reports=next;route=nil;debugLog(.report,.info,"Report removed",["remaining":next.count]);if navigating { reroute(blockage:false) } }
+        do { let next=reports.filter { $0.id != id };try activeStore.save(next,network:network);reports=next;debugLog(.report,.info,"Report removed",["remaining":next.count]);refreshRequestedRoute() }
         catch { storageError=error.localizedDescription;debugLog(.storage,.error,"Report removal failed",["error":error.localizedDescription]);stopNavigation() }
     }
     func migrationPreview()->(kept:Int,dropped:Int)? {
@@ -64,13 +64,14 @@ extension AppStore {
             let preview=try activeStore.migrationPreview(network:network)
             let backup=try activeStore.archive(label:"before-migration")
             try activeStore.save(preview.kept,network:network)
-            reports=preview.kept;storageError=nil;storageIncompatible=false;route=nil
+            reports=preview.kept;storageError=nil;storageIncompatible=false
             notice="同じ区間IDの報告\(preview.kept.count)件を引き継ぎました。対応しない\(preview.dropped.count)件は退避ファイルに残っています。"
             debugLog(.storage,.success,"Reports migrated",["kept":preview.kept.count,"dropped":preview.dropped.count,"backup":backup?.lastPathComponent])
+            refreshRequestedRoute()
         } catch { notice="引き継げませんでした：\(error.localizedDescription)";debugLog(.storage,.error,"Report migration failed",["error":error.localizedDescription]) }
     }
     func archiveReports() {
-        do { let backup=try activeStore.archive(label:"archived");reports=[];storageError=nil;storageIncompatible=false;route=nil;notice="旧報告を退避しました（削除していません）";debugLog(.storage,.success,"Reports archived",["backup":backup?.lastPathComponent]) }
+        do { let backup=try activeStore.archive(label:"archived");reports=[];storageError=nil;storageIncompatible=false;notice="旧報告を退避しました（削除していません）";debugLog(.storage,.success,"Reports archived",["backup":backup?.lastPathComponent]);refreshRequestedRoute() }
         catch { notice="退避できませんでした：\(error.localizedDescription)";debugLog(.storage,.error,"Report archive failed",["error":error.localizedDescription]) }
     }
 }
