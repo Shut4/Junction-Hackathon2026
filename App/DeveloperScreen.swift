@@ -75,7 +75,7 @@ struct DeveloperScreen:View {
             }
             Text(store.positionState);Text("道路候補：\(store.matchedEdge ?? "未確定")")
         }
-        Section("道路・経路") { Text("版：\(store.network?.version ?? "なし")");Text("軌跡 \(store.trace.count)点・候補 \(store.traceCandidates.count)・確定 \(store.selected.count)・曖昧 \(store.ambiguity ? "あり":"なし")");Text("経路版 \(store.routeVersion)・再検索 \(store.reroutes)");Button("地図を対応範囲全体に移動") { store.focus(.network) };Button("模擬領域の全区間を閉鎖") { store.closeAll() }.disabled(!store.simulated) }
+        Section("道路・経路") { Text("版：\(store.network?.version ?? "なし")");Text("候補 \(store.roadCandidates.count)・確定 \(store.selected.count)・曖昧 \(store.ambiguity ? "あり":"なし")");Text("経路版 \(store.routeVersion)・再検索 \(store.reroutes)");Button("地図を対応範囲全体に移動") { store.focus(.network) };Button("模擬領域の全区間を閉鎖") { store.closeAll() }.disabled(!store.simulated) }
         Section("認識・通知") {
             Text("指定モデル：\(DetectionModel.name)");Text("ファイル記述：640×640 / confidence・coordinates / 39クラス。端末内での推論状態は下に表示")
             Text(store.camera.modelStatus)
