@@ -2,6 +2,8 @@
 
 北九州市小倉駅周辺の保存済みOSM歩行・道路ネットワーク、MapKit、通行不可報告、端末内経路検索、Core Location、音声、VIDVIPを接続した実験アプリです。同行者のいる管理された環境で評価します。安全性・施設入口・通行可能性を保証しません。
 
+アプリアイコンは `App/Assets.xcassets/AppIcon.appiconset/AppIcon.png` に配置。提供されたデザインの外側の白い余白を除き、背景を正方形の四辺まで広げた画像を使用する。Xcodeの `AppIcon` アセットとしてビルドする。
+
 ## このPCで実行
 
 1. `JunctionGuide.xcodeproj`をXcodeで開く。
