@@ -58,7 +58,7 @@ struct DeveloperScreen:View {
         }
         Section("道路・経路") { Text("版：\(store.network?.version ?? "なし")");Text("軌跡 \(store.trace.count)点・候補 \(store.traceCandidates.count)・確定 \(store.selected.count)・曖昧 \(store.ambiguity ? "あり":"なし")");Text("経路版 \(store.routeVersion)・再検索 \(store.reroutes)");Button("地図を対応範囲全体に移動") { store.focus(.network) };Button("模擬領域の全区間を閉鎖") { store.closeAll() }.disabled(!store.simulated) }
         Section("認識・通知") {
-            Text("指定モデル：vidvipo_yolov8n_2023-05-19");Text("ファイル記述：640×640 / confidence・coordinates / 39クラス。端末内での推論状態は下に表示")
+            Text("指定モデル：\(DetectionModel.name)");Text("ファイル記述：640×640 / confidence・coordinates / 39クラス。端末内での推論状態は下に表示")
             Text(store.camera.modelStatus)
             Slider(value:Binding(get:{store.camera.filter.confidence},set:{store.camera.filter.confidence=$0}),in:0.3...0.95) { Text("信頼度閾値") };Text("通知の信頼度閾値 \(store.camera.filter.confidence,specifier:"%.2f")")
             Slider(value:Binding(get:{store.camera.filter.persistence},set:{store.camera.filter.persistence=$0}),in:0.2...2) { Text("継続秒") };Text("継続 \(store.camera.filter.persistence,specifier:"%.1f")秒")
