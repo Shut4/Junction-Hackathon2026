@@ -7,6 +7,9 @@ if [ $# -lt 1 ]; then echo "usage: Scripts/install_model.sh <path/to/${MODEL_NAM
 TASK_MODEL_SOURCE="$1"
 if [ "${TASK_MODEL_SOURCE:t:r}" != "$MODEL_NAME" ]; then echo "モデル名が App/Info.plist の JGDetectionModel（${MODEL_NAME}）と一致しません: ${TASK_MODEL_SOURCE:t}" >&2; exit 65; fi
 mkdir -p App/Models
-cp "$TASK_MODEL_SOURCE" "App/Models/${MODEL_NAME}.mlmodel"
+TASK_MODEL_DEST="App/Models/${MODEL_NAME}.mlmodel"
+if [[ "${TASK_MODEL_SOURCE:A}" != "${TASK_MODEL_DEST:A}" ]]; then
+  cp "$TASK_MODEL_SOURCE" "$TASK_MODEL_DEST"
+fi
 xcrun coremlcompiler compile "App/Models/${MODEL_NAME}.mlmodel" App/Models
 python3 Scripts/create_project.py

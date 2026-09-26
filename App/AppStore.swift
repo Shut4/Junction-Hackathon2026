@@ -181,7 +181,11 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             routeMessage="道路・報告・目的地の状態を確認してください";notice=routeMessage;return
         }
         requestedRouteUsesPosition=usePosition
-        let blockedForSearch=blocked
+        // Build the closure snapshot from the persisted reports at the point of
+        // search. This keeps routing correct even if the published `blocked`
+        // cache has not propagated through SwiftUI yet.
+        let blockedForSearch=Set(reports.map(\.segmentID))
+        if blockedForSearch != blocked { blocked=blockedForSearch }
         let operation=DebugLogger.operationID(),started=Date()
         debugLog(.route,.start,"Route search started",["usePosition":usePosition,"destination":destination.nodeID,"blocked":blockedForSearch.count],operation:operation)
         if usePosition {
@@ -219,7 +223,14 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     /// Keep the requested start mode even after a failed search, so removing a closure can recover it.
     func refreshRequestedRoute() {
-        guard let usePosition=requestedRouteUsesPosition else { return }
+        // Capture the mode before invalidating the currently displayed route. This
+        // also recovers previews created by older state paths that did not retain
+        // requestedRouteUsesPosition.
+        let usePosition=requestedRouteUsesPosition ?? (route != nil && matchedEdge != nil)
+        route=nil
+        speech.invalidateRoute()
+        routeVersion += 1
+        guard requestedRouteUsesPosition != nil || usePosition else { return }
         calculate(usePosition:usePosition)
     }
     func startGuidance(_ mode:GuidanceMode) {
