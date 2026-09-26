@@ -1,0 +1,3 @@
+// Copy to Config/Local.xcconfig (ignored by Git) and set your own values.
+JG_BUNDLE_ID = com.example.JunctionGuide
+JG_TEAM = YOURTEAMID

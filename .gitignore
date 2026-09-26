@@ -1,0 +1,10 @@
+.DS_Store
+.build/
+Build/
+*.xcuserstate
+xcuserdata/
+App/Models/
+*.mlmodel
+*.mlmodelc/
+*.mlpackage/
+Config/Local.xcconfig

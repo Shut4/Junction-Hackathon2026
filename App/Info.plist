@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+<key>CFBundleDevelopmentRegion</key><string>ja</string>
+<key>CFBundleDisplayName</key><string>避難ナビ</string>
+<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+<key>CFBundleName</key><string>JunctionGuide</string>
+<key>CFBundlePackageType</key><string>APPL</string>
+<key>CFBundleShortVersionString</key><string>0.4</string>
+<key>CFBundleVersion</key><string>4</string>
+<key>LSRequiresIPhoneOS</key><true/>
+<key>NSLocationWhenInUseUsageDescription</key><string>小倉の実験地域で現在位置を照合し、歩行経路を案内します。位置履歴は保存・送信しません。</string>
+<key>NSCameraUsageDescription</key><string>背面カメラから障害物候補を端末内で検出します。画像は保存・送信しません。</string>
+<key>UILaunchScreen</key><dict/>
+<key>UISupportedInterfaceOrientations</key><array><string>UIInterfaceOrientationPortrait</string></array>
+<key>UIApplicationSceneManifest</key><dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
+</dict></plist>

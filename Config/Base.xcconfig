@@ -1,0 +1,5 @@
+// Shared build settings. Personal signing values (Team ID, bundle identifier) live in
+// Config/Local.xcconfig, which is not committed. Copy Local.xcconfig.example to create it.
+JG_BUNDLE_ID = com.example.JunctionGuide
+JG_TEAM =
+#include? "Local.xcconfig"
