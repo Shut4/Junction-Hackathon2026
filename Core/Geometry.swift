@@ -34,15 +34,15 @@ public enum Geometry {
         return best
     }
 }
-public struct RoadCandidate: Identifiable, Sendable { public var id: String; public var distance: Double }
-public struct RoadTapResult: Sendable { public var edgeID: String?; public var candidates: [RoadCandidate]; public var ambiguous: Bool; public var message: String }
+public struct MatchCandidate: Identifiable, Sendable { public var id: String; public var distance: Double }
+public struct RoadSelectionResult: Sendable { public var edgeIDs: [String]; public var candidates: [MatchCandidate]; public var ambiguous: Bool; public var message: String }
 public struct RoadMatcher: Sendable {
     public var network: Network
     public init(network: Network) { self.network = network }
-    public func candidates(at p: Coordinate, radius: Double) -> [RoadCandidate] {
+    public func candidates(at p: Coordinate, radius: Double) -> [MatchCandidate] {
         network.edges.compactMap { edge in
             let d = Geometry.project(p, onto: edge.shape).distance
-            return d <= radius ? RoadCandidate(id: edge.id, distance: d) : nil
+            return d <= radius ? MatchCandidate(id: edge.id, distance: d) : nil
         }.sorted { $0.distance < $1.distance }
     }
     public func connected(_ ids: Set<String>) -> Bool {
@@ -55,11 +55,11 @@ public struct RoadMatcher: Sendable {
         }
         return seen == ids
     }
-    public func tap(_ point:Coordinate,radius:Double)->RoadTapResult {
-        guard point.latitude.isFinite,point.longitude.isFinite,network.bounds.contains(point) else { return RoadTapResult(edgeID:nil,candidates:[],ambiguous:false,message:"対応範囲外です。登録する道路を選択できません。") }
+    public func tap(_ point:Coordinate,radius:Double)->RoadSelectionResult {
+        guard point.latitude.isFinite,point.longitude.isFinite,network.bounds.contains(point) else { return RoadSelectionResult(edgeIDs:[],candidates:[],ambiguous:false,message:"対応範囲外です。登録する道路を選択できません。") }
         let options=candidates(at:point,radius:radius)
-        guard let first=options.first else { return RoadTapResult(edgeID:nil,candidates:[],ambiguous:false,message:"タップした場所に対応する道路データがありません。") }
+        guard let first=options.first else { return RoadSelectionResult(edgeIDs:[],candidates:[],ambiguous:false,message:"タップした場所に対応する道路データがありません。") }
         let ambiguous=options.count>1 && options[1].distance-first.distance<max(3,radius*0.35)
-        return RoadTapResult(edgeID:ambiguous ? nil:first.id,candidates:ambiguous ? Array(options.prefix(5)):[],ambiguous:ambiguous,message:ambiguous ? "近くに複数の道路があります。対象を確認してください。":"タップした道路区間全体を選択しました。")
+        return RoadSelectionResult(edgeIDs:ambiguous ? []:[first.id],candidates:ambiguous ? Array(options.prefix(5)):[],ambiguous:ambiguous,message:ambiguous ? "近くに複数の道路があります。対象を確認してください。":"タップした道路区間全体を選択しました。")
     }
 }
