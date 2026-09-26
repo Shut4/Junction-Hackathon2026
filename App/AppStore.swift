@@ -19,7 +19,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var storageIncompatible = false
     @Published var selected = Set<String>()
     @Published var selectionMessage = "地図の道路をタップして選択してください"
-    @Published var roadCandidates: [RoadCandidate] = []
+    @Published var roadCandidates: [MatchCandidate] = []
     @Published var ambiguity = false
     @Published var destinationID = ""
     @Published var selectedTarget:Coordinate?

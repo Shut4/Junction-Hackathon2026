@@ -5,11 +5,11 @@ final class CoreTests:XCTestCase {
     func testRoadTapSelectsRealEdgeAndDoesNotGuessAtJunction() {
         let n=fixture(),matcher=RoadMatcher(network:n)
         let middle=Coordinate(33.883,130.8805)
-        XCTAssertEqual(matcher.tap(middle,radius:15).edgeID,"ab")
+        XCTAssertEqual(matcher.tap(middle,radius:15).edgeIDs,["ab"])
         let junction=matcher.tap(n.nodes[0].coordinate,radius:15)
-        XCTAssertTrue(junction.ambiguous);XCTAssertNil(junction.edgeID);XCTAssertGreaterThan(junction.candidates.count,1)
-        XCTAssertNil(matcher.tap(Coordinate(34,131),radius:15).edgeID)
-        XCTAssertNil(matcher.tap(Coordinate(33.888,130.888),radius:15).edgeID)
+        XCTAssertTrue(junction.ambiguous);XCTAssertTrue(junction.edgeIDs.isEmpty);XCTAssertGreaterThan(junction.candidates.count,1)
+        XCTAssertTrue(matcher.tap(Coordinate(34,131),radius:15).edgeIDs.isEmpty)
+        XCTAssertTrue(matcher.tap(Coordinate(33.888,130.888),radius:15).edgeIDs.isEmpty)
     }
     func testDestinationConnectionsRequireCoverageAndExplicitCandidates() {
         let n=fixture()
@@ -73,7 +73,7 @@ final class CoreTests:XCTestCase {
         XCTAssertFalse(matcher.connected(["ab","dc"]))
         XCTAssertFalse(matcher.connected([]))
     }
-    func testTapAndPositionOnParallelRoadsRemainAmbiguous() {
+    func testParallelAndOverpassRemainAmbiguous() {
         var n=fixture();var parallel=n.edges[0];parallel.id="parallel";parallel.layer="1";parallel.shape=parallel.shape.map { Coordinate($0.latitude+0.00001,$0.longitude) };n.edges.append(parallel)
         let result=RoadMatcher(network:n).tap(Coordinate(33.883005,130.8805),radius:8)
         XCTAssertTrue(result.ambiguous);XCTAssertEqual(Set(result.candidates.map(\.id)),["ab","parallel"])
