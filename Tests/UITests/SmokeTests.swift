@@ -155,6 +155,10 @@ final class SmokeTests:XCTestCase {
   let map=app.otherElements["homeMap"];XCTAssertTrue(map.exists)
   XCTAssertEqual(map.frame.width,app.windows.firstMatch.frame.width,accuracy:1);XCTAssertGreaterThan(map.frame.height,app.windows.firstMatch.frame.height*0.95)
   XCTAssertLessThan(app.textFields["destinationQuery"].frame.minY,map.frame.midY,"search floats over the top of the map")
+  let chips=app.scrollViews["savedChipsScroll"];XCTAssertTrue(chips.exists)
+  XCTAssertEqual(chips.frame.minX,app.windows.firstMatch.frame.minX,accuracy:1)
+  XCTAssertEqual(chips.frame.maxX,app.windows.firstMatch.frame.maxX,accuracy:1)
+  XCTAssertGreaterThanOrEqual(chips.buttons.firstMatch.frame.minX-chips.frame.minX,12)
   for label in ["設定","現在位置を表示","通行不可を登録","全面カメラで案内","京町・実験接続点を避難先にする"] { XCTAssertTrue(app.buttons[label].exists,label) }
   app.buttons["京町・実験接続点を避難先にする"].tap()
   XCTAssertTrue(app.staticTexts["京町・実験接続点"].waitForExistence(timeout:5))
