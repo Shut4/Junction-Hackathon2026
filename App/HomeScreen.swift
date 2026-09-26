@@ -155,7 +155,7 @@ struct HomeScreen:View {
                 if store.currentDestination != nil || store.selectedTarget != nil { Button("避難先の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
                 Button(details ? "状態の詳細を閉じる":"位置・道路・保存の状態を確認",systemImage:"info.circle") { details.toggle() }.frame(minHeight:44)
                 if details { StateCard() }
-                Text("長押しで避難先を選択。青：経路、赤と×：通行不可登録、緑：保存済み地点").font(.caption).foregroundStyle(.secondary)
+                Text("長押しで避難先を選択。青：経路、赤と×：通行不可登録。保存済み地点は上部のチップから選択できます").font(.caption).foregroundStyle(.secondary)
                 SourceFooter()
             }.padding(.horizontal,16).padding(.bottom,12).frame(maxWidth:.infinity,alignment:.leading)
     }
