@@ -65,7 +65,7 @@ struct TutorialScreen:View {
                 Button("iOS設定を開く") { openAppSettings() }.frame(minHeight:48)
             }
             if recoveryStep == nil && page != 2 && page != 3 {
-                PrimaryButton(title:page==4 ? "避難先を選ぶ":page==0 ? "次へ":"次へ（後で設定も可能）",symbol:"arrow.right") { if page>=4 { complete=true;step=0 } else { step += 1 } }.accessibilityIdentifier("tutorialNext")
+                PrimaryButton(title:page==4 ? "目的地を選ぶ":page==0 ? "次へ":"次へ（後で設定も可能）",symbol:"arrow.right") { if page>=4 { complete=true;step=0 } else { step += 1 } }.accessibilityIdentifier("tutorialNext")
             }
             if recoveryStep == nil && page>0 { Button("前の説明に戻る") { step -= 1 }.frame(minHeight:48) }
         }.padding(24) }.background(Color(.systemGroupedBackground))
@@ -95,8 +95,8 @@ struct TutorialScreen:View {
         case 1:return "iOSの通知を許可するか確認します。カメラの候補通知と経路の音声はアプリ内で行い、通知の許可がなくても使えます。現在のMVPでは災害情報のプッシュ配信はありません。"
         case 2:return "アプリ使用中の位置情報の許可が必要です。道路との照合と経路案内に使います。許可しない場合は先へ進めません。位置履歴は保存・送信しません。"
         case 3:return "背面カメラの許可が必要です。障害物候補を端末内で検出して通知するために使います。許可しない場合は先へ進めません。画像は保存・送信しません。"
-        case 4:return "上部の検索欄に避難先を直接入力し、候補から選択します。地図の長押し・保存済み地点からも選べます。道路接続点と経路を確認して開始すると、カメラ全面表示へ切り替えられます。通行不可登録では地図の道路をタップして選択します。VoiceOver用の区間一覧も用意しています。"
-        default:return "視覚障害者が指定した避難先へ向かうための実験用アプリです。この端末で登録した通行不可区間を避けて検索します。まずは同行者のいる管理された環境で使ってください。避難所の開設・受入状況と道路の安全性は確認していません。"
+        case 4:return "上部の検索欄に目的地を直接入力し、候補から選択します。地図の長押し・保存済み地点からも選べます。道路接続点と経路を確認して開始すると、カメラ全面表示へ切り替えられます。通行不可登録では地図の道路をタップして選択します。VoiceOver用の区間一覧も用意しています。"
+        default:return "視覚障害者が指定した目的地へ向かうための実験用アプリです。この端末で登録した通行不可区間を避けて検索します。まずは同行者のいる管理された環境で使ってください。避難所の開設・受入状況と道路の安全性は確認していません。"
     } }
 }
 @MainActor func openAppSettings() { if let url=URL(string:UIApplication.openSettingsURLString) { UIApplication.shared.open(url) } }
