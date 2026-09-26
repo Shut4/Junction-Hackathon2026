@@ -21,7 +21,7 @@ struct StateCard:View {
 struct RouteSummary:View {
     @EnvironmentObject var store:AppStore
     let route:WalkRoute
-    var body:some View { VStack(alignment:.leading,spacing:8) { HStack(alignment:.firstTextBaseline) { Text("徒歩目安 約\(max(1,Int((route.distance/60).rounded(.up))))分").font(.title2.bold()).foregroundStyle(.green);Text("\(Int(route.distance.rounded())) m").font(.title3.bold()) };Text("\(route.steps.count)区間・通行不可登録\(store.blocked.count)区間を除外して検索");Text("毎分60mで計算。歩道の現状・施設入口・到着時刻は未確認").font(.caption) }.accessibilityElement(children:.combine).padding().frame(maxWidth:.infinity,alignment:.leading).background(Color.blue.opacity(0.09),in:RoundedRectangle(cornerRadius:18)) }
+    var body:some View { VStack(alignment:.leading,spacing:8) { HStack(alignment:.firstTextBaseline) { Text("徒歩目安 約\(max(1,Int((route.distance/60).rounded(.up))))分").font(.title2.bold()).foregroundStyle(.green);Text("\(Int(route.distance.rounded())) m").font(.title3.bold()) };Text("\(route.steps.count)区間・通行不可登録\(route.excludedSegmentCount)区間を除外して検索").accessibilityIdentifier("routeBlockedSummary");Text("毎分60mで計算。歩道の現状・施設入口・到着時刻は未確認").font(.caption) }.accessibilityElement(children:.combine).padding().frame(maxWidth:.infinity,alignment:.leading).background(Color.blue.opacity(0.09),in:RoundedRectangle(cornerRadius:18)) }
 }
 
 struct RouteList:View {

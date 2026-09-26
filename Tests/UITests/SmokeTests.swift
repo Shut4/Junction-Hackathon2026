@@ -1,10 +1,45 @@
 import XCTest
 final class SmokeTests:XCTestCase {
- @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false)->XCUIApplication {
-  let app=XCUIApplication();app.launchArguments=["-tutorialComplete","YES","--ui-testing","--reset-test-data"]
+ @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,networkID:String="kokura-ground-osm")->XCUIApplication {
+  let app=XCUIApplication();app.launchArguments=["-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
   app.launch();return app
+ }
+ @MainActor func testTobataDestinationAndRoutePreview() throws {
+  let app=launchMap(developer:true,networkID:"tobata-ground-osm")
+  XCTAssertTrue(app.buttons["九工大前駅付近・実験接続点を避難先にする"].waitForExistence(timeout:10))
+  openDeveloper(app);let simulation=app.switches["toggleSimulation"];reach(simulation,app:app);turnOn(simulation)
+  app.navigationBars.buttons.element(boundBy:0).tap();app.buttons["完了"].tap()
+  app.buttons["戸畑キャンパス正門付近・実験接続点を避難先にする"].tap()
+  XCTAssertTrue(app.staticTexts["戸畑キャンパス正門付近・実験接続点"].waitForExistence(timeout:5))
+  let matched=app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","道路候補を照合")).firstMatch
+  XCTAssertTrue(matched.waitForExistence(timeout:15),"戸畑の模擬位置を道路に照合できること")
+  app.buttons["通行不可を避ける経路を確認"].tap()
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10))
+ }
+ @MainActor func testTobataRouteRecalculatesAfterClosureAndRemoval() throws {
+  let app=launchMap(developer:true,networkID:"tobata-ground-osm")
+  XCTAssertTrue(app.buttons["戸畑キャンパス正門付近・実験接続点を避難先にする"].waitForExistence(timeout:10))
+  openDeveloper(app);let simulation=app.switches["toggleSimulation"];reach(simulation,app:app);turnOn(simulation)
+  app.navigationBars.buttons.element(boundBy:0).tap();app.buttons["完了"].tap()
+  app.buttons["戸畑キャンパス正門付近・実験接続点を避難先にする"].tap()
+  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","道路候補を照合")).firstMatch.waitForExistence(timeout:15))
+  app.buttons["通行不可を避ける経路を確認"].tap()
+  XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録0区間")).firstMatch.waitForExistence(timeout:10))
+
+  // This stable OSM edge is on the fixture route and has a verified alternate path in CoreTests.
+  let closedEdge="osm:166677852:11702112551:1781302900"
+  app.buttons["通行不可を登録"].tap();app.buttons["roadListAlternative"].tap()
+  let search=app.textFields["道路名・接続点・区間IDを検索"];reach(search,app:app,count:15);search.tap();search.typeText(closedEdge)
+  let edge=app.buttons["edge."+closedEdge];XCTAssertTrue(edge.waitForExistence(timeout:5));edge.tap()
+  let review=app.buttons["対象を確認して登録"];reach(review,app:app,count:12);review.tap();app.buttons["この範囲を登録"].tap()
+  if app.alerts.firstMatch.waitForExistence(timeout:2) { app.alerts.buttons["閉じる"].tap() }
+  XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録1区間")).firstMatch.waitForExistence(timeout:10),"登録後の迂回経路が最新の除外件数を保持すること")
+
+  app.buttons["設定"].tap();let remove=app.buttons["removeReport."+closedEdge];reach(remove,app:app,count:20);XCTAssertTrue(remove.waitForExistence(timeout:5));remove.tap()
+  let confirmations=app.buttons.matching(NSPredicate(format:"label == %@","この報告を解除"));confirmations.element(boundBy:max(0,confirmations.count-1)).tap();app.buttons["完了"].tap()
+  XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録0区間")).firstMatch.waitForExistence(timeout:10),"解除後も経路が最新状態で再計算されること")
  }
  @MainActor func reach(_ button:XCUIElement,app:XCUIApplication,count:Int=10) {
   for _ in 0..<count where !button.isHittable { app.swipeUp() }
