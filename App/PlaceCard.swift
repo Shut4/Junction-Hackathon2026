@@ -96,7 +96,7 @@ struct PlaceCard:View {
             }
             if place.loading { ProgressView("詳細を取得中").font(.caption) }
             if let address=place.address { Label(address,systemImage:"mappin.circle").font(.subheadline) }
-            Text(inBounds ? "「経路」は小倉の保存済み道路網の接続点までです。施設の開設・受入状況と入口は未確認です。":"保存済み道路網の範囲外のため表示のみです。経路案内はできません。").font(.caption).foregroundStyle(.secondary)
+            Text(inBounds ? "「経路」は選択中の地域の保存済み道路網の接続点までです。施設の開設・受入状況と入口は未確認です。":"保存済み道路網の範囲外のため表示のみです。経路案内はできません。").font(.caption).foregroundStyle(.secondary)
         }
         .padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))

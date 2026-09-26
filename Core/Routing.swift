@@ -1,6 +1,26 @@
 import Foundation
 public struct RouteStep: Identifiable, Sendable { public var id: String; public var from: String; public var to: String; public var distance: Double; public var shape: [Coordinate] }
-public struct WalkRoute: Sendable { public var steps: [RouteStep]; public var distance: Double; public var destinationID: String }
+public struct WalkRoute: Sendable {
+    public var steps: [RouteStep]
+    public var distance: Double
+    public var destinationID: String
+    /// Exact closure snapshot supplied to the search that produced this route.
+    /// Keeping this with the result prevents the UI from describing a newer or older search state.
+    public var excludedSegmentIDs: Set<String>
+    public var excludedSegmentCount: Int { excludedSegmentIDs.count }
+    public var blockedSegmentsInRoute: Set<String> { Set(steps.map(\.id)).intersection(excludedSegmentIDs) }
+}
+public enum RouteFailure: Error, Equatable, Sendable {
+    case unmatchedPosition, blockedStart, outsideNetwork, noRoute
+    public var message:String {
+        switch self {
+        case .unmatchedPosition: return "現在位置に対応する道路がありません。位置情報と選択地域を確認してください。"
+        case .blockedStart: return "現在位置の道路が通行不可に登録されています。経路案内を開始できません。"
+        case .outsideNetwork: return "現在位置または目的地が選択地域の対応範囲外です。地域をまたぐ経路には対応していません。"
+        case .noRoute: return "通行不可区間を除外した経路がありません。道路網の接続と通行不可の登録状況を確認してください。"
+        }
+    }
+}
 public struct Router: Sendable {
     public var network: Network
     private let adjacency: [String: [Int]]
@@ -29,7 +49,18 @@ public struct Router: Sendable {
         guard let distance = costs[end] else { return nil }
         var steps: [RouteStep] = [], cursor = end
         while cursor != start { guard let step = previous[cursor] else { return nil }; steps.insert(step, at: 0); cursor = step.from }
-        return WalkRoute(steps: steps, distance: distance, destinationID: end)
+        let result=WalkRoute(steps:steps,distance:distance,destinationID:end,excludedSegmentIDs:blocked)
+        // This is intentionally checked at the Core boundary as well as before display.
+        // A future routing optimization must never turn a blocked edge into a fallback.
+        guard result.blockedSegmentsInRoute.isEmpty else { return nil }
+        return result
+    }
+    public func resolveRoute(from p:Coordinate,on edgeID:String,to end:String,blocked:Set<String>)->Result<WalkRoute,RouteFailure> {
+        guard network.bounds.contains(p),nodeIDs.contains(end) else { return .failure(.outsideNetwork) }
+        guard network.edges.contains(where: { $0.id == edgeID }) else { return .failure(.unmatchedPosition) }
+        guard !blocked.contains(edgeID) else { return .failure(.blockedStart) }
+        guard let route=route(from:p,on:edgeID,to:end,blocked:blocked) else { return .failure(.noRoute) }
+        return .success(route)
     }
     public func route(from p: Coordinate, on edgeID: String, to end: String, blocked: Set<String>) -> WalkRoute? {
         guard let e = network.edges.first(where: { $0.id == edgeID }), !blocked.contains(e.id) else { return nil }
@@ -77,21 +108,36 @@ public enum TurnGuidance {
 public enum LocationVerdict: Sendable { case matched(String), uncertain(String), outside }
 public enum PositionGate {
     public static func evaluate(_ p: LocationSample, network: Network, now: Date = Date()) -> LocationVerdict {
-        guard p.accuracy >= 0, p.accuracy <= 20, now.timeIntervalSince(p.timestamp) >= -2, now.timeIntervalSince(p.timestamp) <= 8 else { return .uncertain("位置の精度または更新時刻を確認中です。案内を保留します。") }
+        guard p.accuracy >= 0, p.accuracy <= 35 else { return .uncertain("位置の精度が不足しています。空が見える場所で位置の更新を待っています。") }
+        let age=now.timeIntervalSince(p.timestamp)
+        guard age >= -2, age <= 30 else { return .uncertain("位置情報が更新されていません。新しい位置を待っています。") }
         guard network.bounds.contains(p.coordinate) else { return .outside }
         let options = RoadMatcher(network: network).candidates(at:p.coordinate,radius:max(10,p.accuracy))
         guard let first = options.first else { return .uncertain("位置に対応する歩行区間がありません。") }
-        if options.count > 1 && options[1].distance-first.distance < max(5,p.accuracy) { return .uncertain("道路候補が複数あります。方向案内を保留します。") }
+        let competitive=options.dropFirst().prefix { $0.distance-first.distance < max(5,p.accuracy) }
+        if competitive.contains(where: { !sameJunction(first.id,$0.id,position:p.coordinate,tolerance:max(5,p.accuracy),network:network) }) {
+            return .uncertain("道路候補が複数あります。方向案内を保留します。")
+        }
         return .matched(first.id)
+    }
+    /// Adjacent segments meeting under the receiver at one junction describe the same
+    /// usable start point. Parallel roads and overpasses remain ambiguous.
+    private static func sameJunction(_ lhs:String,_ rhs:String,position:Coordinate,tolerance:Double,network:Network)->Bool {
+        guard let a=network.edge(lhs),let b=network.edge(rhs),a.layer == b.layer else { return false }
+        let shared=Set([a.from,a.to]).intersection([b.from,b.to])
+        return shared.contains { id in network.place(id).map { position.distance(to:$0.coordinate) <= tolerance } ?? false }
     }
 }
 public struct PositionResolver: Sendable {
+    private var networkKey:String?
     private var candidate:String?
     private var count=0
     private var lastSample:LocationSample?
     public init() {}
-    public mutating func reset() { candidate=nil;count=0;lastSample=nil }
+    public mutating func reset() { networkKey=nil;candidate=nil;count=0;lastSample=nil }
     public mutating func evaluate(_ sample:LocationSample,network:Network,now:Date=Date())->LocationVerdict {
+        let key=network.id+"/"+network.version
+        if networkKey != key { reset();networkKey=key }
         let verdict=PositionGate.evaluate(sample,network:network,now:now)
         guard case .matched(let id)=verdict else { candidate=nil;count=0;return verdict }
         if let previous=lastSample,previous.timestamp != sample.timestamp {
