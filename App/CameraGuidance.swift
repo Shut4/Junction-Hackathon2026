@@ -81,7 +81,7 @@ struct CameraScreen:View {
     /// Kept small and translucent so the camera image stays visible behind it.
     private var statusCard:some View {
         VStack(alignment:.leading,spacing:4) {
-            if !store.navigating { Text(store.route == nil ? "避難先を選び、経路を確認して案内を開始してください":store.nextInstruction).font(textSize.isAccessibilitySize ? .title2.bold():.headline).accessibilityAddTraits(.isHeader) }
+            if !store.navigating { Text(store.route == nil ? "目的地を選び、経路を確認して案内を開始してください":store.nextInstruction).font(textSize.isAccessibilitySize ? .title2.bold():.headline).accessibilityAddTraits(.isHeader) }
             Text(store.targetName).font(.subheadline)
             Text(store.camera.status).font(.subheadline).accessibilityIdentifier("cameraStatus")
             Text(store.camera.labels).font(.subheadline.bold())
@@ -93,7 +93,7 @@ struct CameraScreen:View {
     private var backButton:some View {
         Button { store.closeGuidance() } label: {
             Image(systemName:"chevron.left").font(.title3.weight(.semibold)).foregroundStyle(.white).frame(width:48,height:48).background(Circle().fill(.black.opacity(0.5)))
-        }.accessibilityLabel("戻る").accessibilityHint("地図・避難先選択へ戻り、カメラを停止します").accessibilityIdentifier("cameraBack")
+        }.accessibilityLabel("戻る").accessibilityHint("地図・目的地選択へ戻り、カメラを停止します").accessibilityIdentifier("cameraBack")
     }
     /// One row of icon buttons at the bottom; less frequent actions are in the "その他" menu.
     private var controlBar:some View {
@@ -117,7 +117,7 @@ struct CameraScreen:View {
                 Button("設定",systemImage:"gearshape") { settings=true }.frame(minHeight:48)
                 Button("案内を停止",role:.destructive) { stop=true }.frame(minHeight:48)
             }.padding() }.accessibilityIdentifier("cameraControls").frame(maxHeight:300).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))
-            Button("戻る",systemImage:"chevron.left") { store.closeGuidance() }.accessibilityHint("地図・避難先選択へ戻り、カメラを停止します").accessibilityIdentifier("cameraBack").font(.headline).frame(maxWidth:.infinity,minHeight:48).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:14))
+            Button("戻る",systemImage:"chevron.left") { store.closeGuidance() }.accessibilityHint("地図・目的地選択へ戻り、カメラを停止します").accessibilityIdentifier("cameraBack").font(.headline).frame(maxWidth:.infinity,minHeight:48).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:14))
         }
     }
 }

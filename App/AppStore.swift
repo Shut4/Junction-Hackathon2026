@@ -19,11 +19,11 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var storageIncompatible = false
     @Published var selected = Set<String>()
     @Published var selectionMessage = "地図の道路をタップして選択してください"
-    @Published var traceCandidates: [MatchCandidate] = []
+    @Published var roadCandidates: [MatchCandidate] = []
     @Published var ambiguity = false
     @Published var destinationID = ""
     @Published var selectedTarget:Coordinate?
-    @Published var targetName="避難先を選択してください"
+    @Published var targetName="目的地を選択してください"
     @Published var customDestination:Destination?
     @Published var destinationConnections:[DestinationConnection]=[]
     @Published var destinationMessage="避難所の開設・受入状況は確認していません"
@@ -45,8 +45,6 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var positionRoutable:Bool { matchedEdge != nil || offRoadDistance != nil }
     @Published var developer = false
     @Published var notice: String?
-    @Published var tracing = false
-    @Published var trace: [Coordinate] = []
     @Published var simulatedNoticeCount=0
     @Published var guidanceActive=false
     @Published var guidanceMode:GuidanceMode = .map
@@ -157,7 +155,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     private func activate(_ data:Network,remember:Bool=true,focus:Bool=true) {
         if network?.id == data.id { return }
-        stopNavigation();clearDestination();selected=[];trace=[];traceCandidates=[];ambiguity=false;matchedEdge=nil;positionResolver.reset();lastPositionKey=""
+        stopNavigation();clearDestination();selected=[];roadCandidates=[];ambiguity=false;matchedEdge=nil;positionResolver.reset();lastPositionKey=""
         network=data;edgeIndex=Dictionary(data.edges.map { ($0.id,$0) },uniquingKeysWith:{ a,_ in a });placeIndex=Dictionary(data.nodes.map { ($0.id,$0) },uniquingKeysWith:{ a,_ in a });previewStart=data.destinations.last?.nodeID ?? ""
         persistence=ReportStore(url:AppFiles.reportURL(networkID:data.id,simulated:false));simulatedPersistence=ReportStore(url:AppFiles.reportURL(networkID:data.id,simulated:true))
         reports=[];loadReports(from:activeStore,network:data);networkError=nil
@@ -182,7 +180,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         stopNavigation();destinationID="";customDestination=nil;selectedTarget=coordinate;targetName=name
         guard let network else { destinationMessage="道路データを読み込めません";return }
         destinationConnections=DestinationConnection.candidates(for:coordinate,network:network)
-        destinationMessage = !network.bounds.contains(coordinate) ? "選択した避難先は経路案内の対応範囲外です" : destinationConnections.isEmpty ? "近くに保存済み道路の接続点がありません。別の避難先を選択してください" : "案内の終点を下の候補から確認してください。施設入口への接続は未確認です"
+        destinationMessage = !network.bounds.contains(coordinate) ? "選択した目的地は経路案内の対応範囲外です" : destinationConnections.isEmpty ? "近くに保存済み道路の接続点がありません。別の目的地を選択してください" : "案内の終点を下の候補から確認してください。施設入口への接続は未確認です"
         debugLog(.search,.info,"Destination chosen",["inBounds":network.bounds.contains(coordinate),"connectionCandidates":destinationConnections.count])
         focus(.destination)
     }
@@ -198,7 +196,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         debugLog(.search,.info,"Saved destination chosen",["id":destination.id]);focus(.destination)
     }
     func clearDestination() {
-        stopNavigation();customDestination=nil;selectedTarget=nil;destinationConnections=[];destinationID="";targetName="避難先を選択してください";destinationMessage="避難所の開設・受入状況は確認していません"
+        stopNavigation();customDestination=nil;selectedTarget=nil;destinationConnections=[];destinationID="";targetName="目的地を選択してください";destinationMessage="避難所の開設・受入状況は確認していません"
     }
     // MARK: Routing and guidance
     func calculate(usePosition:Bool) {
@@ -366,7 +364,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         if let index=route.steps.enumerated().dropFirst(stepIndex).first(where:{$0.element.id==matchedEdge})?.offset,index<=stepIndex+1,index != stepIndex { stepIndex=index;debugLog(.navigation,.info,"Step advanced (matched)",["step":stepIndex,"of":route.steps.count]) }
         if let end=place(route.destinationID),sample.accuracy <= 8,sample.coordinate.distance(to:end.coordinate) <= 6,stepIndex >= max(0,route.steps.count-1) {
             if lastArrivalTimestamp != sample.timestamp { arrivalSamples += 1;lastArrivalTimestamp=sample.timestamp }
-            if arrivalSamples >= 3 { navigating=false;speech.invalidateRoute();stopSimulatedWalk();nextInstruction="避難先の道路接続点付近です。施設入口と受入状況を同行者と確認してください。";speech.say(nextInstruction);debugLog(.navigation,.success,"Arrived near destination connection");return }
+            if arrivalSamples >= 3 { navigating=false;speech.invalidateRoute();stopSimulatedWalk();nextInstruction="目的地の道路接続点付近です。施設入口と受入状況を同行者と確認してください。";speech.say(nextInstruction);debugLog(.navigation,.success,"Arrived near destination connection");return }
         } else { arrivalSamples=0 }
         if route.steps.isEmpty { hold("目的地の実験接続点付近です。同行者と確認してください。");return }
         if stepIndex < route.steps.count-1,let end=place(route.steps[stepIndex].to), sample.accuracy <= 8,sample.coordinate.distance(to:end.coordinate) <= 6 { stepIndex += 1;debugLog(.navigation,.info,"Step advanced (junction reached)",["step":stepIndex,"of":route.steps.count]) }

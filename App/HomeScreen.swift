@@ -50,7 +50,7 @@ struct HomeScreen:View {
         .sheet(isPresented:$settings) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
         .fullScreenCover(isPresented:$store.guidanceActive) { GuidanceContainer().environmentObject(store) }
-        .confirmationDialog("避難先の入口・受入状況と経路を同行者と確認してください",isPresented:Binding(get:{pendingMode != nil},set:{ if !$0 { pendingMode=nil } }),titleVisibility:.visible,presenting:pendingMode) { mode in
+        .confirmationDialog("目的地の入口・受入状況と経路を同行者と確認してください",isPresented:Binding(get:{pendingMode != nil},set:{ if !$0 { pendingMode=nil } }),titleVisibility:.visible,presenting:pendingMode) { mode in
             Button(mode == .map ? "確認してナビを開始":"確認して全面カメラで案内開始") { store.startGuidance(mode) }
             Button("取消",role:.cancel) {}
         }
@@ -88,7 +88,7 @@ struct HomeScreen:View {
             HStack(spacing:8) {
                 ForEach(store.destinations) { d in
                     Button { store.inspected=nil;store.chooseSavedDestination(d);query=d.name } label: { Label(d.name.replacingOccurrences(of:"・実験接続点",with:""),systemImage:"figure.walk").font(.subheadline.weight(.medium)).padding(.horizontal,14).padding(.vertical,9).background(Capsule().fill(store.destinationID == d.id ? Color.blue.opacity(0.18):Color(.systemBackground)).shadow(color:.black.opacity(0.12),radius:4,y:2)) }
-                        .buttonStyle(.plain).accessibilityLabel("\(d.name)を避難先にする")
+                        .buttonStyle(.plain).accessibilityLabel("\(d.name)を目的地にする")
                 }
             }.padding(.horizontal,14).padding(.vertical,4)
         }.frame(maxWidth:.infinity).accessibilityIdentifier("savedChipsScroll")
@@ -154,7 +154,7 @@ struct HomeScreen:View {
                 Capsule().fill(Color.secondary.opacity(0.45)).frame(width:40,height:5).frame(maxWidth:.infinity,minHeight:24).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(destinationPanelCollapsed ? "避難先パネルを展開":"避難先パネルを縮小")
+            .accessibilityLabel(destinationPanelCollapsed ? "目的地パネルを展開":"目的地パネルを縮小")
             .accessibilityIdentifier("destinationPanelHandle")
             ScrollView { panelContent }
                 .scrollBounceBehavior(.basedOnSize)
@@ -209,10 +209,10 @@ struct HomeScreen:View {
                 }
                 if let message=store.routeMessage { Text(message).font(.subheadline).accessibilityIdentifier("routeMessage") }
                 Text(store.positionState).font(.subheadline)
-                if store.currentDestination != nil || store.selectedTarget != nil { Button("避難先の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
+                if store.currentDestination != nil || store.selectedTarget != nil { Button("目的地の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
                 Button(details ? "状態の詳細を閉じる":"位置・道路・保存の状態を確認",systemImage:"info.circle") { details.toggle() }.frame(minHeight:44)
                 if details { StateCard() }
-                Text("長押しで避難先を選択。青：経路、赤と×：通行不可登録。保存済み地点は上部のチップから選択できます").font(.caption).foregroundStyle(.secondary)
+                Text("長押しで目的地を選択。青：経路、赤と×：通行不可登録。保存済み地点は上部のチップから選択できます").font(.caption).foregroundStyle(.secondary)
                 SourceFooter()
             }.padding(.horizontal,16).padding(.bottom,12).frame(maxWidth:.infinity,alignment:.leading)
     }
