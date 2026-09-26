@@ -1,7 +1,7 @@
 import SwiftUI
 import OSLog
 
-/// Unified developer log. Never record images, coordinates, location history, trace points,
+/// Unified developer log. Never record images, coordinates or location history,
 /// or free text that identifies where the user is going (search terms, place names, spoken instructions): log counts instead.
 @MainActor final class DebugLogger: ObservableObject {
     static let shared=DebugLogger()
@@ -67,7 +67,7 @@ struct DebugLogScreen:View {
                     Text("ログ保存").font(.subheadline.bold())
                     Text(DebugLogger.persists ? "有効（直近\(DebugLogger.capacity)件を再起動後も保持）/ \(DebugLogger.fileName)":"無効（メモリ内の直近\(DebugLogger.capacity)件のみ）").font(.subheadline).foregroundStyle(.secondary)
                 }
-                Text("再起動をまたぐ不具合の調査に備え、DEBUGビルドでは直近ログをApplication Supportへ保存します。Releaseビルドでは保存しません。画像・位置座標・位置履歴・なぞり軌跡は記録しません。").font(.footnote).foregroundStyle(.secondary)
+                Text("再起動をまたぐ不具合の調査に備え、DEBUGビルドでは直近ログをApplication Supportへ保存します。Releaseビルドでは保存しません。画像・位置座標・位置履歴は記録しません。").font(.footnote).foregroundStyle(.secondary)
                 if let error=logger.saveError { Label("保存エラー：\(error)",systemImage:"exclamationmark.triangle").foregroundStyle(.red) }
                 Picker("カテゴリ",selection:$category) { Text("ALL").tag(LogCategory?.none);ForEach(LogCategory.allCases,id:\.self) { Text("\($0.rawValue)（\($0.label)）").tag(Optional($0)) } }
                 Picker("レベル",selection:$level) { Text("ALL").tag(LogLevel?.none);ForEach(LogLevel.allCases,id:\.self) { Text("\($0.rawValue)（\($0.label)）").tag(Optional($0)) } }

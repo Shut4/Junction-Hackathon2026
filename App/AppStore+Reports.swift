@@ -3,21 +3,14 @@ import SwiftUI
 /// Road selection, blocked-segment reports and explicit report migration.
 extension AppStore {
     func edgeDescription(_ edge: WalkEdge) -> String { "\(edge.name)、\(name(edge.from))から\(name(edge.to))、\(Int(edge.distance.rounded()))メートル、\(blocked.contains(edge.id) ? "通行不可登録あり":"報告なし・安全未確認")" }
-    func toggle(_ id: String) { if selected.contains(id) { selected.remove(id) } else { selected.insert(id) };ambiguity=false;selectionMessage="区間全体が登録・除外の対象です" }
-    func finishTrace(_ points:[Coordinate],radius:Double) {
-        guard let network else { return };trace=points
-        let result=RoadMatcher(network:network).trace(points,radius:radius)
-        selected=Set(result.edgeIDs);traceCandidates=result.candidates;ambiguity=result.ambiguous;selectionMessage=result.message
-        debugLog(.map,result.edgeIDs.isEmpty ? .warning:.info,"Trace matched",["points":points.count,"radiusM":Int(radius),"edges":result.edgeIDs.count,"ambiguous":result.ambiguous])
-    }
-    func clearSelection() { selected.removeAll();trace.removeAll();traceCandidates.removeAll();ambiguity=false;selectionMessage="選択を解除しました" }
+    func toggle(_ id: String) { if selected.contains(id) { selected.remove(id) } else { selected.insert(id) };roadCandidates=[];ambiguity=false;selectionMessage="区間全体が登録・除外の対象です" }
+    func clearSelection() { selected.removeAll();roadCandidates.removeAll();ambiguity=false;selectionMessage="選択を解除しました" }
     func tapRoad(_ coordinate:Coordinate,radius:Double) -> Report? {
         guard let network else { return nil }
-        trace=[]
         let result=RoadMatcher(network:network).tap(coordinate,radius:radius)
-        traceCandidates=result.candidates;ambiguity=result.ambiguous;selectionMessage=result.message
-        debugLog(.map,result.edgeIDs.isEmpty && !result.ambiguous ? .warning:.info,"Road tap",["radiusM":Int(radius),"selected":result.edgeIDs.first,"candidates":result.candidates.count,"ambiguous":result.ambiguous])
-        guard let id=result.edgeIDs.first else { return nil }
+        roadCandidates=result.candidates;ambiguity=result.ambiguous;selectionMessage=result.message
+        debugLog(.map,result.edgeID == nil && !result.ambiguous ? .warning:.info,"Road tap",["radiusM":Int(radius),"selected":result.edgeID,"candidates":result.candidates.count,"ambiguous":result.ambiguous])
+        guard let id=result.edgeID else { return nil }
         if let report=reports.first(where: { $0.segmentID == id }) {
             selectionMessage="登録済みの通行禁止区域です。削除する場合は確認してください。"
             return report
@@ -29,10 +22,9 @@ extension AppStore {
         guard let network,edge(id) != nil else { return }
         let next=selected.symmetricDifference([id])
         guard next.isEmpty || RoadMatcher(network:network).connected(next) else { selectionMessage="離れた道路は同時に選択できません。選択を解除してから選び直してください。";return }
-        selected=next;ambiguity=false;traceCandidates=[];selectionMessage="選択 \(selected.count)区間。道路区間全体を登録・除外します。再タップで選択解除できます。"
+        selected=next;ambiguity=false;roadCandidates=[];selectionMessage="選択 \(selected.count)区間。道路区間全体を登録・除外します。再タップで選択解除できます。"
     }
     func confirmRoadCandidate(_ id:String) {
-        if !trace.isEmpty { selected=[];trace=[] }
         confirmTappedRoad(id)
     }
     func register(hazard:Hazard,date:Date,text:String) -> Bool {

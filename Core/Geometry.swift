@@ -34,16 +34,16 @@ public enum Geometry {
         return best
     }
 }
-public struct MatchCandidate: Identifiable, Sendable { public var id: String; public var distance: Double; public var score: Double }
-public struct TraceResult: Sendable { public var edgeIDs: [String]; public var candidates: [MatchCandidate]; public var ambiguous: Bool; public var message: String }
+public struct RoadCandidate: Identifiable, Sendable { public var id: String; public var distance: Double }
+public struct RoadTapResult: Sendable { public var edgeID: String?; public var candidates: [RoadCandidate]; public var ambiguous: Bool; public var message: String }
 public struct RoadMatcher: Sendable {
     public var network: Network
     public init(network: Network) { self.network = network }
-    public func candidates(at p: Coordinate, radius: Double) -> [MatchCandidate] {
+    public func candidates(at p: Coordinate, radius: Double) -> [RoadCandidate] {
         network.edges.compactMap { edge in
             let d = Geometry.project(p, onto: edge.shape).distance
-            return d <= radius ? MatchCandidate(id: edge.id, distance: d, score: d) : nil
-        }.sorted { $0.score < $1.score }
+            return d <= radius ? RoadCandidate(id: edge.id, distance: d) : nil
+        }.sorted { $0.distance < $1.distance }
     }
     public func connected(_ ids: Set<String>) -> Bool {
         guard let first = ids.first else { return false }
@@ -55,39 +55,11 @@ public struct RoadMatcher: Sendable {
         }
         return seen == ids
     }
-    public func tap(_ point:Coordinate,radius:Double)->TraceResult {
-        guard point.latitude.isFinite,point.longitude.isFinite,network.bounds.contains(point) else { return TraceResult(edgeIDs:[],candidates:[],ambiguous:false,message:"対応範囲外です。登録する道路を選択できません。") }
+    public func tap(_ point:Coordinate,radius:Double)->RoadTapResult {
+        guard point.latitude.isFinite,point.longitude.isFinite,network.bounds.contains(point) else { return RoadTapResult(edgeID:nil,candidates:[],ambiguous:false,message:"対応範囲外です。登録する道路を選択できません。") }
         let options=candidates(at:point,radius:radius)
-        guard let first=options.first else { return TraceResult(edgeIDs:[],candidates:[],ambiguous:false,message:"タップした場所に対応する道路データがありません。") }
+        guard let first=options.first else { return RoadTapResult(edgeID:nil,candidates:[],ambiguous:false,message:"タップした場所に対応する道路データがありません。") }
         let ambiguous=options.count>1 && options[1].distance-first.distance<max(3,radius*0.35)
-        return TraceResult(edgeIDs:ambiguous ? []:[first.id],candidates:ambiguous ? Array(options.prefix(5)):[],ambiguous:ambiguous,message:ambiguous ? "近くに複数の道路があります。対象を確認してください。":"タップした道路区間全体を選択しました。")
-    }
-    public func trace(_ points: [Coordinate], radius: Double) -> TraceResult {
-        guard points.count >= 2, points.allSatisfy(network.bounds.contains) else { return TraceResult(edgeIDs: [], candidates: [], ambiguous: false, message: "対応範囲内の道路をなぞってください。") }
-        var selected: [String] = [], ambiguous = false, alternatives: [String: MatchCandidate] = [:]
-        for i in points.indices {
-            var options = candidates(at: points[i], radius: radius)
-            if i > 0 && points[i-1].distance(to: points[i]) > 2 {
-                let heading = Geometry.bearing(points[i-1], points[i])
-                for j in options.indices {
-                    guard let e = network.edge(options[j].id) else { continue }
-                    let bearing = Geometry.project(points[i], onto: e.shape).bearing
-                    let diff = abs(heading-bearing).truncatingRemainder(dividingBy: 180)
-                    options[j].score += min(diff,180-diff)/90 * radius * 0.6
-                }
-            }
-            if let last = selected.last, let previous = network.edge(last) {
-                for j in options.indices where options[j].id != last {
-                    if let e = network.edge(options[j].id), ![previous.from, previous.to].contains(e.from), ![previous.from, previous.to].contains(e.to) { options[j].score += radius*2 }
-                }
-            }
-            options.sort { $0.score < $1.score }
-            guard let first = options.first else { return TraceResult(edgeIDs: [], candidates: [], ambiguous: false, message: "道路データに照合できない部分があります。範囲を縮めてやり直してください。") }
-            if options.count > 1 && options[1].score-first.score < max(3,radius*0.35) { ambiguous = true; for c in options.prefix(3) { alternatives[c.id] = c } }
-            if selected.last != first.id { selected.append(first.id) }
-        }
-        let unique = Array(Set(selected)).sorted()
-        guard connected(Set(unique)) else { return TraceResult(edgeIDs: [], candidates: Array(alternatives.values), ambiguous: true, message: "区間が連続しません。候補を一覧で確認してください。") }
-        return TraceResult(edgeIDs: unique, candidates: alternatives.values.sorted { $0.distance < $1.distance }, ambiguous: ambiguous, message: ambiguous ? "候補が曖昧です。選択対象を一覧で確認してください。" : "道路区間全体を選択しました。保存前に両端を確認してください。")
+        return RoadTapResult(edgeID:ambiguous ? nil:first.id,candidates:ambiguous ? Array(options.prefix(5)):[],ambiguous:ambiguous,message:ambiguous ? "近くに複数の道路があります。対象を確認してください。":"タップした道路区間全体を選択しました。")
     }
 }

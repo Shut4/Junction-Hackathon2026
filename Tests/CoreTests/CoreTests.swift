@@ -5,11 +5,11 @@ final class CoreTests:XCTestCase {
     func testRoadTapSelectsRealEdgeAndDoesNotGuessAtJunction() {
         let n=fixture(),matcher=RoadMatcher(network:n)
         let middle=Coordinate(33.883,130.8805)
-        XCTAssertEqual(matcher.tap(middle,radius:15).edgeIDs,["ab"])
+        XCTAssertEqual(matcher.tap(middle,radius:15).edgeID,"ab")
         let junction=matcher.tap(n.nodes[0].coordinate,radius:15)
-        XCTAssertTrue(junction.ambiguous);XCTAssertTrue(junction.edgeIDs.isEmpty);XCTAssertGreaterThan(junction.candidates.count,1)
-        XCTAssertTrue(matcher.tap(Coordinate(34,131),radius:15).edgeIDs.isEmpty)
-        XCTAssertTrue(matcher.tap(Coordinate(33.888,130.888),radius:15).edgeIDs.isEmpty)
+        XCTAssertTrue(junction.ambiguous);XCTAssertNil(junction.edgeID);XCTAssertGreaterThan(junction.candidates.count,1)
+        XCTAssertNil(matcher.tap(Coordinate(34,131),radius:15).edgeID)
+        XCTAssertNil(matcher.tap(Coordinate(33.888,130.888),radius:15).edgeID)
     }
     func testDestinationConnectionsRequireCoverageAndExplicitCandidates() {
         let n=fixture()
@@ -73,18 +73,9 @@ final class CoreTests:XCTestCase {
         XCTAssertFalse(matcher.connected(["ab","dc"]))
         XCTAssertFalse(matcher.connected([]))
     }
-    func testTraceSelectsRoadShapeNotFreehand() {
-        let n=fixture(),result=RoadMatcher(network:n).trace([Coordinate(33.88301,130.8802),Coordinate(33.88301,130.8808)],radius:8)
-        XCTAssertEqual(result.edgeIDs,["ab"]);XCTAssertFalse(result.ambiguous)
-    }
-    func testTraceOutsideAndMissingRoad() {
-        let m=RoadMatcher(network:fixture())
-        XCTAssertTrue(m.trace([Coordinate(34,130),Coordinate(34,130.1)],radius:8).edgeIDs.isEmpty)
-        XCTAssertTrue(m.trace([Coordinate(33.887,130.887),Coordinate(33.887,130.888)],radius:5).edgeIDs.isEmpty)
-    }
-    func testParallelAndOverpassRemainAmbiguous() {
+    func testTapAndPositionOnParallelRoadsRemainAmbiguous() {
         var n=fixture();var parallel=n.edges[0];parallel.id="parallel";parallel.layer="1";parallel.shape=parallel.shape.map { Coordinate($0.latitude+0.00001,$0.longitude) };n.edges.append(parallel)
-        let result=RoadMatcher(network:n).trace([Coordinate(33.883005,130.8802),Coordinate(33.883005,130.8808)],radius:8)
+        let result=RoadMatcher(network:n).tap(Coordinate(33.883005,130.8805),radius:8)
         XCTAssertTrue(result.ambiguous);XCTAssertEqual(Set(result.candidates.map(\.id)),["ab","parallel"])
         if case .uncertain = PositionGate.evaluate(LocationSample(coordinate:Coordinate(33.883005,130.8805),accuracy:3,timestamp:Date()),network:n) {} else { XCTFail("Parallel roads must not be resolved by nearest edge") }
     }
