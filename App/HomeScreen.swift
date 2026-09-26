@@ -21,15 +21,15 @@ struct HomeScreen:View {
                 GuideMap(store:store,mode:.explore,onDestination:{ store.inspectDroppedPin($0) },onTap:{ searchFocused=false;if query.isEmpty { searchOpen=false };store.inspected=nil },insets:UIEdgeInsets(top:geometry.safeAreaInsets.top+(searchOpen ? 0:118),left:0,bottom:searchOpen ? 0:panelHeight+geometry.safeAreaInsets.bottom,right:0))
                     .ignoresSafeArea().accessibilityIdentifier("homeMap")
                 VStack(spacing:10) {
-                    searchBar
-                    if searchOpen { searchResults } else { savedChips }
+                    searchBar.padding(.horizontal,12)
+                    if searchOpen { searchResults.padding(.horizontal,12) } else { savedChips }
                     Spacer(minLength:0)
                     if !searchOpen {
-                        floatingButtons
-                        if let place=store.inspected { PlaceCard(place:place).padding(.bottom,4).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 } }
-                        else { bottomPanel(maxHeight:geometry.size.height*(expanded || textSize.isAccessibilitySize ? 0.62:0.42)) }
+                        floatingButtons.padding(.horizontal,12)
+                        if let place=store.inspected { PlaceCard(place:place).padding(.horizontal,12).padding(.bottom,4).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 } }
+                        else { bottomPanel(maxHeight:geometry.size.height*(expanded || textSize.isAccessibilitySize ? 0.62:0.42)).padding(.horizontal,12) }
                     }
-                }.padding(.horizontal,12).padding(.top,4)
+                }.padding(.top,4)
             }
         }
         .toolbar(.hidden,for:.navigationBar)
@@ -68,8 +68,8 @@ struct HomeScreen:View {
                     Button { store.inspected=nil;store.chooseSavedDestination(d);query=d.name } label: { Label(d.name.replacingOccurrences(of:"・実験接続点",with:""),systemImage:"figure.walk").font(.subheadline.weight(.medium)).padding(.horizontal,14).padding(.vertical,9).background(Capsule().fill(store.destinationID == d.id ? Color.blue.opacity(0.18):Color(.systemBackground)).shadow(color:.black.opacity(0.12),radius:4,y:2)) }
                         .buttonStyle(.plain).accessibilityLabel("\(d.name)を避難先にする")
                 }
-            }.padding(.horizontal,2).padding(.vertical,4)
-        }
+            }.padding(.horizontal,14).padding(.vertical,4)
+        }.frame(maxWidth:.infinity).accessibilityIdentifier("savedChipsScroll")
     }
     private var searchResults:some View {
         ScrollView { VStack(alignment:.leading,spacing:0) {
