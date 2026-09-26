@@ -173,11 +173,11 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(handle.exists)
   let expandedHeight=panel.frame.height
   let start=app.staticTexts["京町・実験接続点"].coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5))
-  start.press(forDuration:0.1,thenDragTo:start.withOffset:CGVector(dx:0,dy:230))
+  start.press(forDuration:0.1,thenDragTo:start.withOffset(CGVector(dx:0,dy:230)))
   XCTAssertLessThan(panel.frame.height,expandedHeight-80)
   XCTAssertEqual(handle.label,"目的地パネルを展開")
   let compactStart=handle.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5))
-  compactStart.press(forDuration:0.1,thenDragTo:compactStart.withOffset:CGVector(dx:0,dy:-230))
+  compactStart.press(forDuration:0.1,thenDragTo:compactStart.withOffset(CGVector(dx:0,dy:-230)))
   XCTAssertGreaterThan(panel.frame.height,expandedHeight-30)
   XCTAssertEqual(handle.label,"目的地パネルを縮小")
   XCTAssertTrue(app.buttons["通行不可を避ける経路を確認"].exists)
