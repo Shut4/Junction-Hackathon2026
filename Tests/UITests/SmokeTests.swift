@@ -108,8 +108,8 @@ final class SmokeTests:XCTestCase {
  }
  @MainActor func testMaximumTextCameraControlsRemainReachable() throws {
   let app=launchMap(maximumText:true);let camera=app.buttons["全面カメラで案内"];camera.tap()
-  let start=app.buttons["カメラと通知を開始"];XCTAssertTrue(start.waitForExistence(timeout:5));XCTAssertTrue(start.isHittable)
-  let map=app.buttons["地図・避難先選択へ"];for _ in 0..<8 where !map.isHittable { app.scrollViews["cameraControls"].swipeUp() }
+  let map=app.buttons["cameraBack"];XCTAssertTrue(map.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["カメラと通知を開始"].exists)
+  for _ in 0..<8 where !map.isHittable { app.scrollViews["cameraControls"].swipeUp() }
   XCTAssertTrue(map.isHittable)
   attach(app,"Maximum-text-full-camera-controls");map.tap()
   XCTAssertTrue(app.buttons["設定"].waitForExistence(timeout:5))
@@ -121,7 +121,8 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.staticTexts["小倉駅南側・実験接続点"].waitForExistence(timeout:5))
   attach(app,"Evacuation-destination-map")
   app.buttons["全面カメラで案内"].tap()
-  XCTAssertTrue(app.buttons["カメラと通知を開始"].waitForExistence(timeout:5));XCTAssertTrue(app.buttons["地図・避難先選択へ"].exists)
+  XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.buttons["カメラと通知を開始"].exists);XCTAssertFalse(app.buttons["案内を再読み上げ"].exists)
  }
  @MainActor func testSimulatedMapAndCameraNavigationWithBoxes() throws {
   let app=launchMap(developer:true)
@@ -163,12 +164,12 @@ final class SmokeTests:XCTestCase {
  }
  @MainActor func testRealCameraModelInferenceAndDeveloperMode() throws {
   if ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] != nil { throw XCTSkip("Camera requires physical iPhone") }
-  let app=launchMap();app.buttons["全面カメラで案内"].tap();app.buttons["カメラと通知を開始"].tap()
+  let app=launchMap();app.buttons["全面カメラで案内"].tap()
   let springboard=XCUIApplication(bundleIdentifier:"com.apple.springboard")
   let allow=springboard.buttons.matching(NSPredicate(format:"label IN %@",["許可","OK","Allow"])).firstMatch
   if allow.waitForExistence(timeout:3) { allow.tap() }
-  XCTAssertTrue(app.buttons["カメラと通知を停止"].waitForExistence(timeout:15))
-  app.buttons["地図・避難先選択へ"].tap();app.buttons["設定"].tap();let version=app.buttons["versionInfo"];reach(version,app:app)
+  XCTAssertTrue(app.staticTexts["端末内で認識中"].waitForExistence(timeout:15))
+  app.buttons["cameraBack"].tap();app.buttons["設定"].tap();let version=app.buttons["versionInfo"];reach(version,app:app)
   for _ in 0..<7 { version.tap() }
   if app.alerts.firstMatch.waitForExistence(timeout:3) { app.alerts.buttons["閉じる"].tap() }
   app.buttons["DeveloperModeを開く"].tap();let metrics=app.staticTexts["metricInference"];reach(metrics,app:app,count:20)
