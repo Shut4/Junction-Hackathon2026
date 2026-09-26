@@ -18,7 +18,7 @@ struct ARDirectionIndicator:View {
     }
     private var guidance:(angle:Double?,text:String,spoken:String) {
         guard store.navigating,let p=store.progress,let sample=store.location.sample else { return (nil,"経路案内中のみ方向を表示します","経路案内中ではありません") }
-        guard store.matchedEdge != nil else { return (nil,"位置を確認中。方向を保留します","位置を確認中のため方向を保留します") }
+        guard store.positionRoutable else { return (nil,"位置を確認中。方向を保留します","位置を確認中のため方向を保留します") }
         guard let heading=store.heading,store.headingReliable else { return (nil,"方位の精度が低いため矢印を表示しません","方位の精度が低いため方向を保留します") }
         let angle=RouteTracker.relativeBearing(from:sample.coordinate,to:p.lookahead,heading:heading)
         let degrees=Int(abs(angle).rounded())

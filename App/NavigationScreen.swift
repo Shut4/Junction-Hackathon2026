@@ -75,7 +75,7 @@ struct InstructionBanner:View {
                     VStack(alignment:.leading,spacing:2) {
                         Text("\(Int(p.distanceToStepEnd.rounded())) m").font(compact ? .title.bold():.largeTitle.bold())
                         Text(p.maneuver == .arrive ? "先で案内の終点":"先の接続点で\(p.maneuver.text)").font(.headline)
-                        if let step=store.route?.steps[safe:p.stepIndex],let road=store.edge(step.id)?.name { Text(road).font(.subheadline).opacity(0.9) }
+                        if let step=store.route?.steps[safe:p.stepIndex] { Text(store.stepName(step)).font(.subheadline).opacity(0.9) }
                     }
                     Spacer(minLength:0)
                 }.accessibilityElement(children:.combine)
