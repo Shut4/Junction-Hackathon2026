@@ -26,7 +26,7 @@ struct RouteSummary:View {
 
 struct RouteList:View {
     @EnvironmentObject var store:AppStore
-    var body:some View { List { if let route=store.route { Section { RouteSummary(route:route) };ForEach(Array(route.steps.enumerated()),id:\.offset) { index,step in VStack(alignment:.leading,spacing:6) { Text("\(index+1). \(store.edge(step.id)?.name ?? "歩行区間")").font(.headline);Text("\(store.name(step.from)) → \(store.name(step.to))");Text("約\(Int(step.distance)) m・現地未確認").font(.subheadline) } } } else { Text("経路未検索") } }.navigationTitle("経路一覧") }
+    var body:some View { List { if let route=store.route { Section { RouteSummary(route:route) };ForEach(Array(route.steps.enumerated()),id:\.offset) { index,step in VStack(alignment:.leading,spacing:6) { Text("\(index+1). \(store.stepName(step))").font(.headline);Text("\(store.name(step.from)) → \(store.name(step.to))");Text("約\(Int(step.distance)) m・現地未確認").font(.subheadline) } } } else { Text("経路未検索") } }.navigationTitle("経路一覧") }
 }
 
 struct SourceFooter:View {
