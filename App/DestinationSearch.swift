@@ -61,7 +61,7 @@ struct DestinationPickerScreen:View {
                 store.chooseTarget(Coordinate(lat,lon),name:"指定した座標");dismiss()
             }.frame(minHeight:48)
         }
-        Section { Text("任意の場所を選択できます。通行不可を除外した経路案内は、保存済みの小倉駅南側の歩行ネットワーク内で提供します。検索には通信が必要です。施設の開設・受入状況を同行者と確認してください。") }
+        Section { Text("任意の場所を選択できます。通行不可を除外した経路案内は、選択中の対応地域に保存された歩行ネットワーク内で提供します。検索には通信が必要です。施設の開設・受入状況を同行者と確認してください。") }
     }.navigationTitle("避難先を選ぶ").toolbar { ToolbarItem(placement:.cancellationAction) { Button("閉じる") { dismiss() } } }.onDisappear { search.cancel() } }
     func performSearch() { Task { await search.find(query,network:store.network) } }
 }

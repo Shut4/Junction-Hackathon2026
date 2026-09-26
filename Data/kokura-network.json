@@ -1,5 +1,6 @@
 {
   "id": "kokura-ground-osm",
+  "name": "小倉駅周辺",
   "version": "2026-09-26T08:24:02Z",
   "bounds": {
     "south": 33.8775,
@@ -8,7 +9,7 @@
     "east": 130.89
   },
   "source": "© OpenStreetMap contributors / ODbL 1.0",
-  "acquiredAt": "2026-09-26T08:25:51.903131+00:00",
+  "acquiredAt": "2026-09-26T12:11:43.937388+00:00",
   "isSimulated": false,
   "nodes": [
     {
