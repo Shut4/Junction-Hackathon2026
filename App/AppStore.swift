@@ -39,6 +39,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var nextInstruction = "目的地を選んでください"
     @Published var positionState = "位置情報を開始してください"
     @Published var matchedEdge: String?
+    /// Distance (m) to the closest road while the position is inside the region but off the road data. Routes then start with an approach step.
+    @Published var offRoadDistance: Double?
+    /// Position usable as a route start: matched to a road, or off-road inside the region.
+    var positionRoutable:Bool { matchedEdge != nil || offRoadDistance != nil }
     @Published var developer = false
     @Published var notice: String?
     @Published var tracing = false
@@ -58,6 +62,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var boxMinConfidence:Double { didSet { UserDefaults.standard.set(boxMinConfidence,forKey:"dev.boxMinConfidence") } }
     @Published var showARArrow:Bool { didSet { UserDefaults.standard.set(showARArrow,forKey:"dev.showARArrow") } }
     @Published var headingOffset:Double { didSet { UserDefaults.standard.set(headingOffset,forKey:"dev.headingOffset") } }
+    /// Assumed lens height above the road and how far ahead the 3D ground arrow is drawn (metres).
+    @Published var arrowCameraHeight:Double { didSet { UserDefaults.standard.set(arrowCameraHeight,forKey:"dev.arrowCameraHeight") } }
+    @Published var arrowDistance:Double { didSet { UserDefaults.standard.set(arrowDistance,forKey:"dev.arrowDistance") } }
+    /// Spoken cues for the camera arrow direction (user setting).
+    @Published var speakDirection:Bool { didSet { UserDefaults.standard.set(speakDirection,forKey:"speakDirection");directionAnnouncer.reset() } }
+    var directionAnnouncer=DirectionAnnouncer()
     var simulationFilter=NoticeFilter()
     let speech = SpeechController()
     let location = LocationController()
@@ -92,6 +102,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         showBoxes=defaults.bool(forKey:"dev.showBoxes");showBoxLabels=defaults.object(forKey:"dev.showBoxLabels") as? Bool ?? true
         boxMinConfidence=defaults.object(forKey:"dev.boxMinConfidence") as? Double ?? 0.3;showARArrow=defaults.object(forKey:"dev.showARArrow") as? Bool ?? true
         headingOffset=defaults.double(forKey:"dev.headingOffset")
+        arrowCameraHeight=defaults.object(forKey:"dev.arrowCameraHeight") as? Double ?? 1.3;arrowDistance=defaults.object(forKey:"dev.arrowDistance") as? Double ?? 4
+        speakDirection=defaults.object(forKey:"speakDirection") as? Bool ?? true
         #if DEBUG
         // UI testing only: skips the 7-tap gesture. Never compiled into Release builds.
         if ProcessInfo.processInfo.arguments.contains("--developer-mode") { developer=true }
@@ -140,7 +152,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     func edge(_ id:String)->WalkEdge? { edgeIndex[id] }
     func place(_ id:String)->Place? { placeIndex[id] }
-    func name(_ node: String) -> String { place(node)?.name ?? "現在位置" }
+    func name(_ node: String) -> String { node == "entry" ? "最寄りの道路":place(node)?.name ?? "現在位置" }
+    func stepName(_ step:RouteStep) -> String { step.isApproach ? "最寄りの道路まで（道路データ外）":edge(step.id)?.name ?? "歩行区間" }
     func focus(_ target:MapFocus) { mapFocus=target;mapFocusToken += 1 }
     func focusOn(_ c:CLLocationCoordinate2D) { focus(.coordinate(Coordinate(c.latitude,c.longitude))) }
     // MARK: Destination
@@ -190,14 +203,16 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let operation=DebugLogger.operationID(),started=Date()
         debugLog(.route,.start,"Route search started",["usePosition":usePosition,"destination":destination.nodeID,"blocked":blockedForSearch.count],operation:operation)
         if usePosition {
-            guard let sample=location.sample,let edge=matchedEdge else {
+            guard let sample=location.sample,positionRoutable else {
                 waitingForRoutePosition=true;resumeAfterPosition=resume
                 routeMessage=positionState+" 位置が更新され、道路を照合できたら自動で再検索します。"
                 nextInstruction=routeMessage!
                 debugLog(.route,.cancelled,"Route search waiting for position",["state":positionState],operation:operation)
                 return
             }
-            switch Router(network:network).resolveRoute(from:sample.coordinate,on:edge,to:destination.nodeID,blocked:blockedForSearch) {
+            let router=Router(network:network)
+            let result=matchedEdge.map { router.resolveRoute(from:sample.coordinate,on:$0,to:destination.nodeID,blocked:blockedForSearch) } ?? router.resolveOffRoadRoute(from:sample.coordinate,to:destination.nodeID,blocked:blockedForSearch)
+            switch result {
             case .success(let found): route=found
             case .failure(let reason): routeMessage=reason.message
             }
@@ -227,7 +242,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         // Capture the mode before invalidating the currently displayed route. This
         // also recovers previews created by older state paths that did not retain
         // requestedRouteUsesPosition.
-        let usePosition=requestedRouteUsesPosition ?? (route != nil && matchedEdge != nil)
+        let usePosition=requestedRouteUsesPosition ?? (route != nil && positionRoutable)
         route=nil
         speech.invalidateRoute()
         routeVersion += 1
@@ -236,7 +251,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     func startGuidance(_ mode:GuidanceMode) {
         calculate(usePosition:true)
-        guard route != nil,matchedEdge != nil else { return }
+        guard route != nil,positionRoutable else { return }
         navigating=true;guidanceMode=mode;guidanceActive=true
         if mode == .camera { camera.start() }
         debugLog(.navigation,.start,"Guidance started",["mode":mode.rawValue,"distanceM":Int(route?.distance ?? 0),"simulated":simulated])
@@ -267,25 +282,61 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Compass heading of the top/back of the device including the developer calibration offset.
     var heading:Double? { location.heading.map { ($0.degrees+headingOffset+720).truncatingRemainder(dividingBy:360) } }
     var headingReliable:Bool { guard let h=location.heading else { return false };return h.accuracy >= 0 && h.accuracy <= 25 }
+    /// Direction to the route for the camera arrow. `angle` is nil (with the reason) whenever the arrow must be withheld.
+    var cameraDirection:(angle:Double?,text:String,spoken:String) {
+        guard navigating,let p=progress,let sample=location.sample else { return (nil,"経路案内中のみ方向を表示します","経路案内中ではありません") }
+        guard positionRoutable else { return (nil,"位置を確認中。方向を保留します","位置を確認中のため方向を保留します") }
+        guard let heading,headingReliable else { return (nil,"方位の精度が低いため矢印を表示しません","方位の精度が低いため方向を保留します") }
+        let angle=RouteTracker.relativeBearing(from:sample.coordinate,to:p.lookahead,heading:heading)
+        let degrees=Int(abs(angle).rounded())
+        let direction=abs(angle)<15 ? "正面方向":abs(angle)>150 ? "後ろ方向・約\(degrees)°":"\(angle>0 ? "右":"左")へ約\(degrees)°"
+        let text="\(direction)\n次の接続点まで約\(Int(p.distanceToStepEnd.rounded())) m・\(p.maneuver.text)"
+        let spoken="進む方向は\(abs(angle)<15 ? "ほぼ正面":abs(angle)>150 ? "後ろ":"\(angle>0 ? "右":"左")に約\(degrees)度")です。方位は概算です。足元と周囲を同行者と確認してください。"
+        return (angle,text,spoken)
+    }
+    /// Called periodically while the camera guidance is shown; speaks direction changes via `DirectionAnnouncer`.
+    func announceDirection() {
+        guard speakDirection,navigating,showARArrow else { directionAnnouncer.reset();return }
+        let state=cameraDirection
+        guard let text=directionAnnouncer.update(angle:state.angle,reason:state.spoken,now:ProcessInfo.processInfo.systemUptime) else { return }
+        // Short lifetime: a queued cue that is already stale must not be spoken after the user has turned.
+        speech.say(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":state.angle.map { Int($0.rounded()) },"text":text])
+    }
     func updatePosition() {
-        guard let sample=location.sample else { matchedEdge=nil;positionState=location.status;if navigating { hold(positionState) };return }
+        guard let sample=location.sample else { matchedEdge=nil;offRoadDistance=nil;positionState=location.status;if navigating { hold(positionState) };return }
         if automaticNetworkSelection { selectNetwork(containing:sample.coordinate) }
-        guard let network else { matchedEdge=nil;positionState="道路データを読み込めません";return }
+        guard let network else { matchedEdge=nil;offRoadDistance=nil;positionState="道路データを読み込めません";return }
         let verdict=positionResolver.evaluate(sample,network:network)
+        offRoadDistance=nil
         switch verdict {
+        case .offRoad(let distance): matchedEdge=nil;offRoadDistance=distance;positionState="道路データのない場所です。最寄りの道路まで約\(Int(distance.rounded()))メートル"
         case .outside: matchedEdge=nil;positionState="対応範囲外です。案内を保留します。"
         case .uncertain(let message): matchedEdge=nil;positionState=message
         case .matched(let id): matchedEdge=id;positionState="\(sample.simulated ? "模擬位置":"実位置")・道路候補を照合。精度約\(Int(sample.accuracy))メートル"
         }
-        let key=matchedEdge ?? positionState
+        let key=matchedEdge ?? (offRoadDistance == nil ? positionState:"offRoad")
         if key != lastPositionKey { lastPositionKey=key;debugLog(.location,matchedEdge == nil ? .warning:.success,matchedEdge == nil ? "Position held":"Position matched to road",["state":positionState,"edge":matchedEdge,"accuracy":Int(sample.accuracy),"simulated":sample.simulated]) }
         if waitingForRoutePosition {
-            if matchedEdge != nil { calculate(usePosition:true) }
+            if positionRoutable { calculate(usePosition:true) }
             else { routeMessage=positionState+" 位置が更新され、道路を照合できたら自動で再検索します。" }
         }
         guard navigating else { return }
-        guard matchedEdge != nil,storageError == nil else { hold(positionState);return }
+        guard positionRoutable,storageError == nil else { hold(positionState);return }
         guard let route else { hold("経路を確認中です");return }
+        if offRoadDistance != nil {
+            // Off the road data: walk the approach step to the road; once there, normal matching takes over.
+            guard stepIndex == 0,let approach=route.steps.first,approach.isApproach,let entry=approach.shape.last else {
+                if lastDeviationTimestamp != sample.timestamp { deviationSamples += 1;lastDeviationTimestamp=sample.timestamp }
+                hold("道路から離れました。立ち止まって周囲を確認してください。")
+                if deviationSamples >= 3 { deviationSamples=0;reroute(blockage:false) };return
+            }
+            deviationSamples=0
+            let distance=Int(sample.coordinate.distance(to:entry).rounded()),road=route.steps.dropFirst().first.map(stepName) ?? "道路"
+            nextInstruction="道路データのない場所です。地図の点線に沿って、最寄りの道路（\(road)）まで約\(distance)メートル移動してください。建物・段差・車に注意し、同行者と確認してください。"
+            let key2="\(routeVersion):approach"
+            if lastSpoken != key2 { lastSpoken=key2;speech.say(nextInstruction) }
+            return
+        }
         if !route.steps.isEmpty && !route.steps.contains(where: { $0.id == matchedEdge }) {
             if lastDeviationTimestamp != sample.timestamp { deviationSamples += 1;lastDeviationTimestamp=sample.timestamp }
             hold("経路との対応を確認中です。立ち止まって確認してください。")
@@ -300,7 +351,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         if route.steps.isEmpty { hold("目的地の実験接続点付近です。同行者と確認してください。");return }
         if stepIndex < route.steps.count-1,let end=place(route.steps[stepIndex].to), sample.accuracy <= 8,sample.coordinate.distance(to:end.coordinate) <= 6 { stepIndex += 1;debugLog(.navigation,.info,"Step advanced (junction reached)",["step":stepIndex,"of":route.steps.count]) }
         let step=route.steps[min(stepIndex,route.steps.count-1)]
-        let road=edge(step.id)?.name ?? "歩行区間"
+        let road=stepName(step)
         let distance=place(step.to).map { Int(sample.coordinate.distance(to:$0.coordinate).rounded()) } ?? Int(step.distance)
         let following=stepIndex+1 < route.steps.count ? route.steps[stepIndex+1]:nil
         let turn=matchedEdge == step.id ? TurnGuidance.instruction(current:step,next:following,sample:sample):nil

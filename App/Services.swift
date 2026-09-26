@@ -17,9 +17,9 @@ import AVFoundation
         pending = queue.count
     }
     func stop() { queue.stop();pending=0;synth.stopSpeaking(at:.immediate);status="停止" }
-    func say(_ text: String, obstacle: Bool = false, capturedAt: Double? = nil) {
+    func say(_ text: String, obstacle: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil) {
         guard active?.text != text else { return }
-        guard queue.enqueue(text,obstacle:obstacle,capturedAt:capturedAt) else { debugLog(.speech,.debug,"Speech duplicate suppressed",["characters":text.count]);return };pending=queue.count
+        guard queue.enqueue(text,obstacle:obstacle,capturedAt:capturedAt,ttl:ttl) else { debugLog(.speech,.debug,"Speech duplicate suppressed",["characters":text.count]);return };pending=queue.count
         if obstacle && active?.priority == 0 { synth.stopSpeaking(at:.immediate) }
         if active == nil { playNext() }
     }
