@@ -27,7 +27,7 @@ public struct Bounds: Codable, Sendable {
     public func contains(_ c: Coordinate) -> Bool { (south...north).contains(c.latitude) && (west...east).contains(c.longitude) }
 }
 public struct Network: Codable, Sendable {
-    public var id: String; public var version: String; public var bounds: Bounds
+    public var id: String; public var name: String; public var version: String; public var bounds: Bounds
     public var source: String; public var acquiredAt: String; public var isSimulated: Bool
     public var nodes: [Place]; public var edges: [WalkEdge]; public var destinations: [Destination]
     public func validate() throws {
@@ -37,6 +37,10 @@ public struct Network: Codable, Sendable {
     }
     public func place(_ id: String) -> Place? { nodes.first { $0.id == id } }
     public func edge(_ id: String) -> WalkEdge? { edges.first { $0.id == id } }
+}
+public enum NetworkCatalog {
+    public static func containing(_ coordinate: Coordinate, in networks: [Network]) -> Network? { networks.first { $0.bounds.contains(coordinate) } }
+    public static func canRoute(from start: Coordinate, to destination: Coordinate, in network: Network) -> Bool { network.bounds.contains(start) && network.bounds.contains(destination) }
 }
 public enum Hazard: String, Codable, CaseIterable, Sendable { case debris = "瓦礫", flood = "冠水", collapse = "崩壊", other = "その他" }
 public struct Report: Codable, Identifiable, Sendable {

@@ -150,6 +150,7 @@ struct HomeScreen:View {
                 } else {
                     PrimaryButton(title:"通行不可を避ける経路を確認",symbol:"arrow.triangle.turn.up.right.diamond") { store.calculate(usePosition:true) }.disabled(store.currentDestination==nil)
                 }
+                if let message=store.routeMessage { Text(message).font(.subheadline).accessibilityIdentifier("routeMessage") }
                 Text(store.positionState).font(.subheadline)
                 if store.currentDestination != nil || store.selectedTarget != nil { Button("避難先の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
                 Button(details ? "状態の詳細を閉じる":"位置・道路・保存の状態を確認",systemImage:"info.circle") { details.toggle() }.frame(minHeight:44)

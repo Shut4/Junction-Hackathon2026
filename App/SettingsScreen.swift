@@ -9,8 +9,13 @@ struct SettingsScreen:View {
         Section("使い方・権限") { Button("チュートリアルを確認") { tutorialStep=0;tutorialComplete=false;store.pause() };Button("iOSの権限設定を開く") { openAppSettings() };Text("位置情報とカメラの許可はアプリの利用に必要です。通知は任意で、許可しなくてもアプリ内音声は使えます。") }
         if store.storageIncompatible { MigrationSection() }
         Section("状態") { Text(store.location.status);Text("モデル：\(store.camera.modelStatus)");Text(store.speech.status);Text(store.storageError ?? "報告の読み込み完了");Button("報告を再読み込み") { store.retryRead() };Button("位置取得を開始") { store.location.start() };Text("アプリは前景で実験します。背景移行時は案内とカメラを停止します。") }
-        Section("道路データ") { Text(store.network?.source ?? "読込失敗");Text("版：\(store.network?.version ?? "不明")");Text("歩行区間 \(store.edges.count)・現地未確認");SourceFooter() }
-        Section("保存済み報告") { if store.reports.isEmpty && store.storageError == nil { Text("登録報告なし・安全確認済みではありません") };ForEach(store.reports) { r in VStack(alignment:.leading) { Text(store.edge(r.segmentID)?.name ?? "対応区間不明");Text(r.hazard.rawValue);Text(r.observedAt,style:.date);Text(r.explanation ?? "");Button("この報告を解除",role:.destructive) { deleteReport=r } } } }
+        Section("対応地域") {
+            Toggle("現在地から自動選択",isOn:Binding(get:{store.automaticNetworkSelection},set:{store.setAutomaticNetworkSelection($0)}))
+            Picker("使用する地域",selection:Binding(get:{store.network?.id ?? ""},set:{store.selectNetwork($0)})) { ForEach(store.networks,id:\.id) { Text($0.name).tag($0.id) } }
+            Text("自動選択が有効な場合、現在地が別の対応地域に入ると切り替わります。地域を手動選択すると自動選択はオフになります。地域をまたぐ経路案内には対応していません。").font(.caption)
+        }
+        Section("道路データ") { Text(store.network?.name ?? "読込失敗");Text(store.network?.source ?? "読込失敗");Text("版：\(store.network?.version ?? "不明")");Text("歩行区間 \(store.edges.count)・現地未確認");SourceFooter() }
+        Section("保存済み報告") { if store.reports.isEmpty && store.storageError == nil { Text("登録報告なし・安全確認済みではありません") };ForEach(store.reports) { r in VStack(alignment:.leading) { Text(store.edge(r.segmentID)?.name ?? "対応区間不明");Text(r.hazard.rawValue);Text(r.observedAt,style:.date);Text(r.explanation ?? "");Button("この報告を解除",role:.destructive) { deleteReport=r }.accessibilityIdentifier("removeReport."+r.segmentID) } } }
         if store.developer { Section { NavigationLink("DeveloperModeを開く") { DeveloperScreen() };Button("DeveloperModeを終了") { store.closeDeveloper() } } }
         Section { Button { store.tapVersion() } label: { Text("バージョン情報 0.4").font(.footnote).foregroundStyle(.secondary).frame(minHeight:44) }.accessibilityLabel("バージョン情報 0.4").accessibilityIdentifier("versionInfo").accessibilityHint("3秒以内の間隔で7回操作するとアプリ内DeveloperModeを有効にします") }
     }.navigationTitle("設定")
