@@ -6,7 +6,9 @@ enum GuidanceMode:String { case map,camera }
 enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordinate) }
 
 @MainActor final class AppStore: ObservableObject {
+    @Published private(set) var networks: [Network] = []
     @Published var network: Network?
+    @Published var automaticNetworkSelection: Bool
     @Published var networkError: String?
     @Published var reports: [Report] = [] { didSet { let ids=Set(reports.map(\.segmentID));if ids != blocked { blocked=ids } } }
     /// Cached: previously recomputed from `reports` on every access, including per-edge loops.
@@ -25,6 +27,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var destinationConnections:[DestinationConnection]=[]
     @Published var destinationMessage="避難所の開設・受入状況は確認していません"
     @Published var previewStart = ""
+    @Published var routeMessage: String?
+    private var requestedRouteUsesPosition: Bool?
+    private var waitingForRoutePosition = false
+    private var resumeAfterPosition = false
     @Published var route: WalkRoute?
     @Published var navigating = false
     @Published var routeVersion = 0
@@ -55,8 +61,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     let speech = SpeechController()
     let location = LocationController()
     let camera = CameraController()
-    let persistence: ReportStore
-    let simulatedPersistence: ReportStore
+    var persistence: ReportStore
+    var simulatedPersistence: ReportStore
     private var subscriptions = Set<AnyCancellable>()
     private var arrivalSamples = 0
     private var lastArrivalTimestamp: Date?
@@ -81,6 +87,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var activeStore:ReportStore { simulated ? simulatedPersistence:persistence }
     init() {
         let defaults=UserDefaults.standard
+        automaticNetworkSelection=defaults.object(forKey:"automaticNetworkSelection") as? Bool ?? true
         showBoxes=defaults.bool(forKey:"dev.showBoxes");showBoxLabels=defaults.object(forKey:"dev.showBoxLabels") as? Bool ?? true
         boxMinConfidence=defaults.object(forKey:"dev.boxMinConfidence") as? Double ?? 0.3;showARArrow=defaults.object(forKey:"dev.showARArrow") as? Bool ?? true
         headingOffset=defaults.double(forKey:"dev.headingOffset")
@@ -88,17 +95,19 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         // UI testing only: skips the 7-tap gesture. Never compiled into Release builds.
         if ProcessInfo.processInfo.arguments.contains("--developer-mode") { developer=true }
         #endif
-        let directory=AppFiles.directory
-        persistence=ReportStore(url:directory.appending(path:"real-reports.json"))
-        simulatedPersistence=ReportStore(url:directory.appending(path:"simulation-reports.json"))
+        persistence=ReportStore(url:AppFiles.reportURL(networkID:"kokura-ground-osm",simulated:false))
+        simulatedPersistence=ReportStore(url:AppFiles.reportURL(networkID:"kokura-ground-osm",simulated:true))
         let started=Date()
         do {
-            guard let url=Bundle.main.url(forResource:"kokura-network",withExtension:"json") else { throw CoreError.invalidNetwork }
-            let data=try JSONDecoder().decode(Network.self,from:Data(contentsOf:url));try data.validate();network=data
-            edgeIndex=Dictionary(data.edges.map { ($0.id,$0) },uniquingKeysWith:{ a,_ in a });placeIndex=Dictionary(data.nodes.map { ($0.id,$0) },uniquingKeysWith:{ a,_ in a })
-            previewStart=data.destinations.last?.nodeID ?? ""
-            debugLog(.storage,.success,"Road network loaded",["version":data.version,"nodes":data.nodes.count,"edges":data.edges.count,"destinations":data.destinations.count,"loadMs":Int(Date().timeIntervalSince(started)*1000)])
-            loadReports(from:persistence,network:data)
+            let resources=["kokura-network","tobata-network"]
+            networks=try resources.map { name in
+                guard let url=Bundle.main.url(forResource:name,withExtension:"json") else { throw CoreError.invalidNetwork }
+                let data=try JSONDecoder().decode(Network.self,from:Data(contentsOf:url));try data.validate();return data
+            }
+            let saved=defaults.string(forKey:"selectedNetworkID")
+            guard let data=networks.first(where:{$0.id==saved}) ?? networks.first else { throw CoreError.invalidNetwork }
+            activate(data,remember:false,focus:false)
+            debugLog(.storage,.success,"Road network loaded",["count":networks.count,"active":data.id,"loadMs":Int(Date().timeIntervalSince(started)*1000)])
         } catch { networkError=error.localizedDescription;debugLog(.storage,.error,"Road network failed",["error":error.localizedDescription]) }
         location.$sample.sink { [weak self] _ in Task { @MainActor in self?.updatePosition() } }.store(in:&subscriptions)
         for publisher in [location.objectWillChange.eraseToAnyPublisher(),speech.objectWillChange.eraseToAnyPublisher(),camera.objectWillChange.eraseToAnyPublisher()] {
@@ -110,8 +119,23 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         speech.onMetric = { [weak self] event in self?.record(event) }
     }
     func loadReports(from store:ReportStore,network:Network) {
-        do { reports=try store.load(network:network);storageError=nil;storageIncompatible=false;debugLog(.storage,.success,"Reports loaded",["count":reports.count,"simulated":store === simulatedPersistence]) }
+        do { reports=try store.load(network:network);storageError=nil;storageIncompatible=false;debugLog(.storage,.success,"Reports loaded",["count":reports.count,"simulated":store === simulatedPersistence,"network":network.id]) }
         catch { storageError=error.localizedDescription;storageIncompatible=(error as? CoreError) == .incompatibleReports;debugLog(.storage,.error,"Reports could not be loaded",["error":error.localizedDescription,"incompatible":storageIncompatible]) }
+    }
+    private func activate(_ data:Network,remember:Bool=true,focus:Bool=true) {
+        if network?.id == data.id { return }
+        stopNavigation();clearDestination();selected=[];trace=[];traceCandidates=[];ambiguity=false;matchedEdge=nil;positionResolver.reset();lastPositionKey=""
+        network=data;edgeIndex=Dictionary(data.edges.map { ($0.id,$0) },uniquingKeysWith:{ a,_ in a });placeIndex=Dictionary(data.nodes.map { ($0.id,$0) },uniquingKeysWith:{ a,_ in a });previewStart=data.destinations.last?.nodeID ?? ""
+        persistence=ReportStore(url:AppFiles.reportURL(networkID:data.id,simulated:false));simulatedPersistence=ReportStore(url:AppFiles.reportURL(networkID:data.id,simulated:true))
+        reports=[];loadReports(from:activeStore,network:data);networkError=nil
+        if remember { UserDefaults.standard.set(data.id,forKey:"selectedNetworkID") }
+        if focus { self.focus(.network) }
+        debugLog(.storage,.info,"Road network activated",["id":data.id,"name":data.name])
+    }
+    func selectNetwork(_ id:String) { automaticNetworkSelection=false;UserDefaults.standard.set(false,forKey:"automaticNetworkSelection");if let data=networks.first(where:{$0.id==id}) { activate(data) } }
+    func setAutomaticNetworkSelection(_ enabled:Bool) { automaticNetworkSelection=enabled;UserDefaults.standard.set(enabled,forKey:"automaticNetworkSelection");if enabled,let sample=location.sample { selectNetwork(containing:sample.coordinate) } }
+    private func selectNetwork(containing coordinate:Coordinate) {
+        if let data=NetworkCatalog.containing(coordinate,in:networks),data.id != network?.id { activate(data) }
     }
     func edge(_ id:String)->WalkEdge? { edgeIndex[id] }
     func place(_ id:String)->Place? { placeIndex[id] }
@@ -120,6 +144,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func focusOn(_ c:CLLocationCoordinate2D) { focus(.coordinate(Coordinate(c.latitude,c.longitude))) }
     // MARK: Destination
     func chooseTarget(_ coordinate:Coordinate,name:String) {
+        if location.sample == nil { selectNetwork(containing:coordinate) }
         stopNavigation();destinationID="";customDestination=nil;selectedTarget=coordinate;targetName=name
         guard let network else { destinationMessage="道路データを読み込めません";return }
         destinationConnections=DestinationConnection.candidates(for:coordinate,network:network)
@@ -143,20 +168,59 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     // MARK: Routing and guidance
     func calculate(usePosition:Bool) {
-        guard let network,let destination=currentDestination,storageError == nil else { notice="道路・報告・目的地の状態を確認してください";return }
+        // Resolve region changes before capturing the network, destination and reports.
+        let resume=navigating || (waitingForRoutePosition && resumeAfterPosition)
+        waitingForRoutePosition=false
+        navigating=false
+        if usePosition { location.start();updatePosition() }
+        route=nil;speech.invalidateRoute();routeVersion += 1
+        stepIndex=0;arrivalSamples=0;lastArrivalTimestamp=nil;lastSpoken=""
+        deviationSamples=0;lastDeviationTimestamp=nil;routeMessage=nil
+        guard let network,let destination=currentDestination,storageError == nil else {
+            requestedRouteUsesPosition=nil
+            routeMessage="道路・報告・目的地の状態を確認してください";notice=routeMessage;return
+        }
+        requestedRouteUsesPosition=usePosition
+        let blockedForSearch=blocked
         let operation=DebugLogger.operationID(),started=Date()
-        debugLog(.route,.start,"Route search started",["usePosition":usePosition,"destination":destination.nodeID,"blocked":blocked.count],operation:operation)
-        let resume=navigating;navigating=false;route=nil
-        speech.invalidateRoute();routeVersion += 1;stepIndex=0;arrivalSamples=0;lastSpoken=""
+        debugLog(.route,.start,"Route search started",["usePosition":usePosition,"destination":destination.nodeID,"blocked":blockedForSearch.count],operation:operation)
         if usePosition {
-            updatePosition()
-            guard let sample=location.sample,let edge=matchedEdge else { route=nil;nextInstruction="現在位置の道路を確定できません。案内を保留します。";notice=nextInstruction;debugLog(.route,.cancelled,"Route search held: position not matched",["state":positionState],operation:operation);return }
-            route=Router(network:network).route(from:sample.coordinate,on:edge,to:destination.nodeID,blocked:blocked)
-        } else { route=Router(network:network).route(from:previewStart,to:destination.nodeID,blocked:blocked) }
+            guard let sample=location.sample,let edge=matchedEdge else {
+                waitingForRoutePosition=true;resumeAfterPosition=resume
+                routeMessage=positionState+" 位置が更新され、道路を照合できたら自動で再検索します。"
+                nextInstruction=routeMessage!
+                debugLog(.route,.cancelled,"Route search waiting for position",["state":positionState],operation:operation)
+                return
+            }
+            switch Router(network:network).resolveRoute(from:sample.coordinate,on:edge,to:destination.nodeID,blocked:blockedForSearch) {
+            case .success(let found): route=found
+            case .failure(let reason): routeMessage=reason.message
+            }
+        } else {
+            route=Router(network:network).route(from:previewStart,to:destination.nodeID,blocked:blockedForSearch)
+            if route == nil { routeMessage=RouteFailure.noRoute.message }
+        }
+        if let found=route {
+            let leaked=Set(found.steps.map(\.id)).intersection(blockedForSearch)
+            if !leaked.isEmpty {
+                route=nil
+                routeMessage=RouteFailure.noRoute.message
+                debugLog(.route,.error,"Blocked segments rejected from route",["edges":leaked.sorted().joined(separator:","),"blocked":blockedForSearch.count],operation:operation)
+            }
+        }
         lastRouteMilliseconds=Date().timeIntervalSince(started)*1000
-        if let route { debugLog(.route,.success,"Route found",["distanceM":Int(route.distance),"steps":route.steps.count,"routeVersion":routeVersion,"ms":Int(lastRouteMilliseconds ?? 0)],operation:operation);focus(.route) }
-        else { nextInstruction="経路がありません。通行不可と対応範囲を確認してください。";notice=nextInstruction;debugLog(.route,.error,"No route",["blocked":blocked.count,"ms":Int(lastRouteMilliseconds ?? 0)],operation:operation) }
+        if let route {
+            debugLog(.route,.success,"Route found",["distanceM":Int(route.distance),"steps":route.steps.count,"routeVersion":routeVersion,"ms":Int(lastRouteMilliseconds ?? 0)],operation:operation);focus(.route)
+        } else {
+            nextInstruction=routeMessage ?? RouteFailure.noRoute.message;notice=nextInstruction
+            debugLog(.route,.error,"No route",["blocked":blockedForSearch.count,"ms":Int(lastRouteMilliseconds ?? 0)],operation:operation)
+        }
         navigating=resume && route != nil
+    }
+    /// Keep the requested start mode even after a failed search, so removing a closure can recover it.
+    func refreshRequestedRoute() {
+        guard let usePosition=requestedRouteUsesPosition else { return }
+        calculate(usePosition:usePosition)
     }
     func startGuidance(_ mode:GuidanceMode) {
         calculate(usePosition:true)
@@ -166,7 +230,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         debugLog(.navigation,.start,"Guidance started",["mode":mode.rawValue,"distanceM":Int(route?.distance ?? 0),"simulated":simulated])
         updatePosition()
     }
-    func openCamera() { guidanceMode = .camera;guidanceActive=true;debugLog(.navigation,.info,"Full camera opened",["navigating":navigating]) }
+    func openCamera() { guidanceMode = .camera;guidanceActive=true;if !camera.running { camera.start() };debugLog(.navigation,.info,"Full camera opened",["navigating":navigating]) }
     func switchGuidance(to mode:GuidanceMode) {
         guidanceMode=mode
         if mode == .camera { if !camera.running { camera.start() } } else { camera.stop() }
@@ -175,6 +239,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func closeGuidance() { guidanceActive=false;camera.stop();debugLog(.navigation,.info,"Guidance view closed",["navigating":navigating]) }
     func stopNavigation() {
         if navigating { debugLog(.navigation,.cancelled,"Guidance stopped",["stepIndex":stepIndex]) }
+        requestedRouteUsesPosition=nil;waitingForRoutePosition=false;resumeAfterPosition=false;routeMessage=nil
         navigating=false;route=nil;speech.stop();lastSpoken="";nextInstruction="案内を停止しました";stepIndex=0;stopSimulatedWalk()
     }
     func repeatInstruction() { speech.say(navigating ? nextInstruction:positionState) }
@@ -191,7 +256,9 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var heading:Double? { location.heading.map { ($0.degrees+headingOffset+720).truncatingRemainder(dividingBy:360) } }
     var headingReliable:Bool { guard let h=location.heading else { return false };return h.accuracy >= 0 && h.accuracy <= 25 }
     func updatePosition() {
-        guard let network,let sample=location.sample else { matchedEdge=nil;positionState=location.status;if navigating { hold(positionState) };return }
+        guard let sample=location.sample else { matchedEdge=nil;positionState=location.status;if navigating { hold(positionState) };return }
+        if automaticNetworkSelection { selectNetwork(containing:sample.coordinate) }
+        guard let network else { matchedEdge=nil;positionState="道路データを読み込めません";return }
         let verdict=positionResolver.evaluate(sample,network:network)
         switch verdict {
         case .outside: matchedEdge=nil;positionState="対応範囲外です。案内を保留します。"
@@ -200,6 +267,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         }
         let key=matchedEdge ?? positionState
         if key != lastPositionKey { lastPositionKey=key;debugLog(.location,matchedEdge == nil ? .warning:.success,matchedEdge == nil ? "Position held":"Position matched to road",["state":positionState,"edge":matchedEdge,"accuracy":Int(sample.accuracy),"simulated":sample.simulated]) }
+        if waitingForRoutePosition {
+            if matchedEdge != nil { calculate(usePosition:true) }
+            else { routeMessage=positionState+" 位置が更新され、道路を照合できたら自動で再検索します。" }
+        }
         guard navigating else { return }
         guard matchedEdge != nil,storageError == nil else { hold(positionState);return }
         guard let route else { hold("経路を確認中です");return }

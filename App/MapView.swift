@@ -24,13 +24,13 @@ struct GuideMap: UIViewRepresentable {
         map.selectableMapFeatures=mode == .explore ? [.pointsOfInterest,.physicalFeatures,.territories]:[]
         if let b=store.network?.bounds {
             let span=mode == .explore ? MKCoordinateSpan(latitudeDelta:(b.north-b.south)*0.55,longitudeDelta:(b.east-b.west)*0.55):MKCoordinateSpan(latitudeDelta:(b.north-b.south)*0.35,longitudeDelta:(b.east-b.west)*0.35)
-            map.setRegion(MKCoordinateRegion(center:CLLocationCoordinate2D(latitude:33.8850,longitude:130.8812),span:span),animated:false)
+            map.setRegion(MKCoordinateRegion(center:CLLocationCoordinate2D(latitude:(b.south+b.north)/2,longitude:(b.west+b.east)/2),span:span),animated:false)
         }
         let gesture=UIPanGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.pan(_:)));gesture.isEnabled=false;map.addGestureRecognizer(gesture);context.coordinator.gesture=gesture
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
         let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;map.addGestureRecognizer(tap);context.coordinator.tapGesture=tap
         context.coordinator.mode=mode
-        map.accessibilityLabel=mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"小倉の実地図。長押しで避難先を選択できます。避難先は検索欄と保存済み地点からも選べます。"
+        map.accessibilityLabel=mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで避難先を選択できます。避難先は検索欄と保存済み地点からも選べます。"
         if mode == .navigation { context.coordinator.following=true }
         return map
     }
@@ -42,7 +42,7 @@ struct GuideMap: UIViewRepresentable {
         c.tapGesture?.isEnabled = !store.tracing
         guard let network=store.network else { return }
         // Static layer (network, boundary, saved pins) is built once per mode; only small dynamic layers are replaced.
-        let baseKey="\(mode)|\(network.version)"
+        let baseKey="\(mode)|\(network.id)|\(network.version)"
         if baseKey != c.baseKey {
             c.baseKey=baseKey;c.dynamicKey="";map.removeOverlays(map.overlays);map.removeAnnotations(map.annotations.filter { !($0 is MKUserLocation) });c.simulatedPin=nil;c.dynamicOverlays=[];c.dynamicPins=[]
             let b=network.bounds
