@@ -43,12 +43,15 @@ final class CoreTests:XCTestCase {
     func fixture() -> Network {
         let nodes=[Place(id:"a",name:"A",coordinate:Coordinate(33.883,130.88)),Place(id:"b",name:"B",coordinate:Coordinate(33.883,130.881)),Place(id:"c",name:"C",coordinate:Coordinate(33.884,130.881)),Place(id:"d",name:"D",coordinate:Coordinate(33.884,130.88))]
         func edge(_ id:String,_ a:Int,_ b:Int,_ direction:String="both") -> WalkEdge { WalkEdge(id:id,name:id,from:nodes[a].id,to:nodes[b].id,shape:[nodes[a].coordinate,nodes[b].coordinate],distance:nodes[a].coordinate.distance(to:nodes[b].coordinate),direction:direction,conditions:"test",sourceID:"test",verification:"test",layer:"0",kind:"footway") }
-        return Network(id:"test",version:"1",bounds:Bounds(south:33.88,west:130.87,north:33.89,east:130.89),source:"test",acquiredAt:"test",isSimulated:true,nodes:nodes,edges:[edge("ab",0,1),edge("bc",1,2),edge("ad",0,3),edge("dc",3,2)],destinations:[Destination(id:"c",name:"C",nodeID:"c",note:"test")])
+        return Network(id:"test",name:"テスト地域",version:"1",bounds:Bounds(south:33.88,west:130.87,north:33.89,east:130.89),source:"test",acquiredAt:"test",isSimulated:true,nodes:nodes,edges:[edge("ab",0,1),edge("bc",1,2),edge("ad",0,3),edge("dc",3,2)],destinations:[Destination(id:"c",name:"C",nodeID:"c",note:"test")])
     }
     func testBlockedEdgeDetourAndAllClosed() throws {
         let n=fixture(),router=Router(network:n)
         let route=try XCTUnwrap(router.route(from:"a",to:"c",blocked:["ab"]))
         XCTAssertEqual(route.steps.map(\.id),["ad","dc"])
+        XCTAssertEqual(route.excludedSegmentIDs,["ab"])
+        XCTAssertEqual(route.excludedSegmentCount,1)
+        XCTAssertTrue(route.blockedSegmentsInRoute.isEmpty)
         XCTAssertNil(router.route(from:"a",to:"c",blocked:["ab","ad"]))
     }
     func testWalkingOneWay() {
@@ -87,9 +90,17 @@ final class CoreTests:XCTestCase {
     }
     func testPositionAgeAccuracyAndRange() {
         let n=fixture(),p=Coordinate(33.883,130.8805),now=Date()
-        for s in [LocationSample(coordinate:p,accuracy:-1,timestamp:now),LocationSample(coordinate:p,accuracy:30,timestamp:now),LocationSample(coordinate:p,accuracy:3,timestamp:now.addingTimeInterval(-9)),LocationSample(coordinate:p,accuracy:3,timestamp:now.addingTimeInterval(10))] { if case .uncertain = PositionGate.evaluate(s,network:n,now:now) {} else { XCTFail() } }
+        for s in [LocationSample(coordinate:p,accuracy:-1,timestamp:now),LocationSample(coordinate:p,accuracy:40,timestamp:now),LocationSample(coordinate:p,accuracy:3,timestamp:now.addingTimeInterval(-31)),LocationSample(coordinate:p,accuracy:3,timestamp:now.addingTimeInterval(10))] { if case .uncertain = PositionGate.evaluate(s,network:n,now:now) {} else { XCTFail() } }
+        if case .matched("ab") = PositionGate.evaluate(LocationSample(coordinate:p,accuracy:30,timestamp:now.addingTimeInterval(-20)),network:n,now:now) {} else { XCTFail("A usable stationary fix must not expire after eight seconds") }
         if case .outside = PositionGate.evaluate(LocationSample(coordinate:Coordinate(34,131),accuracy:3,timestamp:now),network:n,now:now) {} else { XCTFail() }
         if case .matched("ab") = PositionGate.evaluate(LocationSample(coordinate:p,accuracy:3,timestamp:now),network:n,now:now) {} else { XCTFail() }
+    }
+    func testPositionAtJunctionMatchesButParallelRoadRemainsAmbiguous() {
+        let n=fixture(),junction=n.nodes[1].coordinate
+        if case .matched(let id)=PositionGate.evaluate(LocationSample(coordinate:junction,accuracy:3,timestamp:Date()),network:n) { XCTAssertTrue(["ab","bc"].contains(id)) }
+        else { XCTFail("Segments meeting at the current junction must be treated as one usable start") }
+        var parallel=n;var duplicate=n.edges[0];duplicate.id="upper";duplicate.layer="1";duplicate.shape=duplicate.shape.map { Coordinate($0.latitude+0.00001,$0.longitude) };parallel.edges.append(duplicate)
+        if case .uncertain=PositionGate.evaluate(LocationSample(coordinate:Coordinate(33.883005,130.8805),accuracy:3,timestamp:Date()),network:parallel) {} else { XCTFail("Different road layers must remain ambiguous") }
     }
     func testPositionResolverRequiresDistinctRecentSamplesAndRejectsTeleportation() {
         let n=fixture(),now=Date();var resolver=PositionResolver()
@@ -121,6 +132,16 @@ final class CoreTests:XCTestCase {
     }
     func testNoAutomaticReportExpiry() throws {
         let s=store(),n=fixture();try s.save([Report(segmentID:"ab",hazard:.other,observedAt:Date(timeIntervalSince1970:0),explanation:nil)],network:n);XCTAssertEqual(try s.load(network:n).count,1)
+    }
+    func testDuplicateReportsKeepSegmentBlockedUntilLastOneIsRemoved() {
+        let first=Report(segmentID:"ab",hazard:.flood,observedAt:Date(),explanation:nil)
+        let second=Report(segmentID:"ab",hazard:.debris,observedAt:Date(),explanation:nil)
+        var reports=[first,second]
+        XCTAssertEqual(Set(reports.map(\.segmentID)),["ab"])
+        reports.removeAll { $0.id==first.id }
+        XCTAssertEqual(Set(reports.map(\.segmentID)),["ab"],"Removing one report must not reopen a segment with another report")
+        reports.removeAll { $0.id==second.id }
+        XCTAssertTrue(Set(reports.map(\.segmentID)).isEmpty,"Removing the last report reopens the segment")
     }
     func detection(_ label:String="pole",_ time:Double=0,_ x:Double=0.3) -> Detection { Detection(label:label,confidence:0.9,box:Box(x:x,y:0.3,width:0.2,height:0.4),capturedAt:time) }
     func testPersistenceChatterAndReappearance() {
@@ -154,6 +175,57 @@ final class CoreTests:XCTestCase {
         for step in base.steps { if let alternate=router.route(from:start,to:end,blocked:[step.id]) { XCTAssertFalse(alternate.steps.contains { $0.id==step.id });found=true;break } }
         XCTAssertTrue(found,"At least one actual segment closure must permit a detour")
         XCTAssertNil(router.route(from:start,to:end,blocked:Set(n.edges.map(\.id))))
+    }
+    func testAllBundledRegionalNetworksValidateAndRoute() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        for file in ["kokura-network.json","tobata-network.json"] {
+            let network=try JSONDecoder().decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("Data").appendingPathComponent(file)))
+            try network.validate();XCTAssertFalse(network.isSimulated);XCTAssertFalse(network.name.isEmpty)
+            let start=try XCTUnwrap(network.destinations.first?.nodeID),end=try XCTUnwrap(network.destinations.last?.nodeID),router=Router(network:network)
+            let base=try XCTUnwrap(router.route(from:start,to:end,blocked:[]),file);XCTAssertFalse(base.steps.isEmpty)
+            XCTAssertTrue(base.steps.contains { step in router.route(from:start,to:end,blocked:[step.id]) != nil },"\(file) must have a tested detour")
+        }
+    }
+    func testTobataPositionRouteBlockDetourReleaseAndFailures() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let network=try JSONDecoder().decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("Data/tobata-network.json")))
+        let startDestination=try XCTUnwrap(network.destinations.first),target=try XCTUnwrap(network.destinations.dropFirst().first)
+        let startEdge=try XCTUnwrap(network.edges.first { $0.from==startDestination.nodeID || $0.to==startDestination.nodeID })
+        let position=Geometry.point(along:startEdge.shape,at:Geometry.length(startEdge.shape)/2).coordinate
+        let router=Router(network:network)
+        let base=try XCTUnwrap(try router.resolveRoute(from:position,on:startEdge.id,to:target.nodeID,blocked:[]).get())
+        XCTAssertFalse(base.steps.isEmpty)
+        let detourPair=base.steps.dropFirst().lazy.compactMap { step -> (RouteStep,WalkRoute)? in
+            guard case .success(let route)=router.resolveRoute(from:position,on:startEdge.id,to:target.nodeID,blocked:[step.id]) else { return nil }
+            return (step,route)
+        }.first
+        let (closed,detour)=try XCTUnwrap(detourPair,"The Tobata route must have a closable segment with an alternate route")
+        XCTAssertFalse(detour.steps.contains { $0.id==closed.id })
+        let reopened=try XCTUnwrap(try router.resolveRoute(from:position,on:startEdge.id,to:target.nodeID,blocked:[]).get())
+        XCTAssertEqual(reopened.steps.map(\.id),base.steps.map(\.id),"Removing the closure must calculate from current state")
+        if case .failure(.blockedStart)=router.resolveRoute(from:position,on:startEdge.id,to:target.nodeID,blocked:[startEdge.id]) {} else { XCTFail("A blocked current edge needs its own failure") }
+        let everythingAfterStart=Set(network.edges.map(\.id)).subtracting([startEdge.id])
+        if case .failure(.noRoute)=router.resolveRoute(from:position,on:startEdge.id,to:target.nodeID,blocked:everythingAfterStart) {} else { XCTFail("No alternate path must be distinct from a position match failure") }
+    }
+    func testRegionSelectionAndCrossRegionRoutingBoundary() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Data")
+        let decoder=JSONDecoder(),kokura=try decoder.decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("kokura-network.json"))),tobata=try decoder.decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("tobata-network.json")))
+        let kokuraPoint=Coordinate((kokura.bounds.south+kokura.bounds.north)/2,(kokura.bounds.west+kokura.bounds.east)/2)
+        let tobataPoint=Coordinate((tobata.bounds.south+tobata.bounds.north)/2,(tobata.bounds.west+tobata.bounds.east)/2)
+        XCTAssertEqual(NetworkCatalog.containing(kokuraPoint,in:[kokura,tobata])?.id,kokura.id)
+        XCTAssertEqual(NetworkCatalog.containing(tobataPoint,in:[kokura,tobata])?.id,tobata.id)
+        XCTAssertFalse(NetworkCatalog.canRoute(from:kokuraPoint,to:tobataPoint,in:kokura))
+        XCTAssertFalse(NetworkCatalog.canRoute(from:kokuraPoint,to:tobataPoint,in:tobata))
+    }
+    func testReportsRemainSeparatedByRegionalStore() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Data")
+        let decoder=JSONDecoder(),kokura=try decoder.decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("kokura-network.json"))),tobata=try decoder.decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("tobata-network.json")))
+        let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let kokuraStore=ReportStore(url:directory.appendingPathComponent("real-reports.json")),tobataStore=ReportStore(url:directory.appendingPathComponent("real-reports-tobata-ground-osm.json"))
+        try kokuraStore.save([Report(segmentID:try XCTUnwrap(kokura.edges.first?.id),hazard:.other,observedAt:Date(),explanation:nil)],network:kokura)
+        XCTAssertEqual(try kokuraStore.load(network:kokura).count,1);XCTAssertTrue(try tobataStore.load(network:tobata).isEmpty)
+        try tobataStore.save([Report(segmentID:try XCTUnwrap(tobata.edges.first?.id),hazard:.flood,observedAt:Date(),explanation:nil)],network:tobata)
+        XCTAssertEqual(try kokuraStore.load(network:kokura).count,1);XCTAssertEqual(try tobataStore.load(network:tobata).count,1)
     }
     func testManeuverAndProgressAlongRoute() throws {
         let n=fixture(),route=try XCTUnwrap(Router(network:n).route(from:"a",to:"c",blocked:["ad"]))
