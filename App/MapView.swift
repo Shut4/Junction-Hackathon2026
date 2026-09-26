@@ -4,7 +4,7 @@ import MapKit
 enum GuideMapMode { case explore,report,navigation }
 
 final class GuidePin: MKPointAnnotation {
-    enum Kind { case target,saved,blocked,simulated,dropped }
+    enum Kind { case target,blocked,simulated,dropped }
     var kind:Kind
     init(kind:Kind) { self.kind=kind;super.init() }
 }
@@ -41,7 +41,7 @@ struct GuideMap: UIViewRepresentable {
         map.isScrollEnabled = !store.tracing;map.isZoomEnabled = !store.tracing;c.gesture?.isEnabled=store.tracing
         c.tapGesture?.isEnabled = !store.tracing
         guard let network=store.network else { return }
-        // Static layer (network, boundary, saved pins) is built once per mode; only small dynamic layers are replaced.
+        // Static layer (network and boundary) is built once per mode; only small dynamic layers are replaced.
         let baseKey="\(mode)|\(network.id)|\(network.version)"
         if baseKey != c.baseKey {
             c.baseKey=baseKey;c.dynamicKey="";map.removeOverlays(map.overlays);map.removeAnnotations(map.annotations.filter { !($0 is MKUserLocation) });c.simulatedPin=nil;c.dynamicOverlays=[];c.dynamicPins=[]
@@ -49,7 +49,6 @@ struct GuideMap: UIViewRepresentable {
             add([Coordinate(b.south,b.west),Coordinate(b.south,b.east),Coordinate(b.north,b.east),Coordinate(b.north,b.west),Coordinate(b.south,b.west)],title:"boundary",map:map)
             let lines=network.edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
             for title in mode == .report ? ["selectableCasing","selectable"]:["walk"] { let multi=MKMultiPolyline(lines);multi.title=title;map.addOverlay(multi,level:.aboveRoads) }
-            if mode != .navigation { for d in network.destinations { if let p=store.place(d.nodeID) { pin(p.coordinate,kind:.saved,title:d.name,subtitle:"実験接続点・入口未確認",map:map) } } }
         }
         let dynamicKey="\(store.selected.sorted())|\(store.blocked.sorted())|\(store.routeVersion)|\(store.route != nil)|\(store.destinationID)|\(String(describing:store.destinationCoordinate))|\(store.inspected?.droppedPin == true ? String(describing:store.inspected?.coordinate):"")"
         if dynamicKey != c.dynamicKey {
@@ -168,7 +167,6 @@ struct GuideMap: UIViewRepresentable {
         func mapView(_ mapView:MKMapView,didSelect annotation:any MKAnnotation) {
             guard mode == .explore else { return }
             if let feature=annotation as? MKMapFeatureAnnotation { store.inspect(feature:feature) }
-            else if let pin=annotation as? GuidePin,pin.kind == .saved,let d=store.destinations.first(where:{ $0.name == pin.title }) { store.inspect(saved:d) }
         }
         func mapView(_ mapView:MKMapView,didDeselect annotation:any MKAnnotation) {
             guard mode == .explore,mapView.selectedAnnotations.isEmpty else { return }
@@ -180,7 +178,6 @@ struct GuideMap: UIViewRepresentable {
             view.annotation=pin;view.canShowCallout=mode != .explore || pin.kind == .blocked
             switch pin.kind {
             case .target: view.markerTintColor = .systemRed;view.glyphImage=UIImage(systemName:"mappin");view.displayPriority = .required
-            case .saved: view.markerTintColor = .systemGreen;view.glyphImage=UIImage(systemName:"figure.walk");view.displayPriority = .defaultHigh
             case .blocked: view.markerTintColor = .systemOrange;view.glyphImage=UIImage(systemName:"xmark");view.displayPriority = .defaultHigh
             case .simulated: view.markerTintColor = .systemPurple;view.glyphImage=UIImage(systemName:"location.fill");view.displayPriority = .required
             case .dropped: view.markerTintColor = .systemRed;view.glyphImage=UIImage(systemName:"mappin");view.displayPriority = .required
