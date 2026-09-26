@@ -16,6 +16,8 @@
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>0.4</string>
+	<key>JGDetectionModel</key>
+	<string>vidvipo_yolov8x_2023-05-19</string>
 	<key>CFBundleVersion</key>
 	<string>4</string>
 	<key>LSRequiresIPhoneOS</key>
