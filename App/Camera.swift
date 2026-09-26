@@ -2,37 +2,98 @@ import SwiftUI
 @preconcurrency import AVFoundation
 @preconcurrency import Vision
 import CoreML
+import CoreMotion
+import simd
 import Darwin
 
 /// The bundled Core ML model name, set once in Info.plist (JGDetectionModel) and shared with Scripts/install_model.sh and Scripts/create_project.py.
 enum DetectionModel { static let name=Bundle.main.object(forInfoDictionaryKey:"JGDetectionModel") as? String ?? "" }
-final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate,@unchecked Sendable {
+final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate,AVCaptureDepthDataOutputDelegate,@unchecked Sendable {
     let session = AVCaptureSession()
     let queue = DispatchQueue(label:"guide.camera")
     var result: (@Sendable ([Detection],Double,Double,Double,String?) -> Void)?
     private var request: VNCoreMLRequest?
     private var configured=false
     private var lastFrame=0.0
+    /// Chest/head-height obstacle check from the dual-camera depth stream (no LiDAR needed). Runs on its own queue.
+    var headLevel: (@Sendable (HeadLevelResult?,String) -> Void)?
+    private let depthQueue=DispatchQueue(label:"guide.depth")
+    private let motion=CMMotionManager()
+    private var lastDepth=0.0
+    private var cameraHeight:Float=1.3
+    private var headLevelConfig=HeadLevelConfig()
+    private(set) var device:AVCaptureDevice?
+    func setCameraHeight(_ height:Double) { depthQueue.async { [self] in cameraHeight=Float(height) } }
+    func setHeadLevelConfig(_ config:HeadLevelConfig) { depthQueue.async { [self] in headLevelConfig=config } }
     func start() {
         queue.async { [self] in
             do {
                 if !configured {
                     session.beginConfiguration();defer { session.commitConfiguration() }
                     session.sessionPreset = .vga640x480
-                    guard let device=AVCaptureDevice.default(.builtInWideAngleCamera,for:.video,position:.back) else { throw CameraError.noCamera }
+                    // Dual wide (wide + ultra wide) gives stereo depth on non-Pro iPhones; fall back to the plain wide camera.
+                    guard let device=AVCaptureDevice.default(.builtInDualWideCamera,for:.video,position:.back) ?? AVCaptureDevice.default(.builtInWideAngleCamera,for:.video,position:.back) else { throw CameraError.noCamera }
+                    self.device=device
                     let input=try AVCaptureDeviceInput(device:device)
                     guard session.canAddInput(input) else { throw CameraError.noCamera };session.addInput(input)
                     let output=AVCaptureVideoDataOutput();output.alwaysDiscardsLateVideoFrames=true;output.setSampleBufferDelegate(self,queue:queue)
                     guard session.canAddOutput(output) else { throw CameraError.noCamera };session.addOutput(output);configured=true
+                    configureDepth(device)
                 }
                 if request == nil, let url=Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") {
                     let model=try MLModel(contentsOf:url);request=VNCoreMLRequest(model:try VNCoreMLModel(for:model));request?.imageCropAndScaleOption = .scaleFit
                 }
+                if motion.isDeviceMotionAvailable && !motion.isDeviceMotionActive { motion.deviceMotionUpdateInterval=1/30;motion.startDeviceMotionUpdates() }
                 session.startRunning()
             } catch { result?([],0,0,0,error.localizedDescription) }
         }
     }
-    func stop() { queue.async { [self] in session.stopRunning() } }
+    func stop() { queue.async { [self] in session.stopRunning();motion.stopDeviceMotionUpdates() } }
+    /// Picks a small 4:3 video format that also delivers depth, and adds a depth output. Leaves the VGA preset when unsupported.
+    private func configureDepth(_ device:AVCaptureDevice) {
+        let formats=device.formats.filter { !$0.supportedDepthDataFormats.isEmpty }.filter { let d=CMVideoFormatDescriptionGetDimensions($0.formatDescription);return d.width*3 == d.height*4 && d.width >= 640 }
+        guard let format=formats.min(by: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width < CMVideoFormatDescriptionGetDimensions($1.formatDescription).width }),
+              let depthFormat=format.supportedDepthDataFormats.filter({ CMFormatDescriptionGetMediaSubType($0.formatDescription) == kCVPixelFormatType_DepthFloat32 || CMFormatDescriptionGetMediaSubType($0.formatDescription) == kCVPixelFormatType_DepthFloat16 }).max(by: { CMVideoFormatDescriptionGetDimensions($0.formatDescription).width < CMVideoFormatDescriptionGetDimensions($1.formatDescription).width }) else {
+            headLevel?(nil,"深度非対応のカメラです");return
+        }
+        let depth=AVCaptureDepthDataOutput();depth.isFilteringEnabled=true;depth.alwaysDiscardsLateDepthData=true
+        guard session.canAddOutput(depth) else { headLevel?(nil,"深度出力を追加できません");return }
+        session.addOutput(depth);depth.setDelegate(self,callbackQueue:depthQueue)
+        do { try device.lockForConfiguration();device.activeFormat=format;device.activeDepthDataFormat=depthFormat;device.unlockForConfiguration() }
+        catch { headLevel?(nil,"深度の設定に失敗しました");return }
+        let v=CMVideoFormatDescriptionGetDimensions(format.formatDescription),d=CMVideoFormatDescriptionGetDimensions(depthFormat.formatDescription)
+        headLevel?(nil,"深度 \(d.width)×\(d.height)・映像 \(v.width)×\(v.height)")
+    }
+    func depthDataOutput(_ output:AVCaptureDepthDataOutput,didOutput depthData:AVDepthData,timestamp:CMTime,connection:AVCaptureConnection) {
+        let now=ProcessInfo.processInfo.systemUptime
+        guard now-lastDepth >= 0.2 else { return };lastDepth=now
+        guard let g=motion.deviceMotion?.gravity else { headLevel?(nil,"端末の傾きを取得できません");return }
+        let depth=depthData.converting(toDepthDataType:kCVPixelFormatType_DepthFloat32),map=depth.depthDataMap
+        CVPixelBufferLockBaseAddress(map,.readOnly);defer { CVPixelBufferUnlockBaseAddress(map,.readOnly) }
+        guard let base=CVPixelBufferGetBaseAddress(map) else { return }
+        let width=CVPixelBufferGetWidth(map),height=CVPixelBufferGetHeight(map),row=CVPixelBufferGetBytesPerRow(map)
+        // Intrinsics from calibration (scaled to the depth map), else from the field of view.
+        var fx:Float,fy:Float,cx:Float,cy:Float
+        if let c=depth.cameraCalibrationData {
+            let k=c.intrinsicMatrix,ref=c.intrinsicMatrixReferenceDimensions,sx=Float(width)/Float(ref.width),sy=Float(height)/Float(ref.height)
+            fx=k.columns.0.x*sx;fy=k.columns.1.y*sy;cx=k.columns.2.x*sx;cy=k.columns.2.y*sy
+        } else {
+            let fov=Float(device?.activeFormat.videoFieldOfView ?? 70) * .pi/180
+            fx=Float(width)/2/tan(fov/2);fy=fx;cx=Float(width)/2;cy=Float(height)/2
+        }
+        let step=max(1,width/80)
+        var points:[SIMD3<Float>]=[];points.reserveCapacity((width/step)*(height/step))
+        for v in stride(from:0,to:height,by:step) {
+            let line=base.advanced(by:v*row).assumingMemoryBound(to:Float32.self)
+            for u in stride(from:0,to:width,by:step) {
+                let z=line[u]
+                guard z.isFinite,z>0.2,z<5 else { continue }
+                points.append(HeadLevelGeometry.devicePoint(u:Float(u),v:Float(v),depth:z,fx:fx,fy:fy,cx:cx,cy:cy))
+            }
+        }
+        let result=HeadLevelGeometry.evaluate(points:points,gravity:SIMD3(Float(g.x),Float(g.y),Float(g.z)),cameraHeight:cameraHeight,config:headLevelConfig)
+        headLevel?(result,"深度 \(points.count)点・床\(result.floorMeasured ? "推定":"仮定") \(String(format:"%.2f",-result.floor))m")
+    }
     func captureOutput(_ output:AVCaptureOutput,didOutput sampleBuffer:CMSampleBuffer,from connection:AVCaptureConnection) {
         let now=ProcessInfo.processInfo.systemUptime
         guard now-lastFrame >= 0.15 else { return };lastFrame=now
@@ -79,15 +140,31 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     var injectError=false
     var onNotice: ((DetectionNotice)->Void)?
     var onMetric: ((MetricEvent)->Void)?
+    @Published var headLevel:HeadLevelHit?
+    @Published var depthStatus="深度未開始"
+    var onHeadLevel: ((HeadLevelHit?,Double)->Void)?
     private var sessionGeneration=0
     /// Field of view of the sensor's long side in degrees. The portrait aspect-fill preview shows that side as the full screen height.
-    var verticalFieldOfView:Double { Double(AVCaptureDevice.default(.builtInWideAngleCamera,for:.video,position:.back)?.activeFormat.videoFieldOfView ?? 65) }
+    /// Uses the camera actually in the session (the dual wide virtual camera when depth is on) and its zoom.
+    var verticalFieldOfView:Double {
+        guard let device=engine.device ?? AVCaptureDevice.default(.builtInWideAngleCamera,for:.video,position:.back) else { return 65 }
+        let half=Double(device.activeFormat.videoFieldOfView)/2 * .pi/180
+        return 2*atan(tan(half)/Double(device.videoZoomFactor)) * 180 / .pi
+    }
     init() {
         UIDevice.current.isBatteryMonitoringEnabled=true
         if Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") != nil { modelStatus="導入済み・動作確認待ち" }
         Task { @MainActor [modelStatus] in debugLog(.model,modelStatus == "未導入" ? .warning:.info,"Model bundle check",["model":DetectionModel.name,"status":modelStatus]) }
         engine.result = { [weak self] detections,captured,start,end,error in
             Task { @MainActor in self?.receive(detections,captured:captured,start:start,end:end,error:error) }
+        }
+        engine.headLevel = { [weak self] result,status in
+            Task { @MainActor in
+                guard let self else { return }
+                self.depthStatus=status
+                guard self.running,let result else { return }
+                self.headLevel=result.hit;self.onHeadLevel?(result.hit,ProcessInfo.processInfo.systemUptime)
+            }
         }
     }
     func start() {
@@ -104,7 +181,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     }
     func stop() {
         if running { debugLog(.camera,.info,"Camera session stopped",["inferences":inferenceCount,"notices":notificationCount]) }
-        sessionGeneration += 1;running=false;engine.stop();filter.reset();status="カメラ停止中";labels="検出候補なし";detections=[];framesPerSecond=0
+        sessionGeneration += 1;running=false;engine.stop();filter.reset();status="カメラ停止中";labels="検出候補なし";detections=[];framesPerSecond=0;headLevel=nil
     }
     /// DeveloperMode preview of the box overlay without camera frames. Never passed to the notice filter.
     func showSimulated(_ items:[Detection]) { guard !running else { return };simulatedDetections=true;detections=items }

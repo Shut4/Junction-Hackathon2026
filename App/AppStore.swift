@@ -63,11 +63,20 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var showARArrow:Bool { didSet { UserDefaults.standard.set(showARArrow,forKey:"dev.showARArrow") } }
     @Published var headingOffset:Double { didSet { UserDefaults.standard.set(headingOffset,forKey:"dev.headingOffset") } }
     /// Assumed lens height above the road and how far ahead the 3D ground arrow is drawn (metres).
-    @Published var arrowCameraHeight:Double { didSet { UserDefaults.standard.set(arrowCameraHeight,forKey:"dev.arrowCameraHeight") } }
+    @Published var arrowCameraHeight:Double { didSet { UserDefaults.standard.set(arrowCameraHeight,forKey:"dev.arrowCameraHeight");camera.engine.setCameraHeight(arrowCameraHeight) } }
     @Published var arrowDistance:Double { didSet { UserDefaults.standard.set(arrowDistance,forKey:"dev.arrowDistance") } }
     /// Spoken cues for the camera arrow direction (user setting).
     @Published var speakDirection:Bool { didSet { UserDefaults.standard.set(speakDirection,forKey:"speakDirection");directionAnnouncer.reset() } }
     var directionAnnouncer=DirectionAnnouncer()
+    /// Spoken and haptic warnings for chest/head-height obstacles from the camera depth (user setting).
+    @Published var headLevelWarnings:Bool { didSet { UserDefaults.standard.set(headLevelWarnings,forKey:"headLevelWarnings");headLevelAnnouncer.reset() } }
+    var headLevelAnnouncer=HeadLevelAnnouncer()
+    /// DeveloperMode tuning of the head-level detector and its spoken timing, persisted between launches.
+    @Published var headLevelConfig:HeadLevelConfig { didSet { save(headLevelConfig,"dev.headLevelConfig");camera.engine.setHeadLevelConfig(headLevelConfig) } }
+    @Published var headLevelTiming:HeadLevelTiming { didSet { save(headLevelTiming,"dev.headLevelTiming");headLevelAnnouncer.timing=headLevelTiming;headLevelAnnouncer.reset() } }
+    private func save<T:Encodable>(_ value:T,_ key:String) { UserDefaults.standard.set(try? JSONEncoder().encode(value),forKey:key) }
+    private static func load<T:Decodable>(_ type:T.Type,_ key:String)->T? { UserDefaults.standard.data(forKey:key).flatMap { try? JSONDecoder().decode(T.self,from:$0) } }
+    func resetHeadLevelTuning() { headLevelConfig=HeadLevelConfig();headLevelTiming=HeadLevelTiming() }
     var simulationFilter=NoticeFilter()
     let speech = SpeechController()
     let location = LocationController()
@@ -104,6 +113,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         headingOffset=defaults.double(forKey:"dev.headingOffset")
         arrowCameraHeight=defaults.object(forKey:"dev.arrowCameraHeight") as? Double ?? 1.3;arrowDistance=defaults.object(forKey:"dev.arrowDistance") as? Double ?? 4
         speakDirection=defaults.object(forKey:"speakDirection") as? Bool ?? true
+        headLevelWarnings=defaults.object(forKey:"headLevelWarnings") as? Bool ?? true
+        headLevelConfig=Self.load(HeadLevelConfig.self,"dev.headLevelConfig") ?? HeadLevelConfig();headLevelTiming=Self.load(HeadLevelTiming.self,"dev.headLevelTiming") ?? HeadLevelTiming()
         #if DEBUG
         // UI testing only: skips the 7-tap gesture. Never compiled into Release builds.
         if ProcessInfo.processInfo.arguments.contains("--developer-mode") { developer=true }
@@ -129,6 +140,15 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         Timer.publish(every:1,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.updatePosition() }.store(in:&subscriptions)
         camera.onNotice = { [weak self] n in guard let self else { return };speech.say(n.text,obstacle:true,capturedAt:n.capturedAt) }
         camera.onMetric = { [weak self] event in self?.record(event) }
+        camera.engine.setCameraHeight(arrowCameraHeight);camera.engine.setHeadLevelConfig(headLevelConfig);headLevelAnnouncer.timing=headLevelTiming
+        camera.onHeadLevel = { [weak self] hit,now in
+            guard let self else { return }
+            guard headLevelWarnings else { headLevelAnnouncer.reset();return }
+            guard let warning=headLevelAnnouncer.update(hit,now:now) else { return }
+            speech.say(warning.text,obstacle:true,capturedAt:now)
+            if warning.stage == .danger { UINotificationFeedbackGenerator().notificationOccurred(.warning) } else { UIImpactFeedbackGenerator(style:.medium).impactOccurred() }
+            debugLog(.camera,.info,"Head-level obstacle",["stage":warning.stage == .danger ? "danger":"caution","distanceM":hit.map { String(format:"%.2f",$0.distance) },"lateralM":hit.map { String(format:"%.2f",$0.lateral) },"heightM":hit.map { String(format:"%.2f",$0.height) },"points":hit?.count])
+        }
         speech.onMetric = { [weak self] event in self?.record(event) }
     }
     func loadReports(from store:ReportStore,network:Network) {

@@ -85,6 +85,7 @@ struct CameraScreen:View {
             Text(store.targetName).font(.subheadline)
             Text(store.camera.status).font(.subheadline).accessibilityIdentifier("cameraStatus")
             Text(store.camera.labels).font(.subheadline.bold())
+            if store.headLevelWarnings,let hit=store.camera.headLevel { Label(HeadLevelAnnouncer.text(hit),systemImage:"exclamationmark.triangle.fill").font(.subheadline.bold()).padding(.horizontal,8).padding(.vertical,4).background(hit.stage == .danger ? Color.red:Color.orange,in:Capsule()).accessibilityIdentifier("headLevelWarning") }
             if details { Text(store.positionState);Text("モデル："+store.camera.modelStatus);Text("画像内の候補です。距離・通行可能性・回避方向は判断しません。") }
         }.frame(maxWidth:.infinity,alignment:.leading).padding(12).foregroundStyle(.white).background(.black.opacity(0.5),in:RoundedRectangle(cornerRadius:16))
     }
