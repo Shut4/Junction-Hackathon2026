@@ -16,7 +16,7 @@ enum PlaceCategory {
     static func name(_ category:MKPointOfInterestCategory?)->String? {
         guard let category else { return nil }
         let names:[MKPointOfInterestCategory:String]=[.airport:"空港",.amusementPark:"遊園地",.aquarium:"水族館",.atm:"ATM",.bakery:"パン屋",.bank:"銀行",.beach:"ビーチ",.brewery:"醸造所",.cafe:"カフェ",.campground:"キャンプ場",.carRental:"レンタカー",.evCharger:"EV充電",.fireStation:"消防署",.fitnessCenter:"フィットネス",.foodMarket:"食料品店",.gasStation:"ガソリンスタンド",.hospital:"病院",.hotel:"ホテル",.laundry:"コインランドリー",.library:"図書館",.marina:"マリーナ",.movieTheater:"映画館",.museum:"博物館・美術館",.nationalPark:"国立公園",.nightlife:"ナイトライフ",.park:"公園",.parking:"駐車場",.pharmacy:"薬局",.police:"警察",.postOffice:"郵便局",.publicTransport:"公共交通機関",.restaurant:"レストラン",.restroom:"トイレ",.school:"学校",.stadium:"スタジアム",.store:"店舗",.theater:"劇場",.university:"大学",.winery:"ワイナリー",.zoo:"動物園",.castle:"城",.landmark:"ランドマーク",.conventionCenter:"会議場",.musicVenue:"音楽会場",.fortress:"要塞"]
-        return names[category] ?? "施設"
+        return localized(names[category] ?? "施設")
     }
 }
 extension AppStore {
@@ -27,7 +27,7 @@ extension AppStore {
     }
     func inspect(feature:MKMapFeatureAnnotation) {
         let c=feature.coordinate
-        inspected=InspectedPlace(name:feature.title ?? "施設",category:PlaceCategory.name(feature.pointOfInterestCategory),coordinate:Coordinate(c.latitude,c.longitude),loading:true)
+        inspected=InspectedPlace(name:feature.title ?? localized("施設"),category:PlaceCategory.name(feature.pointOfInterestCategory),coordinate:Coordinate(c.latitude,c.longitude),loading:true)
         let op=DebugLogger.operationID(),id=inspected?.id
         debugLog(.map,.request,"Map feature detail request",direction:.outgoing,operation:op)
         Task {
@@ -42,7 +42,7 @@ extension AppStore {
         }
     }
     func inspectDroppedPin(_ coordinate:Coordinate) {
-        inspected=InspectedPlace(name:"ドロップしたピン",category:String(format:"%.5f, %.5f",coordinate.latitude,coordinate.longitude),coordinate:coordinate,droppedPin:true,loading:true)
+        inspected=InspectedPlace(name:localized("ドロップしたピン"),category:String(format:"%.5f, %.5f",coordinate.latitude,coordinate.longitude),coordinate:coordinate,droppedPin:true,loading:true)
         let id=inspected?.id
         debugLog(.map,.info,"Pin dropped")
         Task {
@@ -57,7 +57,7 @@ extension AppStore {
     func useInspectedAsDestination(calculateRoute:Bool) {
         guard let place=inspected else { return }
         inspected=nil
-        chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? "地図で選んだ目的地"):place.name)
+        chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? localized("地図で選んだ目的地")):place.name)
         if calculateRoute,let first=destinationConnections.first,destinationConnections.count==1 { confirmConnection(first.nodeID);calculate(usePosition:true) }
     }
 }
@@ -90,7 +90,7 @@ struct PlaceCard:View {
             }
             if place.loading { ProgressView("詳細を取得中").font(.caption) }
             if let address=place.address { Label(address,systemImage:"mappin.circle").font(.subheadline) }
-            Text(inBounds ? "「経路」は選択中の地域の保存済み道路網の接続点までです。施設の開設・受入状況と入口は未確認です。":"保存済み道路網の範囲外のため表示のみです。経路案内はできません。").font(.caption).foregroundStyle(.secondary)
+            Text(localized(inBounds ? "「経路」は選択中の地域の保存済み道路網の接続点までです。施設の開設・受入状況と入口は未確認です。":"保存済み道路網の範囲外のため表示のみです。経路案内はできません。")).font(.caption).foregroundStyle(.secondary)
         }
         .padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))
@@ -99,8 +99,8 @@ struct PlaceCard:View {
     private var inBounds:Bool { store.network?.bounds.contains(place.coordinate) ?? false }
     private var detailLine:String {
         let distance=store.location.sample.map { Int($0.coordinate.distance(to:place.coordinate).rounded()) }
-        let d=distance.map { $0>=1000 ? String(format:"約%.1f km",Double($0)/1000):"約\($0) m" }
-        return [d.map { "現在地から\($0)" },inBounds ? "経路案内の対応範囲内":"対応範囲外"].compactMap { $0 }.joined(separator:"・")
+        let d=distance.map { $0>=1000 ? localized("約{0} km",String(format:"%.1f",Double($0)/1000)):localized("約{0} m",$0) }
+        return [d.map { localized("現在地から{0}",$0) },localized(inBounds ? "経路案内の対応範囲内":"対応範囲外")].compactMap { $0 }.joined(separator:localized("・"))
     }
     private var shareText:String { "\(place.name)\n\(place.address ?? "")\nhttps://maps.apple.com/?ll=\(place.coordinate.latitude),\(place.coordinate.longitude)&q=\(place.name.addingPercentEncoding(withAllowedCharacters:.urlQueryAllowed) ?? "")" }
 }

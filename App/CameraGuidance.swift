@@ -7,7 +7,7 @@ struct ARDirectionIndicator:View {
     var body:some View {
         let angle=store.cameraAngle
         Color.clear.frame(height:1)
-            .accessibilityElement().accessibilityLabel(angle.map { "進む方向、"+DirectionBucket.of($0).phrase } ?? "進む方向を確認中").accessibilityIdentifier("arDirection")
+            .accessibilityElement().accessibilityLabel(angle.map { localized("進む方向、{0}",DirectionBucket.of($0).phrase) } ?? localized("進む方向を確認中")).accessibilityIdentifier("arDirection")
     }
 }
 
@@ -52,7 +52,7 @@ struct DetectionOverlay:View {
                 let color=DetectionNames.color(d.label)
                 Rectangle().stroke(color,lineWidth:3).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
                 if showLabels {
-                    Text("\(DetectionNames.japanese[d.label] ?? d.label) \(d.confidence,specifier:"%.2f")\(d.simulated ? " 模擬":"")").font(.caption.bold().monospacedDigit()).foregroundStyle(.black)
+                    Text(localized("{0} {1}{2}",localized(DetectionNames.japanese[d.label] ?? d.label),String(format:"%.2f",d.confidence),d.simulated ? localized(" 模擬"):"")) .font(.caption.bold().monospacedDigit()).foregroundStyle(.black)
                         .padding(.horizontal,4).padding(.vertical,2).background(color).fixedSize().position(x:rect.minX+40,y:max(10,rect.minY-10))
                 }
             }
