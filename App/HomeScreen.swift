@@ -7,7 +7,6 @@ struct HomeScreen:View {
     @State private var report=false
     @State private var settings=false
     @State private var pendingMode:GuidanceMode?
-    @State private var details=false
     @State private var expanded=false
     @State private var destinationPanelCollapsed=false
     @GestureState private var destinationPanelDrag:CGFloat=0
@@ -191,7 +190,7 @@ struct HomeScreen:View {
                     }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.red.opacity(0.1),in:RoundedRectangle(cornerRadius:14))
                 }
                 Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                Text(localized(store.destinationMessage)).font(.subheadline).foregroundStyle(.secondary)
+                if !store.destinationMessage.isEmpty { Text(localized(store.destinationMessage)).font(.subheadline).foregroundStyle(.secondary) }
                 if !store.destinationConnections.isEmpty && store.customDestination==nil {
                     Text("案内の終点を確認").font(.headline)
                     ForEach(Array(store.destinationConnections.prefix(expanded ? 5:3))) { c in Button { store.confirmConnection(c.nodeID) } label: { Label(localized("{0}・選択地点から約{1} m",store.name(c.nodeID),Int(c.distance.rounded())),systemImage:"point.topleft.down.to.point.bottomright.curvepath").frame(maxWidth:.infinity,minHeight:44,alignment:.leading) }.buttonStyle(.bordered) }
@@ -203,16 +202,12 @@ struct HomeScreen:View {
                         Button { pendingMode = .map } label: { Label("ナビ開始",systemImage:"location.north.line.fill").font(.headline).frame(maxWidth:.infinity,minHeight:50) }.buttonStyle(.borderedProminent).accessibilityIdentifier("startMapNavigation")
                         Button { pendingMode = .camera } label: { Label("カメラ案内",systemImage:"camera.viewfinder").font(.headline).frame(maxWidth:.infinity,minHeight:50) }.buttonStyle(.borderedProminent).tint(.teal).accessibilityIdentifier("startCameraNavigation")
                     }
-                    NavigationLink("順序付きの経路を確認") { RouteList() }.frame(minHeight:44)
                 } else {
                     PrimaryButton(title:"通行不可を避ける経路を確認",symbol:"arrow.triangle.turn.up.right.diamond") { store.calculate(usePosition:true) }.disabled(store.currentDestination==nil)
                 }
                 if let message=store.routeMessage { Text(localized(message)).font(.subheadline).accessibilityIdentifier("routeMessage") }
-                Text(localized(store.positionState)).font(.subheadline)
+                if !store.positionState.isEmpty { Text(localized(store.positionState)).font(.subheadline) }
                 if store.currentDestination != nil || store.selectedTarget != nil { Button("目的地の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
-                Button(localized(details ? "状態の詳細を閉じる":"位置・道路・保存の状態を確認"),systemImage:"info.circle") { details.toggle() }.frame(minHeight:44)
-                if details { StateCard() }
-                Text("長押しで目的地を選択。青：経路、赤と×：通行不可登録。保存済み地点は上部のチップから選択できます").font(.caption).foregroundStyle(.secondary)
                 SourceFooter()
             }.padding(.horizontal,16).padding(.bottom,12).frame(maxWidth:.infinity,alignment:.leading)
     }

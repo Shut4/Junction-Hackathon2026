@@ -26,7 +26,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var targetName=localized("目的地を選択してください")
     @Published var customDestination:Destination?
     @Published var destinationConnections:[DestinationConnection]=[]
-    @Published var destinationMessage=localized("避難所の開設・受入状況は確認していません")
+    @Published var destinationMessage=""
     @Published var previewStart = ""
     @Published var routeMessage: String?
     private var requestedRouteUsesPosition: Bool?
@@ -259,7 +259,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func confirmConnection(_ nodeID:String) {
         guard let candidate=destinationConnections.first(where:{$0.nodeID==nodeID}),place(nodeID) != nil else { return }
         stopNavigation();destinationID="chosen-"+nodeID
-        customDestination=Destination(id:destinationID,name:targetName,nodeID:nodeID,note:localized("道路接続点まで案内。選択地点まで約{0} m・入口未確認",Int(candidate.distance.rounded())))
+        customDestination=Destination(id:destinationID,name:targetName,nodeID:nodeID,note:"")
         destinationMessage=customDestination!.note
         debugLog(.search,.success,"Road connection confirmed",["node":nodeID,"distanceM":Int(candidate.distance.rounded())])
     }
@@ -268,7 +268,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         debugLog(.search,.info,"Saved destination chosen",["id":destination.id]);focus(.destination)
     }
     func clearDestination() {
-        stopNavigation();customDestination=nil;selectedTarget=nil;destinationConnections=[];destinationID="";targetName=localized("目的地を選択してください");destinationMessage=localized("避難所の開設・受入状況は確認していません")
+        stopNavigation();customDestination=nil;selectedTarget=nil;destinationConnections=[];destinationID="";targetName=localized("目的地を選択してください");destinationMessage=""
     }
     // MARK: Routing and guidance
     func calculate(usePosition:Bool) {
@@ -359,7 +359,6 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         requestedRouteUsesPosition=nil;waitingForRoutePosition=false;resumeAfterPosition=false;routeMessage=nil
         navigating=false;route=nil;speech.stop();lastSpoken="";nextInstruction=localized("案内を停止しました");stepIndex=0;stopSimulatedWalk()
     }
-    func repeatInstruction() { speech.say(navigating ? nextInstruction:positionState) }
     func reroute(blockage:Bool) {
         reroutes += 1;debugLog(.route,.warning,"Reroute",["reason":blockage ? "blockage":"deviation","count":reroutes]);calculate(usePosition:true)
         if route != nil { if blockage { speech.say(localized("通行不可のため経路を変更しました")) };updatePosition() }
@@ -441,7 +440,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let now=ProcessInfo.processInfo.systemUptime
         if straight,straightInterval > 0,now-lastStraight >= straightInterval { sayNavigation(DirectionBucket.ahead.phrase,ttl:straightInterval) }
     }
-    private func hold(_ text:String) { nextInstruction=text;if lastSpoken != text { speech.invalidateRoute();speech.say(text);lastSpoken=text;debugLog(.navigation,.warning,"Guidance held",["reason":text]) } }
+    private func hold(_ text:String) { nextInstruction=text;if !text.isEmpty,lastSpoken != text { speech.invalidateRoute();speech.say(text);lastSpoken=text;debugLog(.navigation,.warning,"Guidance held",["reason":text]) } }
     func record(_ event:MetricEvent) { if metrics.count>=2000 { metrics.removeFirst();droppedMetrics += 1 };metrics.append(event) }
     func pause() { debugLog(.lifecycle,.info,"Moved to background: guidance, camera and location stopped",["navigating":navigating]);stopNavigation();camera.stop();location.stop();simulationTask?.cancel();guidanceActive=false }
 }

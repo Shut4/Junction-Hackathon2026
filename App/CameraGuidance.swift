@@ -155,7 +155,7 @@ struct CameraScreen:View {
         VStack(alignment:.leading,spacing:4) {
             SceneList(items:items,limit:6)
             if !store.camera.running || store.camera.modelStatus == "未導入" { Text(store.camera.status).font(.subheadline).accessibilityIdentifier("cameraStatus") }
-            Text(store.positionState).font(.subheadline);Text("モデル："+store.camera.modelStatus).font(.subheadline)
+            if !store.positionState.isEmpty { Text(localized(store.positionState)).font(.subheadline) };Text(localized("モデル：{0}",localized(store.camera.modelStatus))).font(.subheadline)
             Text("距離・歩ける範囲は2つのカメラの深度からの概算です。足元と周囲を同行者と確認してください。").font(.caption)
         }.frame(maxWidth:.infinity,alignment:.leading).padding(12).foregroundStyle(.white).background(.black.opacity(0.55),in:RoundedRectangle(cornerRadius:16))
     }

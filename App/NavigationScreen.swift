@@ -16,7 +16,6 @@ extension RouteProgress {
 struct NavigationModeScreen:View {
     @EnvironmentObject var store:AppStore
     @State private var report=false
-    @State private var steps=false
     @State private var stop=false
     @State private var bannerHeight:CGFloat=160
     @State private var barHeight:CGFloat=160
@@ -33,7 +32,6 @@ struct NavigationModeScreen:View {
             }
         }
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
-        .sheet(isPresented:$steps) { NavigationStack { RouteList().toolbar { ToolbarItem(placement:.confirmationAction) { Button("閉じる") { steps=false } } } } }
         .confirmationDialog("案内・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     private var bottomBar:some View {
@@ -49,10 +47,8 @@ struct NavigationModeScreen:View {
                 Button(localized(store.navigating ? "終了":"閉じる")) { if store.navigating { stop=true } else { store.closeGuidance() } }.font(.headline).buttonStyle(.borderedProminent).tint(.red).accessibilityIdentifier("endNavigation")
             }
             HStack(spacing:8) {
-                barButton("再読み上げ",symbol:"speaker.wave.2.fill") { store.repeatInstruction() }
                 barButton("カメラ案内",symbol:"camera.viewfinder") { store.switchGuidance(to:.camera) }.accessibilityIdentifier("navSwitchCamera")
                 barButton("通行不可",symbol:"exclamationmark.triangle.fill") { report=true }
-                barButton("経路一覧",symbol:"list.number") { steps=true }
             }
             Button("地図・目的地選択へ",systemImage:"map") { store.closeGuidance() }.font(.subheadline).frame(minHeight:36)
         }
@@ -84,7 +80,7 @@ struct InstructionBanner:View {
             } else {
                 Text(localized(store.navigating ? store.nextInstruction:store.route == nil ? "経路が未設定です。目的地を選び、経路を確認して開始してください":store.nextInstruction)).font(.title3.bold())
             }
-            if store.matchedEdge == nil { Label(localized(store.positionState),systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
+            if store.matchedEdge == nil && !store.positionState.isEmpty { Label(localized(store.positionState),systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
         }
         .foregroundStyle(.white).padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:20).fill(Color(red:0.05,green:0.42,blue:0.28)).shadow(color:.black.opacity(0.25),radius:8,y:3))
