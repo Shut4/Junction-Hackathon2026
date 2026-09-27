@@ -57,7 +57,7 @@ extension AppStore {
     func useInspectedAsDestination(calculateRoute:Bool) {
         guard let place=inspected else { return }
         inspected=nil
-        chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? "地図で選んだ避難先"):place.name)
+        chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? "地図で選んだ目的地"):place.name)
         if calculateRoute,let first=destinationConnections.first,destinationConnections.count==1 { confirmConnection(first.nodeID);calculate(usePosition:true) }
     }
 }
