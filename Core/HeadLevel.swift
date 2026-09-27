@@ -116,9 +116,79 @@ public struct DepthGrid: Sendable {
     public var values: [Float]; public var columns: Int; public var rows: Int; public var step: Int
     public var fx: Float, fy: Float, cx: Float, cy: Float
     public var gravity: SIMD3<Float>; public var time: Double
-    public init(values: [Float], columns: Int, rows: Int, step: Int, fx: Float, fy: Float, cx: Float, cy: Float, gravity: SIMD3<Float>, time: Double) {
-        self.values = values; self.columns = columns; self.rows = rows; self.step = step; self.fx = fx; self.fy = fy; self.cx = cx; self.cy = cy; self.gravity = gravity; self.time = time
+    /// Floor height relative to the lens (negative, m) when measured from this frame; used by the ground check.
+    public var floor: Float?
+    public init(values: [Float], columns: Int, rows: Int, step: Int, fx: Float, fy: Float, cx: Float, cy: Float, gravity: SIMD3<Float>, time: Double, floor: Float? = nil) {
+        self.values = values; self.columns = columns; self.rows = rows; self.step = step; self.fx = fx; self.fy = fy; self.cx = cx; self.cy = cy; self.gravity = gravity; self.time = time; self.floor = floor
     }
+    /// Valid depths of grid cells whose centre lies in `box` (normalised, upright portrait, origin bottom-left).
+    func depths(in box: Box, excluding inner: Box? = nil) -> [Float] {
+        let u0 = max(0, Int((1 - box.y - box.height) * Double(columns))), u1 = min(columns - 1, Int((1 - box.y) * Double(columns)))
+        let v0 = max(0, Int((1 - box.x - box.width) * Double(rows))), v1 = min(rows - 1, Int((1 - box.x) * Double(rows)))
+        guard u0 <= u1, v0 <= v1 else { return [] }
+        var out: [Float] = []
+        for v in v0...v1 { for u in u0...u1 {
+            if let inner {
+                let x = 1 - (Double(v) + 0.5) / Double(rows), y = 1 - (Double(u) + 0.5) / Double(columns)
+                if x >= inner.x && x <= inner.x + inner.width && y >= inner.y && y <= inner.y + inner.height { continue }
+            }
+            let z = values[v * columns + u]
+            if z.isFinite && z > 0.2 { out.append(z) }
+        } }
+        return out
+    }
+    /// Why a detection is implausible for its class, or nil if it looks real (or depth cannot tell).
+    /// - Picture check: the box is as far as its surroundings and flat inside — a screen, photo or poster, not an object.
+    /// - Ground check: classes that stand on (or are painted on) the ground must have their bottom near the floor.
+    public func implausibility(_ box: Box, label: String, config c: DepthCheck) -> String? {
+        guard c.enabled else { return nil }
+        let inside = depths(in: box)
+        guard inside.count >= 6 else { return nil }
+        let near = HeadLevelGeometry.percentile(inside, 0.2)
+        guard near <= c.maxRange else { return nil }
+        if !DepthCheck.flatLabels.contains(label) {
+            let pad = 0.3
+            let ring = depths(in: Box(x: box.x - box.width * pad, y: box.y - box.height * pad, width: box.width * (1 + 2 * pad), height: box.height * (1 + 2 * pad)), excluding: box)
+            if ring.count >= 6 {
+                let around = HeadLevelGeometry.percentile(ring, 0.5), spread = HeadLevelGeometry.percentile(inside, 0.8) - near
+                if around - near < c.minContrast && spread < c.minContrast { return coreLocalized("平面（画面・写真の可能性）") }
+            }
+        }
+        if DepthCheck.groundLabels.contains(label), box.y > 0.02, let floor, let axes = HeadLevelGeometry.axes(gravity: gravity) {
+            // Bottom edge centre: where the object meets the ground.
+            let u = Int((1 - box.y - box.height * 0.05) * Double(columns)), v = Int((1 - box.x - box.width / 2) * Double(rows))
+            var zs: [Float] = []
+            for dv in -1...1 { for du in -1...1 {
+                let uu = u + du, vv = v + dv
+                guard uu >= 0, uu < columns, vv >= 0, vv < rows else { continue }
+                let z = values[vv * columns + uu]; if z.isFinite && z > 0.2 { zs.append(z) }
+            } }
+            if zs.count >= 3 {
+                let p = HeadLevelGeometry.devicePoint(u: Float(u * step), v: Float(v * step), depth: zs.sorted()[zs.count / 2], fx: fx, fy: fy, cx: cx, cy: cy)
+                if simd_dot(p, axes.up) - floor > c.groundTolerance { return coreLocalized("床から浮いている") }
+            }
+        }
+        return nil
+    }
+}
+
+/// DeveloperMode tuning of the depth plausibility check that removes false detections.
+public struct DepthCheck: Sendable, Codable, Equatable {
+    public var enabled = true
+    /// Object must be nearer than its surroundings by this much (m), unless flat by nature.
+    public var minContrast: Float = 0.15
+    /// Ground classes: bottom edge at most this far above the floor (m).
+    public var groundTolerance: Float = 0.4
+    /// Beyond this distance (m) depth is too coarse to judge; detections are kept.
+    public var maxRange: Float = 5
+    public init() {}
+    /// Painted or sheet-like classes: no picture check.
+    public static let flatLabels: Set<String> = ["braille_block", "crosswalk", "white_line", "signboard", "flag"]
+    /// Classes standing on or painted on the ground: ground check.
+    public static let groundLabels: Set<String> = ["steps", "stairs", "pole", "bollard", "safety-cone", "braille_block", "crosswalk", "white_line", "bicycle", "bicycler", "motorbike"]
+}
+
+extension DepthGrid {
     /// Forward distance and lateral offset of a Vision box (normalised, upright portrait, origin bottom-left),
     /// sampled a little above its bottom edge (where most objects meet the ground) with a 3×3 median.
     public func locate(_ box: Box) -> (distance: Double, lateral: Double)? {

@@ -24,12 +24,15 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     private var cameraHeight:Float=1.3
     private var headLevelConfig=HeadLevelConfig()
     private var walkableConfig=WalkableConfig()
+    /// Read on the video queue, set from the main actor via `setDepthCheck`.
+    private var depthCheck=DepthCheck()
     private(set) var device:AVCaptureDevice?
     /// Latest subsampled depth frame, shared from the depth queue to the video queue to place detections in metres.
     private let latestDepth=OSAllocatedUnfairLock<DepthGrid?>(initialState:nil)
     func setCameraHeight(_ height:Double) { depthQueue.async { [self] in cameraHeight=Float(height) } }
     func setHeadLevelConfig(_ config:HeadLevelConfig) { depthQueue.async { [self] in headLevelConfig=config } }
     func setWalkableConfig(_ config:WalkableConfig) { depthQueue.async { [self] in walkableConfig=config } }
+    func setDepthCheck(_ config:DepthCheck) { queue.async { [self] in depthCheck=config } }
     func start() {
         queue.async { [self] in
             do {
@@ -99,9 +102,10 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             }
         }
         let gravity=SIMD3(Float(g.x),Float(g.y),Float(g.z))
-        let snapshot=DepthGrid(values:grid,columns:columns,rows:rows,step:step,fx:fx,fy:fy,cx:cx,cy:cy,gravity:gravity,time:now)
-        latestDepth.withLock { $0=snapshot }
         let result=HeadLevelGeometry.evaluate(points:points,gravity:gravity,cameraHeight:cameraHeight,config:headLevelConfig,walkable:walkableConfig)
+        // The measured floor lets the video queue reject "steps" etc. that float above the ground.
+        let snapshot=DepthGrid(values:grid,columns:columns,rows:rows,step:step,fx:fx,fy:fy,cx:cx,cy:cy,gravity:gravity,time:now,floor:result.floorMeasured ? result.floor:nil)
+        latestDepth.withLock { $0=snapshot }
         headLevel?(result,localized("深度 {0}点・床{1} {2}m",points.count,localized(result.floorMeasured ? "推定":"仮定"),String(format:"%.2f",-result.floor)))
     }
     func captureOutput(_ output:AVCaptureOutput,didOutput sampleBuffer:CMSampleBuffer,from connection:AVCaptureConnection) {
@@ -122,7 +126,8 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
                 guard let label=object.labels.first else { return nil }
                 let b=object.boundingBox,box=Box(x:b.minX,y:b.minY,width:b.width,height:b.height)
                 let place=depth?.locate(box)
-                return Detection(label:label.identifier,confidence:Double(label.confidence),box:box,capturedAt:captured,distance:place?.distance,lateral:place?.lateral)
+                let rejected=depth?.implausibility(box,label:label.identifier,config:depthCheck)
+                return Detection(label:label.identifier,confidence:Double(label.confidence),box:box,capturedAt:captured,distance:place?.distance,lateral:place?.lateral,rejected:rejected)
             }
             result?(detections,captured,start,finish,nil)
         } catch { result?([],captured,start,ProcessInfo.processInfo.systemUptime,error.localizedDescription) }

@@ -109,6 +109,15 @@ struct DeveloperScreen:View {
             dial("ブザーの高さ buzzerFrequency",$store.feedbackTuning.buzzerFrequency,300...2000,20,"Hz")
             Text("緊急＝警告音3回＋強い振動・赤、高＝警告音2回＋警告の振動・橙、通常＝警告音1回・振動なし・青。頭上の障害物が buzzerDistance 以内にある間はブザーが鳴り続ける（危険の警告音がオフなら鳴らない）。歩ける範囲は farthest より先は見ないため、blockedDistance・dropDistance は farthest 以下で効きます。深度で距離がわからない物体は「高」。").font(.caption)
         }
+        Section("誤検出の除外（深度・DepthCheck）") {
+            Toggle("深度で誤検出を除外 enabled",isOn:$store.depthCheck.enabled)
+            dialF("周りより手前にある差 minContrast",$store.depthCheck.minContrast,0.03...0.6,0.01,"m")
+            dialF("床から浮いてよい高さ groundTolerance",$store.depthCheck.groundTolerance,0.1...1.5,0.05,"m")
+            dialF("判定する最大距離 maxRange",$store.depthCheck.maxRange,1...10,0.5,"m")
+            LabeledContent("今のフレームで除外",value:"\(store.camera.detections.filter { $0.rejected != nil }.count)件")
+            Button("除外の設定を既定値に戻す") { store.depthCheck=DepthCheck() }
+            Text("平面チェック：枠の中が周りと同じ深さで平らなら、画面・写真・ポスターとみなして除外（点字ブロック・横断歩道・白線・看板・旗は対象外）。床チェック：段差・階段・ポール・車止め・コーン・点字ブロック・横断歩道・白線・自転車・自転車に乗った人・バイクは、下端が床から groundTolerance より高ければ除外。除外した物はBBOXで灰色の破線と理由を表示。").font(.caption)
+        }
         Section("ラベルごとの危険度（NoticeTuning.tiers）") {
             ForEach(SceneCatalog.classes.keys.sorted { a,b in
                 let ta=SceneCatalog.tier(a,overrides:store.noticeTuning.tiers)!,tb=SceneCatalog.tier(b,overrides:store.noticeTuning.tiers)!
@@ -122,8 +131,13 @@ struct DeveloperScreen:View {
                         if store.noticeTuning.tiers[label] != nil { Text("変更済み（既定：\(SceneCatalog.classes[label]!.tier.japanese)）").font(.caption).foregroundStyle(.orange) }
                     }
                 }
+                Stepper(value:Binding(get:{ store.noticeTuning.confidence(for:label) },set:{ store.setConfidence($0,for:label) }),in:0.2...0.95,step:0.05) {
+                    Text(String(format:"%@ の信頼度閾値 classConfidence %.2f%@",SceneCatalog.classes[label]!.name,store.noticeTuning.confidence(for:label),
+                                store.noticeTuning.classConfidence[label] != nil ? "（変更済み）":SceneCatalog.defaultConfidence[label] != nil ? "（既定・厳しめ）":"（共通）")).font(.caption)
+                }
             }
             Button("危険度を既定値に戻す") { store.noticeTuning.tiers=[:] }
+            Button("クラスごとの信頼度閾値を既定値に戻す") { store.noticeTuning.classConfidence=[:] }
             Text("危険＝警告音・振動・高頻度、目印＝音声のみ・中頻度、周辺＝設定で有効時のみ・低頻度、読まない＝読み上げ・目印表示なし。変更は読み上げ・画面の周囲一覧・目印にすぐ反映され、保存されます。").font(.caption)
         }
         Section("効果音・振動・カメラ案内") {

@@ -49,10 +49,11 @@ struct DetectionOverlay:View {
             let size=geometry.size,scale=max(size.width/3,size.height/4),w=3*scale,h=4*scale,ox=(size.width-w)/2,oy=(size.height-h)/2
             ForEach(Array(detections.filter { $0.confidence>=minConfidence }.enumerated()),id:\.offset) { _,d in
                 let rect=CGRect(x:ox+d.box.x*w,y:oy+(1-d.box.y-d.box.height)*h,width:d.box.width*w,height:d.box.height*h)
-                let color=DetectionNames.color(d.label)
-                Rectangle().stroke(color,lineWidth:3).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
+                // Depth-rejected detections (pictures, floating ground objects) are drawn grey and dashed, with the reason.
+                let color=d.rejected == nil ? DetectionNames.color(d.label):Color.gray
+                Rectangle().stroke(color,style:StrokeStyle(lineWidth:3,dash:d.rejected == nil ? []:[6,4])).frame(width:rect.width,height:rect.height).position(x:rect.midX,y:rect.midY)
                 if showLabels {
-                    Text(localized("{0} {1}{2}",localized(DetectionNames.japanese[d.label] ?? d.label),String(format:"%.2f",d.confidence),d.simulated ? localized(" 模擬"):"")) .font(.caption.bold().monospacedDigit()).foregroundStyle(.black)
+                    Text(localized("{0} {1}{2}",localized(DetectionNames.japanese[d.label] ?? d.label),String(format:"%.2f",d.confidence),d.simulated ? localized(" 模擬"):"")+(d.rejected.map { localized(" 除外：{0}",localized($0)) } ?? "")).font(.caption.bold().monospacedDigit()).foregroundStyle(.black)
                         .padding(.horizontal,4).padding(.vertical,2).background(color).fixedSize().position(x:rect.minX+40,y:max(10,rect.minY-10))
                 }
             }
@@ -63,12 +64,12 @@ struct DetectionOverlay:View {
 /// Detected objects marked on the preview like the reference design: a ringed dot at the object with its name below.
 /// Visual only (VoiceOver gets the same information from the top bar).
 struct SceneMarkers:View {
-    let detections:[Detection];let minConfidence:Double;var tiers:[String:SceneTier]=[:]
+    let detections:[Detection];let minConfidence:Double;var tiers:[String:SceneTier]=[:];var classConfidence:[String:Double]=[:]
     var body:some View {
         GeometryReader { geometry in
             // Same aspect-fill mapping as `DetectionOverlay`: the 3:4 portrait frame fills the screen.
             let size=geometry.size,scale=max(size.width/3,size.height/4),w=3*scale,h=4*scale,ox=(size.width-w)/2,oy=(size.height-h)/2
-            ForEach(Array(detections.filter { $0.confidence>=minConfidence && (SceneCatalog.tier($0.label,overrides:tiers) ?? .off) != .off }.prefix(8).enumerated()),id:\.offset) { _,d in
+            ForEach(Array(detections.filter { $0.rejected == nil && $0.confidence>=SceneCatalog.threshold($0.label,overrides:classConfidence,common:minConfidence) && (SceneCatalog.tier($0.label,overrides:tiers) ?? .off) != .off }.prefix(8).enumerated()),id:\.offset) { _,d in
                 let x=ox+(d.box.x+d.box.width/2)*w,y=oy+(1-d.box.y-d.box.height/2)*h
                 VStack(spacing:6) {
                     Circle().fill(.white).frame(width:26,height:26).overlay(Circle().fill(.black).frame(width:14,height:14))
@@ -100,7 +101,7 @@ struct CameraScreen:View {
             Color.black.ignoresSafeArea()
             CameraPreview(session:store.camera.engine.session).ignoresSafeArea().accessibilityHidden(true)
             if store.developer && store.showBoxes { DetectionOverlay(detections:store.camera.detections,minConfidence:store.boxMinConfidence,showLabels:store.showBoxLabels).ignoresSafeArea() }
-            SceneMarkers(detections:store.camera.detections,minConfidence:store.noticeTuning.confidence,tiers:store.noticeTuning.tiers).ignoresSafeArea()
+            SceneMarkers(detections:store.camera.detections,minConfidence:store.noticeTuning.confidence,tiers:store.noticeTuning.tiers,classConfidence:store.noticeTuning.classConfidence).ignoresSafeArea()
             if store.navigating && store.showARArrow,let angle=store.cameraAngle {
                 GroundArrowView(angle:angle,cameraHeight:store.arrowCameraHeight,distance:store.arrowDistance,fieldOfView:store.camera.verticalFieldOfView).ignoresSafeArea().allowsHitTesting(false).accessibilityHidden(true)
             }

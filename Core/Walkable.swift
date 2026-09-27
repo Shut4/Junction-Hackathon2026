@@ -129,7 +129,7 @@ public struct SceneItem: Sendable, Equatable { public var priority: SpeechPriori
 public enum SceneSummary {
     /// Head-level warning, walkable cues and detected objects (one per class, the nearest), ordered by priority then distance.
     public static func items(detections: [Detection], walkable: WalkableProfile?, headLevel: HeadLevelHit?, minConfidence: Double = 0.5, limit: Int = 6,
-                             announcer: WalkableAnnouncer = WalkableAnnouncer(), closeDistance: Double = NoticeFilter.closeDistance, announceDistance: Double = 3.0, tiers: [String: SceneTier] = [:]) -> [SceneItem] {
+                             announcer: WalkableAnnouncer = WalkableAnnouncer(), closeDistance: Double = NoticeFilter.closeDistance, announceDistance: Double = 3.0, tiers: [String: SceneTier] = [:], classConfidence: [String: Double] = [:]) -> [SceneItem] {
         var items: [SceneItem] = []
         if let h = headLevel { items.append(SceneItem(priority: h.stage == .danger ? .critical : .high, text: HeadLevelAnnouncer.text(h), distance: Double(h.distance))) }
         if let w = walkable {
@@ -139,7 +139,7 @@ public enum SceneSummary {
             }
         }
         var nearest: [String: Detection] = [:]
-        for d in detections where d.confidence >= minConfidence && (SceneCatalog.tier(d.label, overrides: tiers) ?? .off) != .off {
+        for d in detections where d.rejected == nil && d.confidence >= SceneCatalog.threshold(d.label, overrides: classConfidence, common: minConfidence) && (SceneCatalog.tier(d.label, overrides: tiers) ?? .off) != .off {
             if let old = nearest[d.label], (old.distance ?? .infinity) <= (d.distance ?? .infinity) { continue }
             nearest[d.label] = d
         }
