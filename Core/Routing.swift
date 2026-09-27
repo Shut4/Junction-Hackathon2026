@@ -170,7 +170,7 @@ public struct PositionResolver: Sendable {
         }
         if candidate != id { candidate=id;count=0 }
         if lastSample?.timestamp != sample.timestamp { count += 1;lastSample=sample }
-        return count>=3 ? .matched(id):.uncertain("道路候補の継続を確認中です。方向案内を保留します。")
+        return count>=3 ? .matched(id):.uncertain("")
     }
 }
 private struct MinHeap {
