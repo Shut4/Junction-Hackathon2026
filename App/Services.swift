@@ -11,17 +11,34 @@ import AVFoundation
     private var active: SpeechJob?
     var onMetric:((MetricEvent)->Void)?
     override init() { super.init(); synth.delegate = self }
+    /// With VoiceOver on, messages go through VoiceOver announcements (so two voices never overlap) with VoiceOver's
+    /// own priority: critical/high interrupt, normal queue, low is dropped while VoiceOver is busy.
+    private var voiceOverLast:[String:Double]=[:]
     func invalidateRoute() {
         queue.invalidateRoute()
-        if active?.priority == 0 { synth.stopSpeaking(at:.immediate) }
+        if active?.route == true { synth.stopSpeaking(at:.immediate) }
         pending = queue.count
     }
     func stop() { queue.stop();pending=0;synth.stopSpeaking(at:.immediate);status="停止" }
+    /// Legacy form: obstacle = high priority, otherwise a route message (dropped when the route changes).
     func say(_ text: String, obstacle: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil) {
+        say(text,priority:obstacle ? .high:.normal,route:!obstacle,capturedAt:capturedAt,ttl:ttl ?? (obstacle ? 2:nil))
+    }
+    func say(_ text: String, priority: SpeechPriority, route: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil) {
+        if UIAccessibility.isVoiceOverRunning { announce(text,priority:priority);return }
         guard active?.text != text else { return }
-        guard queue.enqueue(text,obstacle:obstacle,capturedAt:capturedAt,ttl:ttl) else { debugLog(.speech,.debug,"Speech duplicate suppressed",["characters":text.count]);return };pending=queue.count
-        if obstacle && active?.priority == 0 { synth.stopSpeaking(at:.immediate) }
+        guard queue.enqueue(text,priority:priority,route:route,capturedAt:capturedAt,ttl:ttl) else { debugLog(.speech,.debug,"Speech duplicate suppressed",["characters":text.count]);return };pending=queue.count
+        // More urgent hazards cut off whatever is being said; equal priority waits its turn.
+        if let current=active,priority >= .high,priority > current.priority { synth.stopSpeaking(at:.immediate) }
         if active == nil { playNext() }
+    }
+    private func announce(_ text:String,priority:SpeechPriority) {
+        let now=ProcessInfo.processInfo.systemUptime
+        guard now-voiceOverLast[text,default: -.infinity] >= 2 else { return };voiceOverLast[text]=now
+        if voiceOverLast.count > 50 { voiceOverLast=voiceOverLast.filter { now-$0.value < 10 } }
+        let level:UIAccessibilityPriority = priority >= .high ? .high:priority == .normal ? .default:.low
+        UIAccessibility.post(notification:.announcement,argument:NSAttributedString(string:text,attributes:[.accessibilitySpeechAnnouncementPriority:level,.accessibilitySpeechQueueAnnouncement:priority < .high]))
+        status="VoiceOverで読み上げ";debugLog(.speech,.info,"VoiceOver announcement",["priority":"\(priority)","characters":text.count])
     }
     private func playNext() {
         while let item=queue.next() {
@@ -36,13 +53,69 @@ import AVFoundation
         status="発話中"
         onMetric?(MetricEvent(kind:"speechStartCallback",frame:active?.detectionTime,speechStart:ProcessInfo.processInfo.systemUptime,simulated:utterance.speechString.hasPrefix("模擬")))
         if let time=active?.detectionTime { lastStartLatency=ProcessInfo.processInfo.systemUptime-time }
-        debugLog(.speech,.info,"Speech started",["characters":utterance.speechString.count,"priority":active?.priority == 1 ? "obstacle":"route","pending":pending,"detectionLatencyMs":lastStartLatency.map { Int($0*1000) }])
+        debugLog(.speech,.info,"Speech started",["characters":utterance.speechString.count,"priority":active.map { "\($0.priority)" } ?? "none","pending":pending,"detectionLatencyMs":lastStartLatency.map { Int($0*1000) }])
         #if DEBUG
-        print("GUIDE_SPEECH_START priority=\(active?.priority ?? -1) detection_latency_ms=\(lastStartLatency.map { Int($0*1000) } ?? -1)")
+        print("GUIDE_SPEECH_START priority=\(active?.priority.rawValue ?? -1) detection_latency_ms=\(lastStartLatency.map { Int($0*1000) } ?? -1)")
         #endif
     }
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,didFinish utterance:AVSpeechUtterance) { active=nil;playNext() }
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,didCancel utterance:AVSpeechUtterance) { debugLog(.speech,.cancelled,"Speech cancelled");active=nil;playNext() }
+}
+
+/// Plays `Earcon` sounds through its own audio engine, mixed with speech. Stops the engine when idle to save power.
+@MainActor final class EarconPlayer {
+    static let shared=EarconPlayer()
+    /// User setting for hazard warning beeps. Hazard vibration is unaffected.
+    var hazardEnabled=true
+    /// DeveloperMode tuning of pitch, length, volume, the critical rhythm and vibration.
+    var tuning=FeedbackTuning()
+    private let engine=AVAudioEngine()
+    private let node=AVAudioPlayerNode()
+    private let format=AVAudioFormat(standardFormatWithSampleRate:44_100,channels:2)!
+    private var pending=0
+    private init() { engine.attach(node);engine.connect(node,to:engine.mainMixerNode,format:format) }
+    func play(_ earcon:Earcon) {
+        guard hazardEnabled else { return }
+        let pcm=earcon.samples(sampleRate:format.sampleRate,tuning:tuning)
+        guard !pcm.left.isEmpty,let buffer=AVAudioPCMBuffer(pcmFormat:format,frameCapacity:AVAudioFrameCount(pcm.left.count)),let channels=buffer.floatChannelData else { return }
+        buffer.frameLength=AVAudioFrameCount(pcm.left.count)
+        pcm.left.withUnsafeBufferPointer { channels[0].update(from:$0.baseAddress!,count:pcm.left.count) }
+        pcm.right.withUnsafeBufferPointer { channels[1].update(from:$0.baseAddress!,count:pcm.right.count) }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playback,mode:.spokenAudio,options:[.duckOthers,.mixWithOthers])
+            try AVAudioSession.sharedInstance().setActive(true)
+            if !engine.isRunning { try engine.start() }
+        } catch { debugLog(.speech,.error,"Earcon audio failed",["error":error.localizedDescription]);return }
+        // A new cue replaces a queued one: stale beeps must not trail behind.
+        if node.isPlaying && pending > 0 { node.stop();pending=0 }
+        pending += 1
+        node.scheduleBuffer(buffer) { [weak self] in Task { @MainActor in self?.finished() } }
+        node.play()
+    }
+    private func finished() {
+        pending=max(0,pending-1)
+        guard pending == 0 else { return }
+        Task { @MainActor in try? await Task.sleep(for:.seconds(2));if pending == 0 && engine.isRunning { node.stop();engine.stop() } }
+    }
+}
+
+/// Hazards only: sharp beeps, with vibration for high and critical (critical = three strong pulses and three beeps, one every
+/// `criticalInterval` s; high = warning buzz and two beeps; normal = one short beep, no vibration).
+/// Navigation never beeps or vibrates, so the user can tell the two apart before any words.
+@MainActor enum AlertFeedback {
+    static func hazard(_ priority:SpeechPriority) {
+        let t=EarconPlayer.shared.tuning
+        switch priority {
+        case .critical where t.vibrateCritical:
+            let heavy=UIImpactFeedbackGenerator(style:.heavy);heavy.prepare();heavy.impactOccurred(intensity:1)
+            Task { @MainActor in for _ in 0..<max(0,t.criticalCount-1) { try? await Task.sleep(for:.seconds(t.criticalInterval));heavy.impactOccurred(intensity:1) } }
+        case .high where t.vibrateHigh: UINotificationFeedbackGenerator().notificationOccurred(.warning)
+        case .normal where t.vibrateNormal: UIImpactFeedbackGenerator(style:.light).impactOccurred()
+        case .low: return
+        default: break
+        }
+        EarconPlayer.shared.play(.hazard(priority))
+    }
 }
 
 struct HeadingSample { var degrees:Double;var accuracy:Double;var timestamp:Date;var simulated:Bool }

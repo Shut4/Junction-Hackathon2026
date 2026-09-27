@@ -8,7 +8,10 @@ struct SettingsScreen:View {
     var body:some View { List {
         Section("使い方・権限") { Button("チュートリアルを確認") { tutorialStep=0;tutorialComplete=false;store.pause() };Button("iOSの権限設定を開く") { openAppSettings() };Text("位置情報とカメラの許可はアプリの利用に必要です。通知は任意で、許可しなくてもアプリ内音声は使えます。") }
         Section("カメラ案内") { Toggle("矢印の方向を音声で案内",isOn:$store.speakDirection).accessibilityIdentifier("toggleSpeakDirection");Text("カメラ案内中、進む方向（正面・左右・後ろ）が変わると読み上げます。方位は概算です。").font(.caption)
-            Toggle("頭の高さの障害物を知らせる",isOn:$store.headLevelWarnings).accessibilityIdentifier("toggleHeadLevel");Text("カメラ案内中、白杖が届かない胸・頭の高さ（約1〜2m）で前方2m以内の物を、2つのカメラの深度から検出し、音声と振動で知らせます。暗い場所・ガラス・模様のない壁では検出できないことがあります。").font(.caption) }
+            Toggle("頭の高さの障害物を知らせる",isOn:$store.headLevelWarnings).accessibilityIdentifier("toggleHeadLevel");Text("カメラ案内中、白杖が届かない胸・頭の高さ（約1〜2m）で前方2m以内の物を、2つのカメラの深度から検出し、音声と振動で知らせます。暗い場所・ガラス・模様のない壁では検出できないことがあります。").font(.caption)
+            Toggle("歩ける範囲・段差を知らせる",isOn:$store.walkableWarnings).accessibilityIdentifier("toggleWalkable");Text("正面がふさがっているときに左右どちらへ避けられるか、下り段差、歩ける幅の狭さ、左右の端への接近を、深度から判定して知らせます。").font(.caption)
+            Toggle("危険の警告音",isOn:$store.hazardSounds).accessibilityIdentifier("toggleHazardSounds");Text("付近の危険を鋭い「ピッ」という音で知らせます。緊急は0.5秒ごとに3回（強い振動も同じ間隔）、高は2回（警告の振動）、通常は1回（振動なし）。オフにしても振動は残ります。道案内（「直進です」「右へ」など）は音声だけで、警告音も振動もありません。").font(.caption)
+            Toggle("周辺の目印も読み上げる（低優先）",isOn:$store.speakSurroundings).accessibilityIdentifier("toggleSurroundings");Text("自動販売機・木・看板などの周辺情報も読み上げます。危険（段差・ポール・人・車など）と目印（点字ブロック・横断歩道・信号・ドアなど）は常に読み上げます。優先度の高いものほど先に、短い間隔で繰り返し読み上げます。VoiceOver使用中はVoiceOverの読み上げで伝えます。").font(.caption) }
         if store.storageIncompatible { MigrationSection() }
         Section("状態") { Text(store.location.status);Text("モデル：\(store.camera.modelStatus)");Text(store.speech.status);Text(store.storageError ?? "報告の読み込み完了");Button("報告を再読み込み") { store.retryRead() };Button("位置取得を開始") { store.location.start() };Text("アプリは前景で実験します。背景移行時は案内とカメラを停止します。") }
         Section("対応地域") {
