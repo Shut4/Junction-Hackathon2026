@@ -2,17 +2,17 @@ import SwiftUI
 
 /// Road selection, blocked-segment reports and explicit report migration.
 extension AppStore {
-    func edgeDescription(_ edge: WalkEdge) -> String { "\(edge.name)、\(name(edge.from))から\(name(edge.to))、\(Int(edge.distance.rounded()))メートル、\(blocked.contains(edge.id) ? "通行不可登録あり":"報告なし・安全未確認")" }
-    func toggle(_ id: String) { if selected.contains(id) { selected.remove(id) } else { selected.insert(id) };ambiguity=false;selectionMessage="区間全体が登録・除外の対象です" }
-    func clearSelection() { selected.removeAll();roadCandidates.removeAll();ambiguity=false;selectionMessage="選択を解除しました" }
+    func edgeDescription(_ edge: WalkEdge) -> String { localized("{0}、{1}から{2}、{3}メートル、{4}",edge.name,name(edge.from),name(edge.to),Int(edge.distance.rounded()),localized(blocked.contains(edge.id) ? "通行不可登録あり":"報告なし・安全未確認")) }
+    func toggle(_ id: String) { if selected.contains(id) { selected.remove(id) } else { selected.insert(id) };ambiguity=false;selectionMessage=localized("区間全体が登録・除外の対象です") }
+    func clearSelection() { selected.removeAll();roadCandidates.removeAll();ambiguity=false;selectionMessage=localized("選択を解除しました") }
     func tapRoad(_ coordinate:Coordinate,radius:Double) -> Report? {
         guard let network else { return nil }
         let result=RoadMatcher(network:network).tap(coordinate,radius:radius)
-        roadCandidates=result.candidates;ambiguity=result.ambiguous;selectionMessage=result.message
+        roadCandidates=result.candidates;ambiguity=result.ambiguous;selectionMessage=localized(result.message)
         debugLog(.map,result.edgeIDs.isEmpty && !result.ambiguous ? .warning:.info,"Road tap",["radiusM":Int(radius),"selected":result.edgeIDs.first,"candidates":result.candidates.count,"ambiguous":result.ambiguous])
         guard let id=result.edgeIDs.first else { return nil }
         if let report=reports.first(where: { $0.segmentID == id }) {
-            selectionMessage="登録済みの通行禁止区域です。削除する場合は確認してください。"
+            selectionMessage=localized("登録済みの通行禁止区域です。削除する場合は確認してください。")
             return report
         }
         confirmTappedRoad(id)
@@ -21,30 +21,30 @@ extension AppStore {
     func confirmTappedRoad(_ id:String) {
         guard let network,edge(id) != nil else { return }
         let next=selected.symmetricDifference([id])
-        guard next.isEmpty || RoadMatcher(network:network).connected(next) else { selectionMessage="離れた道路は同時に選択できません。選択を解除してから選び直してください。";return }
-        selected=next;ambiguity=false;roadCandidates=[];selectionMessage="選択 \(selected.count)区間。道路区間全体を登録・除外します。再タップで選択解除できます。"
+        guard next.isEmpty || RoadMatcher(network:network).connected(next) else { selectionMessage=localized("離れた道路は同時に選択できません。選択を解除してから選び直してください。");return }
+        selected=next;ambiguity=false;roadCandidates=[];selectionMessage=localized("選択 {0}区間。道路区間全体を登録・除外します。再タップで選択解除できます。",selected.count)
     }
     func confirmRoadCandidate(_ id:String) {
         confirmTappedRoad(id)
     }
     func register(hazard:Hazard,date:Date,text:String) -> Bool {
-        guard let network,!selected.isEmpty,!ambiguity,storageError == nil else { notice="対象・候補・保存状態を確認してください";return false }
-        guard RoadMatcher(network:network).connected(selected) else { notice=CoreError.disconnectedSelection.localizedDescription;return false }
+        guard let network,!selected.isEmpty,!ambiguity,storageError == nil else { notice=localized("対象・候補・保存状態を確認してください");return false }
+        guard RoadMatcher(network:network).connected(selected) else { notice=localized(CoreError.disconnectedSelection.localizedDescription);return false }
         let additions=selected.sorted().map { Report(segmentID:$0,hazard:hazard,observedAt:date,explanation:text.isEmpty ? nil:String(text.prefix(120))) }
         let all=reports+additions
         do {
             try activeStore.save(all,network:network)
             reports=all
             debugLog(.report,.success,"Blocked segments saved",["segments":additions.count,"hazard":hazard.rawValue,"total":all.count,"simulated":simulated])
-            clearSelection();notice="通行不可を保存しました"
+            clearSelection();notice=localized("通行不可を保存しました")
             refreshRequestedRoute()
             return true
-        } catch { storageError="保存失敗：\(error.localizedDescription)";debugLog(.storage,.error,"Report save failed",["error":error.localizedDescription]);stopNavigation();notice=storageError;return false }
+        } catch { storageError=localized("保存失敗：{0}",localized(error.localizedDescription));debugLog(.storage,.error,"Report save failed",["error":error.localizedDescription]);stopNavigation();notice=storageError;return false }
     }
     func retryRead() {
         guard let network else { return }
         loadReports(from:activeStore,network:network)
-        if storageError == nil { notice="報告を読み込みました";refreshRequestedRoute() } else { stopNavigation() }
+        if storageError == nil { notice=localized("報告を読み込みました");refreshRequestedRoute() } else { stopNavigation() }
     }
     func remove(_ id:UUID) {
         guard let network,storageError == nil else { return }
@@ -58,7 +58,7 @@ extension AppStore {
             let next=reports.filter { $0.segmentID != segmentID }
             try activeStore.save(next,network:network)
             reports=next;selected.remove(segmentID)
-            selectionMessage="通行禁止区域を削除しました"
+            selectionMessage=localized("通行禁止区域を削除しました")
             notice=selectionMessage
             debugLog(.report,.info,"Blocked segment removed",["segment":segmentID,"reports":removed,"remaining":next.count])
             refreshRequestedRoute()
@@ -76,13 +76,13 @@ extension AppStore {
             let backup=try activeStore.archive(label:"before-migration")
             try activeStore.save(preview.kept,network:network)
             reports=preview.kept;storageError=nil;storageIncompatible=false
-            notice="同じ区間IDの報告\(preview.kept.count)件を引き継ぎました。対応しない\(preview.dropped.count)件は退避ファイルに残っています。"
+            notice=localized("同じ区間IDの報告{0}件を引き継ぎました。対応しない{1}件は退避ファイルに残っています。",preview.kept.count,preview.dropped.count)
             debugLog(.storage,.success,"Reports migrated",["kept":preview.kept.count,"dropped":preview.dropped.count,"backup":backup?.lastPathComponent])
             refreshRequestedRoute()
-        } catch { notice="引き継げませんでした：\(error.localizedDescription)";debugLog(.storage,.error,"Report migration failed",["error":error.localizedDescription]) }
+        } catch { notice=localized("引き継げませんでした：{0}",localized(error.localizedDescription));debugLog(.storage,.error,"Report migration failed",["error":error.localizedDescription]) }
     }
     func archiveReports() {
-        do { let backup=try activeStore.archive(label:"archived");reports=[];storageError=nil;storageIncompatible=false;notice="旧報告を退避しました（削除していません）";debugLog(.storage,.success,"Reports archived",["backup":backup?.lastPathComponent]);refreshRequestedRoute() }
-        catch { notice="退避できませんでした：\(error.localizedDescription)";debugLog(.storage,.error,"Report archive failed",["error":error.localizedDescription]) }
+        do { let backup=try activeStore.archive(label:"archived");reports=[];storageError=nil;storageIncompatible=false;notice=localized("旧報告を退避しました（削除していません）");debugLog(.storage,.success,"Reports archived",["backup":backup?.lastPathComponent]);refreshRequestedRoute() }
+        catch { notice=localized("退避できませんでした：{0}",localized(error.localizedDescription));debugLog(.storage,.error,"Report archive failed",["error":error.localizedDescription]) }
     }
 }
