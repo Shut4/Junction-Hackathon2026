@@ -466,12 +466,48 @@ final class CoreTests:XCTestCase {
         var nearPole=farPole;nearPole.distance=1.8;XCTAssertEqual(f.process([nearPole],now:0).first?.priority,.critical)
         let block=Detection(label:"braille_block",confidence:0.9,box:Box(x:0.1,y:0.1,width:0.2,height:0.2),capturedAt:0)
         XCTAssertEqual(f.process([block],now:0).first?.hazard,false,"landmarks never beep")
-        // People and vehicles are off by default, but can be turned back on per label.
+        // People and vehicles are landmarks by default (spoken, no warning sound); a label can be moved per DeveloperMode.
         let car=Detection(label:"car",confidence:0.9,box:Box(x:0.6,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:2.5,lateral:0.5)
-        var g=NoticeFilter();t.apply(to:&g);XCTAssertTrue(g.process([car],now:0).isEmpty)
+        var g=NoticeFilter();t.apply(to:&g);let landmark=g.process([car],now:0).first
+        XCTAssertEqual(landmark?.priority,.normal);XCTAssertEqual(landmark?.hazard,false)
         t.tiers=["car":.hazard];var h=NoticeFilter();t.apply(to:&h);XCTAssertEqual(h.process([car],now:0).first?.priority,.high)
+        XCTAssertEqual(SceneCatalog.classes["guardrail"]?.tier,.hazard);XCTAssertEqual(SceneCatalog.classes["elevator"]?.tier,.context);XCTAssertEqual(SceneCatalog.classes["train"]?.tier,.off)
         XCTAssertEqual(HeadLevelConfig().buzzerDistance,1);XCTAssertEqual(Earcon.buzzer(seconds:0.25).samples(sampleRate:1000).left.count,250,"buzzer chunks have no gaps")
     }
 
+    func testDepthRejectsPicturesAndFloatingGroundObjects() {
+        func grid(_ depth:(Int,Int)->Float) -> DepthGrid {
+            DepthGrid(values:(0..<48).flatMap { v in (0..<64).map { u in depth(u,v) } },columns:64,rows:48,step:1,fx:50,fy:50,cx:32,cy:24,gravity:SIMD3(0,-1,0),time:0,floor:-1.3)
+        }
+        let c=DepthCheck(),box=Box(x:0.4,y:0.4,width:0.2,height:0.2)
+        // A flat screen 2 m away: the "pole" is as far as its surroundings and flat → picture.
+        XCTAssertEqual(grid { _,_ in 2 }.implausibility(box,label:"pole",config:c),"平面（画面・写真の可能性）")
+        // A real pole in front of a wall: nearer than the surroundings → kept (pole bottom check skipped only if at the image edge).
+        let real=grid { u,v in (v >= 20 && v <= 28) ? 1.5:3 }
+        XCTAssertNotEqual(real.implausibility(box,label:"pole",config:c),"平面（画面・写真の可能性）")
+        // Steps whose bottom is at eye level (1.3 m above the floor) are floating → rejected.
+        XCTAssertEqual(real.implausibility(box,label:"steps",config:c),"床から浮いている")
+        // Painted classes skip the picture check; a braille block near the bottom of the image is on the floor.
+        XCTAssertNil(grid { _,_ in 2 }.implausibility(Box(x:0.4,y:0.05,width:0.2,height:0.1),label:"braille_block",config:c))
+        var off=c;off.enabled=false;XCTAssertNil(grid { _,_ in 2 }.implausibility(box,label:"pole",config:off))
+        XCTAssertNil(grid { _,_ in 8 }.implausibility(box,label:"pole",config:c),"too far to judge")
+        // Rejected detections and per-class thresholds are honoured by the notice filter.
+        var t=NoticeTuning();t.persistence=0;t.classConfidence=["pole":0.95];var f=NoticeFilter();t.apply(to:&f)
+        let pole=Detection(label:"pole",confidence:0.9,box:box,capturedAt:0,distance:1.5,lateral:0)
+        XCTAssertTrue(f.process([pole],now:0).isEmpty,"below the pole's own threshold")
+        var g=NoticeFilter();var u=NoticeTuning();u.persistence=0;u.apply(to:&g);var rejected=pole;rejected.rejected="平面"
+        XCTAssertTrue(g.process([rejected],now:0).isEmpty);XCTAssertEqual(g.process([pole],now:0).count,1)
+    }
+    func testStricterDefaultsForMotorbikeAndCyclist() {
+        XCTAssertEqual(SceneCatalog.threshold("motorbike",common:0.6),0.8);XCTAssertEqual(SceneCatalog.threshold("bicycler",common:0.6),0.8)
+        XCTAssertEqual(SceneCatalog.threshold("pole",common:0.6),0.6);XCTAssertEqual(SceneCatalog.threshold("motorbike",overrides:["motorbike":0.7],common:0.6),0.7)
+        XCTAssertEqual(SceneCatalog.classes["motorbike"]?.tier,.off);XCTAssertEqual(SceneCatalog.classes["bicycler"]?.tier,.off,"hidden by default");XCTAssertEqual(SceneCatalog.classes["bicycle"]?.tier,.off);XCTAssertEqual(SceneCatalog.classes["escalator"]?.tier,.off)
+        // When turned back on in DeveloperMode, the stricter 0.8 threshold still applies.
+        var t=NoticeTuning();t.persistence=0;t.tiers=["motorbike":.landmark];var f=NoticeFilter();t.apply(to:&f)
+        let bike=Detection(label:"motorbike",confidence:0.7,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0)
+        XCTAssertTrue(f.process([bike],now:0).isEmpty,"0.7 is below the motorbike default of 0.8")
+        var sure=bike;sure.confidence=0.85;XCTAssertEqual(f.process([sure],now:0).count,1)
+        XCTAssertTrue(DepthCheck.groundLabels.isSuperset(of:["motorbike","bicycler","bicycle"]))
+    }
 }
 extension Result { var failureValue:Failure? { if case .failure(let e)=self { return e };return nil } }

@@ -683,3 +683,6 @@
 "記念碑" = "monument";
 "電車" = "train";
 "船" = "boat";
+"平面（画面・写真の可能性）" = "flat (likely a screen or photo)";
+"床から浮いている" = "floating above the floor";
+" 除外：{0}" = " rejected: {0}";
