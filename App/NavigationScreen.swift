@@ -74,8 +74,9 @@ struct InstructionBanner:View {
                     Image(systemName:p.maneuver.symbol).font(.system(size:compact ? 36:48,weight:.bold)).frame(width:compact ? 48:64).accessibilityHidden(true)
                     VStack(alignment:.leading,spacing:2) {
                         Text("\(Int(p.distanceToStepEnd.rounded())) m").font(compact ? .title.bold():.largeTitle.bold())
-                        Text(p.maneuver == .arrive ? "先で案内の終点":"先の接続点で\(p.maneuver.text)").font(.headline)
-                        if let step=store.route?.steps[safe:p.stepIndex] { Text(store.stepName(step)).font(.subheadline).opacity(0.9) }
+                        Text(p.maneuver == .arrive ? "先で案内の終点":"先で\(p.maneuver.text)").font(.headline)
+                        // Only real road names: unnamed OSM ways and the off-road approach add noise.
+                        if let step=store.route?.steps[safe:p.stepIndex],let road=store.roadName(step) { Text(road).font(.subheadline).opacity(0.9) }
                     }
                     Spacer(minLength:0)
                 }.accessibilityElement(children:.combine)
