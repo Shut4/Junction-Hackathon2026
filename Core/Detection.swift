@@ -9,7 +9,9 @@ public struct Box: Sendable { public var x: Double; public var y: Double; public
 /// `distance`/`lateral` (m, positive lateral = right) come from the camera depth when available.
 public struct Detection: Sendable { public var label: String; public var confidence: Double; public var box: Box; public var capturedAt: TimeInterval; public var simulated: Bool
     public var distance: Double?; public var lateral: Double?
-    public init(label:String,confidence:Double,box:Box,capturedAt:TimeInterval,simulated:Bool=false,distance:Double?=nil,lateral:Double?=nil) { self.label=label;self.confidence=confidence;self.box=box;self.capturedAt=capturedAt;self.simulated=simulated;self.distance=distance;self.lateral=lateral }
+    /// Set when depth shows the detection is implausible (e.g. a picture on a screen); such detections are never spoken or marked.
+    public var rejected: String?
+    public init(label:String,confidence:Double,box:Box,capturedAt:TimeInterval,simulated:Bool=false,distance:Double?=nil,lateral:Double?=nil,rejected:String?=nil) { self.label=label;self.confidence=confidence;self.box=box;self.capturedAt=capturedAt;self.simulated=simulated;self.distance=distance;self.lateral=lateral;self.rejected=rejected }
     /// Side as heard by the walker: depth lateral when known, else the box centre in the portrait image.
     public var side: String {
         if let lateral { return lateral > 0.3 ? "右" : lateral < -0.3 ? "左" : "正面" }
@@ -34,19 +36,24 @@ public enum SceneTier: Int, Sendable, Comparable, CaseIterable, Codable {
 }
 public struct SceneClass: Sendable { public let name: String; public let tier: SceneTier }
 /// The 39 VIDVIP classes. Signal colours are deliberately not spoken: crossing decisions stay with the user and companion.
-/// People and vehicles are landmarks (spoken, no warning sound); DeveloperMode can change any label's tier.
+/// People and vehicles are landmarks (spoken, no warning sound), except bicycles, cyclists and motorbikes, which are hidden
+/// (frequent false detections). DeveloperMode can change any label's tier.
 public enum SceneCatalog {
+    /// Classes with many false detections start from a stricter confidence threshold than the common one.
+    public static let defaultConfidence: [String: Double] = ["motorbike": 0.8, "bicycler": 0.8]
+    /// Confidence threshold for a label: DeveloperMode override, else the class default, else the common value.
+    public static func threshold(_ label: String, overrides: [String: Double] = [:], common: Double) -> Double { overrides[label] ?? defaultConfidence[label] ?? common }
     /// Tier for a label with DeveloperMode overrides applied; nil for labels outside the catalogue.
     public static func tier(_ label: String, overrides: [String: SceneTier] = [:]) -> SceneTier? { overrides[label] ?? classes[label]?.tier }
     public static let classes: [String: SceneClass] = [
         "stairs": .init(name:"階段",tier:.hazard),"steps": .init(name:"段差",tier:.hazard),"pole": .init(name:"ポール",tier:.hazard),
         "bollard": .init(name:"車止め",tier:.hazard),"safety-cone": .init(name:"コーン",tier:.hazard),"person": .init(name:"人",tier:.landmark),
-        "bicycle": .init(name:"自転車",tier:.landmark),"bicycler": .init(name:"自転車に乗った人",tier:.landmark),"motorbike": .init(name:"バイク",tier:.landmark),
+        "bicycle": .init(name:"自転車",tier:.off),"bicycler": .init(name:"自転車に乗った人",tier:.off),"motorbike": .init(name:"バイク",tier:.off),
         "car": .init(name:"車",tier:.landmark),"bus": .init(name:"バス",tier:.landmark),"truck": .init(name:"トラック",tier:.landmark),
         "braille_block": .init(name:"点字ブロック",tier:.landmark),"crosswalk": .init(name:"横断歩道",tier:.landmark),
         "signal_red": .init(name:"歩行者信号",tier:.landmark),"signal_blue": .init(name:"歩行者信号",tier:.landmark),"traffic_light": .init(name:"信号機",tier:.landmark),
         "signal_button": .init(name:"押しボタン",tier:.landmark),"handrail": .init(name:"手すり",tier:.landmark),"elevator": .init(name:"エレベーター",tier:.context),
-        "escalator": .init(name:"エスカレーター",tier:.context),"faregates": .init(name:"改札",tier:.context),"door": .init(name:"ドア",tier:.context),
+        "escalator": .init(name:"エスカレーター",tier:.off),"faregates": .init(name:"改札",tier:.context),"door": .init(name:"ドア",tier:.context),
         "bus_stop_sign": .init(name:"バス停",tier:.landmark),"bathroom": .init(name:"トイレ",tier:.context),"guardrail": .init(name:"ガードレール",tier:.hazard),
         "white_line": .init(name:"白線",tier:.context),"fence": .init(name:"フェンス",tier:.context),"wall": .init(name:"壁",tier:.context),
         "tree": .init(name:"木",tier:.context),"shrubs": .init(name:"植え込み",tier:.context),"signboard": .init(name:"看板",tier:.context),
@@ -70,6 +77,9 @@ public struct NoticeTuning: Sendable, Codable, Equatable {
     public var announceDistance = 3.0
     /// Per-label tier overrides (label → tier); labels not listed keep their `SceneCatalog` tier.
     public var tiers: [String: SceneTier] = [:]
+    /// Per-label confidence thresholds; labels not listed use `confidence`.
+    public var classConfidence: [String: Double] = [:]
+    public func confidence(for label: String) -> Double { SceneCatalog.threshold(label, overrides: classConfidence, common: confidence) }
     public init() {}
     /// Tolerates values saved before a field existed: missing keys keep their defaults.
     public init(from decoder: Decoder) throws {
@@ -84,11 +94,12 @@ public struct NoticeTuning: Sendable, Codable, Equatable {
         criticalDistance = try c.decodeIfPresent(Double.self, forKey: .criticalDistance) ?? d.criticalDistance
         announceDistance = try c.decodeIfPresent(Double.self, forKey: .announceDistance) ?? d.announceDistance
         tiers = try c.decodeIfPresent([String: SceneTier].self, forKey: .tiers) ?? [:]
+        classConfidence = try c.decodeIfPresent([String: Double].self, forKey: .classConfidence) ?? [:]
     }
     public func apply(to f: inout NoticeFilter) {
         f.confidence = confidence; f.persistence = persistence; f.cooldown = cooldown
         f.tierCooldown = [.hazard: hazardCooldown, .landmark: landmarkCooldown, .context: contextCooldown]
-        f.hazardRepeat = hazardRepeat; f.criticalDistance = criticalDistance; f.announceDistance = announceDistance; f.tierOverrides = tiers
+        f.hazardRepeat = hazardRepeat; f.criticalDistance = criticalDistance; f.announceDistance = announceDistance; f.tierOverrides = tiers; f.classConfidence = classConfidence
     }
 }
 public struct NoticeFilter: Sendable {
@@ -98,8 +109,9 @@ public struct NoticeFilter: Sendable {
     public var confidence = 0.6; public var persistence = 0.6; public var cooldown = 8.0
     /// Lowest tier that is spoken. `context` classes are off unless the user enables them.
     public var minimumTier: SceneTier = .landmark
-    /// DeveloperMode per-label tier overrides.
+    /// DeveloperMode per-label tier overrides and confidence thresholds.
     public var tierOverrides: [String: SceneTier] = [:]
+    public var classConfidence: [String: Double] = [:]
     /// Per-tier class cooldown, as a multiple of `cooldown`: hazards most often, surroundings rarely.
     public var tierCooldown: [SceneTier: Double] = [.hazard: 1, .landmark: 2.5, .context: 6]
     /// Hazards still in view are repeated after this many seconds; other tiers are said once per appearance.
@@ -119,7 +131,7 @@ public struct NoticeFilter: Sendable {
     public mutating func process(_ detections: [Detection], now: Double) -> [DetectionNotice] {
         for k in Array(tracks.keys) { tracks[k]?.removeAll { now-$0.last > 1.5 } }
         var result: [DetectionNotice] = []
-        for d in detections where d.confidence >= confidence && now-d.capturedAt <= 1 && now-d.capturedAt >= 0 {
+        for d in detections where d.rejected == nil && d.confidence >= SceneCatalog.threshold(d.label, overrides: classConfidence, common: confidence) && now-d.capturedAt <= 1 && now-d.capturedAt >= 0 {
             guard let base = SceneCatalog.classes[d.label], let tier = SceneCatalog.tier(d.label, overrides: tierOverrides), tier != .off, tier >= minimumTier else { continue }
             let info = SceneClass(name: base.name, tier: tier)
             var list = tracks[d.label,default:[]]
