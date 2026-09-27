@@ -1,1 +1,1 @@
-[out:json][timeout:60];way["highway"~"^(corridor|footway|living_street|path|pedestrian|primary|primary_link|residential|secondary|secondary_link|service|steps|tertiary|tertiary_link|track|unclassified)$"](33.888,130.832,33.901,130.852);out meta;>;out skel qt;
+[out:json][timeout:60];way["highway"~"^(corridor|footway|living_street|path|pedestrian|primary|primary_link|residential|secondary|secondary_link|service|steps|tertiary|tertiary_link|track|unclassified)$"](33.868,130.804,33.931,130.871);out meta;>;out skel qt;
