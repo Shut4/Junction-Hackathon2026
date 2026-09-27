@@ -88,7 +88,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var sceneItems:[SceneItem] {
         guard camera.running || camera.simulatedDetections else { return [] }
         return SceneSummary.items(detections:camera.detections,walkable:walkableWarnings ? camera.walkable:nil,headLevel:headLevelWarnings ? camera.headLevel:nil,
-                                  announcer:walkableAnnouncer,closeDistance:noticeTuning.criticalDistance,announceDistance:noticeTuning.announceDistance,tiers:noticeTuning.tiers)
+                                  announcer:walkableAnnouncer,closeDistance:noticeTuning.criticalDistance,announceDistance:noticeTuning.announceDistance,tiers:noticeTuning.tiers,classConfidence:noticeTuning.classConfidence)
     }
     /// On demand: the three most useful items now, highest first.
     func speakSurroundingsNow() {
@@ -114,8 +114,15 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var walkableConfig:WalkableConfig { didSet { save(walkableConfig,"dev.walkableConfig");camera.engine.setWalkableConfig(walkableConfig);walkableAnnouncer.config=walkableConfig;walkableAnnouncer.reset() } }
     @Published var walkableTiming:WalkableTiming { didSet { save(walkableTiming,"dev.walkableTiming");walkableAnnouncer.timing=walkableTiming;walkableAnnouncer.reset() } }
     /// DeveloperMode: change one label's tier (nil = back to the catalogue default).
+    /// DeveloperMode: one label's confidence threshold (nil = use the common `confidence`).
+    func setConfidence(_ value:Double?,for label:String) {
+        let standard=SceneCatalog.threshold(label,common:noticeTuning.confidence)
+        noticeTuning.classConfidence[label]=value.flatMap { abs($0-standard) < 0.001 ? nil:$0 }
+    }
     func setTier(_ tier:SceneTier?,for label:String) { noticeTuning.tiers[label]=tier == SceneCatalog.classes[label]?.tier ? nil:tier }
-    func resetSceneTuning() { noticeTuning=NoticeTuning();walkableConfig=WalkableConfig();walkableTiming=WalkableTiming() }
+    /// DeveloperMode tuning of the depth check that drops false detections (pictures, floating ground objects).
+    @Published var depthCheck:DepthCheck { didSet { save(depthCheck,"dev.depthCheck");camera.engine.setDepthCheck(depthCheck) } }
+    func resetSceneTuning() { depthCheck=DepthCheck();noticeTuning=NoticeTuning();walkableConfig=WalkableConfig();walkableTiming=WalkableTiming() }
     var simulationFilter=NoticeFilter()
     let speech = SpeechController()
     let location = LocationController()
@@ -158,6 +165,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         walkableWarnings=defaults.object(forKey:"walkableWarnings") as? Bool ?? true;speakSurroundings=defaults.bool(forKey:"speakSurroundings")
         headLevelConfig=Self.load(HeadLevelConfig.self,"dev.headLevelConfig",default:HeadLevelConfig());headLevelTiming=Self.load(HeadLevelTiming.self,"dev.headLevelTiming",default:HeadLevelTiming())
         noticeTuning=Self.load(NoticeTuning.self,"dev.noticeTuning",default:NoticeTuning())
+        depthCheck=Self.load(DepthCheck.self,"dev.depthCheck",default:DepthCheck())
         walkableConfig=Self.load(WalkableConfig.self,"dev.walkableConfig",default:WalkableConfig());walkableTiming=Self.load(WalkableTiming.self,"dev.walkableTiming",default:WalkableTiming())
         #if DEBUG
         // UI testing only: skips the 7-tap gesture. Never compiled into Release builds.
@@ -192,7 +200,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         EarconPlayer.shared.hazardEnabled=hazardSounds;EarconPlayer.shared.tuning=feedbackTuning
         camera.engine.setCameraHeight(arrowCameraHeight);camera.engine.setHeadLevelConfig(headLevelConfig);headLevelAnnouncer.timing=headLevelTiming
         noticeTuning.apply(to:&camera.filter);camera.filter.minimumTier=speakSurroundings ? .context:.landmark
-        camera.engine.setWalkableConfig(walkableConfig);walkableAnnouncer=WalkableAnnouncer(config:walkableConfig,timing:walkableTiming)
+        camera.engine.setWalkableConfig(walkableConfig);camera.engine.setDepthCheck(depthCheck);walkableAnnouncer=WalkableAnnouncer(config:walkableConfig,timing:walkableTiming)
         camera.onDepth = { [weak self] result,now in
             guard let self else { return }
             // Walkable-ground cues; the head-level warning below is more specific about the same obstacle.
