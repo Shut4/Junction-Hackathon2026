@@ -4,6 +4,7 @@ import SwiftUI
 import CoreML
 import CoreMotion
 import simd
+import os
 import Darwin
 
 /// The bundled Core ML model name, set once in Info.plist (JGDetectionModel) and shared with Scripts/install_model.sh and Scripts/create_project.py.
@@ -22,9 +23,13 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     private var lastDepth=0.0
     private var cameraHeight:Float=1.3
     private var headLevelConfig=HeadLevelConfig()
+    private var walkableConfig=WalkableConfig()
     private(set) var device:AVCaptureDevice?
+    /// Latest subsampled depth frame, shared from the depth queue to the video queue to place detections in metres.
+    private let latestDepth=OSAllocatedUnfairLock<DepthGrid?>(initialState:nil)
     func setCameraHeight(_ height:Double) { depthQueue.async { [self] in cameraHeight=Float(height) } }
     func setHeadLevelConfig(_ config:HeadLevelConfig) { depthQueue.async { [self] in headLevelConfig=config } }
+    func setWalkableConfig(_ config:WalkableConfig) { depthQueue.async { [self] in walkableConfig=config } }
     func start() {
         queue.async { [self] in
             do {
@@ -81,17 +86,22 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             let fov=Float(device?.activeFormat.videoFieldOfView ?? 70) * .pi/180
             fx=Float(width)/2/tan(fov/2);fy=fx;cx=Float(width)/2;cy=Float(height)/2
         }
-        let step=max(1,width/80)
-        var points:[SIMD3<Float>]=[];points.reserveCapacity((width/step)*(height/step))
+        let step=max(1,width/80),columns=(width+step-1)/step,rows=(height+step-1)/step
+        var points:[SIMD3<Float>]=[];points.reserveCapacity(columns*rows)
+        var grid=[Float](repeating:.nan,count:columns*rows)
         for v in stride(from:0,to:height,by:step) {
             let line=base.advanced(by:v*row).assumingMemoryBound(to:Float32.self)
             for u in stride(from:0,to:width,by:step) {
                 let z=line[u]
                 guard z.isFinite,z>0.2,z<5 else { continue }
+                grid[(v/step)*columns+u/step]=z
                 points.append(HeadLevelGeometry.devicePoint(u:Float(u),v:Float(v),depth:z,fx:fx,fy:fy,cx:cx,cy:cy))
             }
         }
-        let result=HeadLevelGeometry.evaluate(points:points,gravity:SIMD3(Float(g.x),Float(g.y),Float(g.z)),cameraHeight:cameraHeight,config:headLevelConfig)
+        let gravity=SIMD3(Float(g.x),Float(g.y),Float(g.z))
+        let snapshot=DepthGrid(values:grid,columns:columns,rows:rows,step:step,fx:fx,fy:fy,cx:cx,cy:cy,gravity:gravity,time:now)
+        latestDepth.withLock { $0=snapshot }
+        let result=HeadLevelGeometry.evaluate(points:points,gravity:gravity,cameraHeight:cameraHeight,config:headLevelConfig,walkable:walkableConfig)
         headLevel?(result,"深度 \(points.count)点・床\(result.floorMeasured ? "推定":"仮定") \(String(format:"%.2f",-result.floor))m")
     }
     func captureOutput(_ output:AVCaptureOutput,didOutput sampleBuffer:CMSampleBuffer,from connection:AVCaptureConnection) {
@@ -106,10 +116,13 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             try VNImageRequestHandler(cvPixelBuffer:pixel,orientation:.right).perform([request])
             let finish=ProcessInfo.processInfo.systemUptime
             guard let objects=request.results as? [VNRecognizedObjectObservation] else { result?([],captured,start,finish,"モデルの出力形式に対応できません");return }
+            // Depth from at most 0.6 s ago places each box in metres; older depth is ignored rather than trusted.
+            let depth=latestDepth.withLock { $0 }.flatMap { now-$0.time <= 0.6 ? $0:nil }
             let detections=objects.compactMap { object -> Detection? in
                 guard let label=object.labels.first else { return nil }
-                let b=object.boundingBox
-                return Detection(label:label.identifier,confidence:Double(label.confidence),box:Box(x:b.minX,y:b.minY,width:b.width,height:b.height),capturedAt:captured)
+                let b=object.boundingBox,box=Box(x:b.minX,y:b.minY,width:b.width,height:b.height)
+                let place=depth?.locate(box)
+                return Detection(label:label.identifier,confidence:Double(label.confidence),box:box,capturedAt:captured,distance:place?.distance,lateral:place?.lateral)
             }
             result?(detections,captured,start,finish,nil)
         } catch { result?([],captured,start,ProcessInfo.processInfo.systemUptime,error.localizedDescription) }
@@ -142,7 +155,9 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     var onMetric: ((MetricEvent)->Void)?
     @Published var headLevel:HeadLevelHit?
     @Published var depthStatus="深度未開始"
-    var onHeadLevel: ((HeadLevelHit?,Double)->Void)?
+    /// Walkable ground from the latest depth frame (nil when depth is unavailable).
+    @Published var walkable:WalkableProfile?
+    var onDepth: ((HeadLevelResult,Double)->Void)?
     private var sessionGeneration=0
     /// Field of view of the sensor's long side in degrees. The portrait aspect-fill preview shows that side as the full screen height.
     /// Uses the camera actually in the session (the dual wide virtual camera when depth is on) and its zoom.
@@ -163,7 +178,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
                 guard let self else { return }
                 self.depthStatus=status
                 guard self.running,let result else { return }
-                self.headLevel=result.hit;self.onHeadLevel?(result.hit,ProcessInfo.processInfo.systemUptime)
+                self.headLevel=result.hit;self.walkable=result.walkable;self.onDepth?(result,ProcessInfo.processInfo.systemUptime)
             }
         }
     }
@@ -181,7 +196,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     }
     func stop() {
         if running { debugLog(.camera,.info,"Camera session stopped",["inferences":inferenceCount,"notices":notificationCount]) }
-        sessionGeneration += 1;running=false;engine.stop();filter.reset();status="カメラ停止中";labels="検出候補なし";detections=[];framesPerSecond=0;headLevel=nil
+        sessionGeneration += 1;running=false;engine.stop();filter.reset();status="カメラ停止中";labels="検出候補なし";detections=[];framesPerSecond=0;headLevel=nil;walkable=nil
     }
     /// DeveloperMode preview of the box overlay without camera frames. Never passed to the notice filter.
     func showSimulated(_ items:[Detection]) { guard !running else { return };simulatedDetections=true;detections=items }

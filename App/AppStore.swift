@@ -69,12 +69,53 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Spoken and haptic warnings for chest/head-height obstacles from the camera depth (user setting).
     @Published var headLevelWarnings:Bool { didSet { UserDefaults.standard.set(headLevelWarnings,forKey:"headLevelWarnings");headLevelAnnouncer.reset() } }
     var headLevelAnnouncer=HeadLevelAnnouncer()
+    /// Hazard warning beeps and the navigation chime, switched separately (user settings). Hazard vibration stays on either way.
+    @Published var hazardSounds:Bool { didSet { UserDefaults.standard.set(hazardSounds,forKey:"hazardSounds");EarconPlayer.shared.hazardEnabled=hazardSounds } }
+    /// Seconds between repeated 「直進です。」 while the route is straight ahead (0 = off). DeveloperMode setting.
+    @Published var straightInterval:Double { didSet { UserDefaults.standard.set(straightInterval,forKey:"dev.straightInterval") } }
+    private var lastStraight = -Double.infinity
+    /// DeveloperMode tuning of warning sounds and vibration, persisted like the other tuning values.
+    @Published var feedbackTuning:FeedbackTuning { didSet { save(feedbackTuning,"dev.feedbackTuning");EarconPlayer.shared.tuning=feedbackTuning } }
+    /// Navigation speech: words only (no sound effect, no vibration), so beeps and vibration always mean a hazard.
+    func sayNavigation(_ text:String,ttl:Double?=nil) {
+        if text == DirectionBucket.ahead.phrase { lastStraight=ProcessInfo.processInfo.systemUptime }
+        speech.say(text,ttl:ttl)
+    }
+    /// Spoken cues about walkable ground (blocked path and which side is free, steps down, narrow passages) from depth.
+    @Published var walkableWarnings:Bool { didSet { UserDefaults.standard.set(walkableWarnings,forKey:"walkableWarnings");walkableAnnouncer.reset() } }
+    var walkableAnnouncer=WalkableAnnouncer()
+    /// Head-level, walkable and object items for the camera screen, filtered by the user's settings.
+    var sceneItems:[SceneItem] {
+        guard camera.running || camera.simulatedDetections else { return [] }
+        return SceneSummary.items(detections:camera.detections,walkable:walkableWarnings ? camera.walkable:nil,headLevel:headLevelWarnings ? camera.headLevel:nil,
+                                  announcer:walkableAnnouncer,closeDistance:noticeTuning.criticalDistance,announceDistance:noticeTuning.announceDistance,tiers:noticeTuning.tiers)
+    }
+    /// On demand: the three most useful items now, highest first.
+    func speakSurroundingsNow() {
+        let top=sceneItems.prefix(3).map(\.text)
+        speech.say(top.isEmpty ? "周囲の検出はありません。":"周囲。"+top.joined(),priority:.normal,ttl:8)
+    }
+    /// Also speak low-priority surroundings (vending machines, trees...). Hazards and landmarks are always spoken.
+    @Published var speakSurroundings:Bool { didSet { UserDefaults.standard.set(speakSurroundings,forKey:"speakSurroundings");camera.filter.minimumTier=speakSurroundings ? .context:.landmark } }
     /// DeveloperMode tuning of the head-level detector and its spoken timing, persisted between launches.
     @Published var headLevelConfig:HeadLevelConfig { didSet { save(headLevelConfig,"dev.headLevelConfig");camera.engine.setHeadLevelConfig(headLevelConfig) } }
     @Published var headLevelTiming:HeadLevelTiming { didSet { save(headLevelTiming,"dev.headLevelTiming");headLevelAnnouncer.timing=headLevelTiming;headLevelAnnouncer.reset() } }
     private func save<T:Encodable>(_ value:T,_ key:String) { UserDefaults.standard.set(try? JSONEncoder().encode(value),forKey:key) }
-    private static func load<T:Decodable>(_ type:T.Type,_ key:String)->T? { UserDefaults.standard.data(forKey:key).flatMap { try? JSONDecoder().decode(T.self,from:$0) } }
+    /// Saved tuning merged over the current defaults, so values saved before a setting existed still load (missing keys get defaults).
+    private static func load<T:Codable>(_ type:T.Type,_ key:String,default value:T)->T {
+        guard let saved=UserDefaults.standard.data(forKey:key),let old=try? JSONSerialization.jsonObject(with:saved) as? [String:Any],
+              let base=(try? JSONEncoder().encode(value)).flatMap({ try? JSONSerialization.jsonObject(with:$0) as? [String:Any] }),
+              let merged=try? JSONSerialization.data(withJSONObject:base.merging(old) { $1 }) else { return value }
+        return (try? JSONDecoder().decode(T.self,from:merged)) ?? value
+    }
     func resetHeadLevelTuning() { headLevelConfig=HeadLevelConfig();headLevelTiming=HeadLevelTiming() }
+    /// DeveloperMode tuning of object notices and walkable cues, persisted like the head-level values.
+    @Published var noticeTuning:NoticeTuning { didSet { save(noticeTuning,"dev.noticeTuning");noticeTuning.apply(to:&camera.filter) } }
+    @Published var walkableConfig:WalkableConfig { didSet { save(walkableConfig,"dev.walkableConfig");camera.engine.setWalkableConfig(walkableConfig);walkableAnnouncer.config=walkableConfig;walkableAnnouncer.reset() } }
+    @Published var walkableTiming:WalkableTiming { didSet { save(walkableTiming,"dev.walkableTiming");walkableAnnouncer.timing=walkableTiming;walkableAnnouncer.reset() } }
+    /// DeveloperMode: change one label's tier (nil = back to the catalogue default).
+    func setTier(_ tier:SceneTier?,for label:String) { noticeTuning.tiers[label]=tier == SceneCatalog.classes[label]?.tier ? nil:tier }
+    func resetSceneTuning() { noticeTuning=NoticeTuning();walkableConfig=WalkableConfig();walkableTiming=WalkableTiming() }
     var simulationFilter=NoticeFilter()
     let speech = SpeechController()
     let location = LocationController()
@@ -112,7 +153,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         arrowCameraHeight=defaults.object(forKey:"dev.arrowCameraHeight") as? Double ?? 1.3;arrowDistance=defaults.object(forKey:"dev.arrowDistance") as? Double ?? 4
         speakDirection=defaults.object(forKey:"speakDirection") as? Bool ?? true
         headLevelWarnings=defaults.object(forKey:"headLevelWarnings") as? Bool ?? true
-        headLevelConfig=Self.load(HeadLevelConfig.self,"dev.headLevelConfig") ?? HeadLevelConfig();headLevelTiming=Self.load(HeadLevelTiming.self,"dev.headLevelTiming") ?? HeadLevelTiming()
+        hazardSounds=defaults.object(forKey:"hazardSounds") as? Bool ?? true;straightInterval=defaults.object(forKey:"dev.straightInterval") as? Double ?? 3
+        feedbackTuning=Self.load(FeedbackTuning.self,"dev.feedbackTuning",default:FeedbackTuning())
+        walkableWarnings=defaults.object(forKey:"walkableWarnings") as? Bool ?? true;speakSurroundings=defaults.bool(forKey:"speakSurroundings")
+        headLevelConfig=Self.load(HeadLevelConfig.self,"dev.headLevelConfig",default:HeadLevelConfig());headLevelTiming=Self.load(HeadLevelTiming.self,"dev.headLevelTiming",default:HeadLevelTiming())
+        noticeTuning=Self.load(NoticeTuning.self,"dev.noticeTuning",default:NoticeTuning())
+        walkableConfig=Self.load(WalkableConfig.self,"dev.walkableConfig",default:WalkableConfig());walkableTiming=Self.load(WalkableTiming.self,"dev.walkableTiming",default:WalkableTiming())
         #if DEBUG
         // UI testing only: skips the 7-tap gesture. Never compiled into Release builds.
         if ProcessInfo.processInfo.arguments.contains("--developer-mode") { developer=true }
@@ -136,15 +182,31 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             publisher.sink { [weak self] _ in self?.objectWillChange.send() }.store(in:&subscriptions)
         }
         Timer.publish(every:1,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.updatePosition() }.store(in:&subscriptions)
-        camera.onNotice = { [weak self] n in guard let self else { return };speech.say(n.text,obstacle:true,capturedAt:n.capturedAt) }
-        camera.onMetric = { [weak self] event in self?.record(event) }
-        camera.engine.setCameraHeight(arrowCameraHeight);camera.engine.setHeadLevelConfig(headLevelConfig);headLevelAnnouncer.timing=headLevelTiming
-        camera.onHeadLevel = { [weak self] hit,now in
+        camera.onNotice = { [weak self] n in
             guard let self else { return }
+            speech.say(n.text,priority:n.priority,capturedAt:n.capturedAt)
+            // Only hazards beep (and vibrate when high/critical); landmarks and surroundings are speech only.
+            if n.hazard { AlertFeedback.hazard(n.priority) }
+        }
+        camera.onMetric = { [weak self] event in self?.record(event) }
+        EarconPlayer.shared.hazardEnabled=hazardSounds;EarconPlayer.shared.tuning=feedbackTuning
+        camera.engine.setCameraHeight(arrowCameraHeight);camera.engine.setHeadLevelConfig(headLevelConfig);headLevelAnnouncer.timing=headLevelTiming
+        noticeTuning.apply(to:&camera.filter);camera.filter.minimumTier=speakSurroundings ? .context:.landmark
+        camera.engine.setWalkableConfig(walkableConfig);walkableAnnouncer=WalkableAnnouncer(config:walkableConfig,timing:walkableTiming)
+        camera.onDepth = { [weak self] result,now in
+            guard let self else { return }
+            // Walkable-ground cues; the head-level warning below is more specific about the same obstacle.
+            if walkableWarnings,let cue=walkableAnnouncer.update(result.walkable,headLevel:headLevelWarnings && result.hit != nil,now:now) {
+                speech.say(cue.text,priority:cue.priority,capturedAt:now);AlertFeedback.hazard(cue.priority)
+                debugLog(.camera,.info,"Walkable cue",["priority":"\(cue.priority)","text":cue.text])
+            }
+            let hit=result.hit
             guard headLevelWarnings else { headLevelAnnouncer.reset();return }
+            // Very close head-height obstacle: keep buzzing, one chunk per depth frame, until it is gone.
+            if let hit,headLevelConfig.buzzerDistance > 0,hit.distance <= headLevelConfig.buzzerDistance { EarconPlayer.shared.play(.buzzer(seconds:0.25)) }
             guard let warning=headLevelAnnouncer.update(hit,now:now) else { return }
-            speech.say(warning.text,obstacle:true,capturedAt:now)
-            if warning.stage == .danger { UINotificationFeedbackGenerator().notificationOccurred(.warning) } else { UIImpactFeedbackGenerator(style:.medium).impactOccurred() }
+            let level:SpeechPriority=warning.stage == .danger ? .critical:.high
+            speech.say(warning.text,priority:level,capturedAt:now);AlertFeedback.hazard(level)
             debugLog(.camera,.info,"Head-level obstacle",["stage":warning.stage == .danger ? "danger":"caution","distanceM":hit.map { String(format:"%.2f",$0.distance) },"lateralM":hit.map { String(format:"%.2f",$0.lateral) },"heightM":hit.map { String(format:"%.2f",$0.height) },"points":hit?.count])
         }
         speech.onMetric = { [weak self] event in self?.record(event) }
@@ -171,6 +233,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func edge(_ id:String)->WalkEdge? { edgeIndex[id] }
     func place(_ id:String)->Place? { placeIndex[id] }
     func name(_ node: String) -> String { node == "entry" ? "最寄りの道路":place(node)?.name ?? "現在位置" }
+    /// Named roads only (nil for 「名称未登録…」 ways and the off-road approach), for short on-screen and spoken text.
+    func roadName(_ step:RouteStep) -> String? { guard !step.isApproach,let name=edge(step.id)?.name,!name.hasPrefix("名称未登録") else { return nil };return name }
     func stepName(_ step:RouteStep) -> String { step.isApproach ? "最寄りの道路まで（道路データ外）":edge(step.id)?.name ?? "歩行区間" }
     func focus(_ target:MapFocus) { mapFocus=target;mapFocusToken += 1 }
     func focusOn(_ c:CLLocationCoordinate2D) { focus(.coordinate(Coordinate(c.latitude,c.longitude))) }
@@ -206,7 +270,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         navigating=false
         if usePosition { location.start();updatePosition() }
         route=nil;speech.invalidateRoute();routeVersion += 1
-        stepIndex=0;arrivalSamples=0;lastArrivalTimestamp=nil;lastSpoken=""
+        stepIndex=0;arrivalSamples=0;lastArrivalTimestamp=nil;lastSpoken="";lastStraight = -.infinity
         deviationSamples=0;lastDeviationTimestamp=nil;routeMessage=nil
         guard let network,let destination=currentDestination,storageError == nil else {
             requestedRouteUsesPosition=nil
@@ -300,25 +364,19 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Compass heading of the top/back of the device including the developer calibration offset.
     var heading:Double? { location.heading.map { ($0.degrees+headingOffset+720).truncatingRemainder(dividingBy:360) } }
     var headingReliable:Bool { guard let h=location.heading else { return false };return h.accuracy >= 0 && h.accuracy <= 25 }
-    /// Direction to the route for the camera arrow. `angle` is nil (with the reason) whenever the arrow must be withheld.
-    var cameraDirection:(angle:Double?,text:String,spoken:String) {
-        guard navigating,let p=progress,let sample=location.sample else { return (nil,"経路案内中のみ方向を表示します","経路案内中ではありません") }
-        guard positionRoutable else { return (nil,"位置を確認中。方向を保留します","位置を確認中のため方向を保留します") }
-        guard let heading,headingReliable else { return (nil,"方位の精度が低いため矢印を表示しません","方位の精度が低いため方向を保留します") }
-        let angle=RouteTracker.relativeBearing(from:sample.coordinate,to:p.lookahead,heading:heading)
-        let degrees=Int(abs(angle).rounded())
-        let direction=abs(angle)<15 ? "正面方向":abs(angle)>150 ? "後ろ方向・約\(degrees)°":"\(angle>0 ? "右":"左")へ約\(degrees)°"
-        let text="\(direction)\n次の接続点まで約\(Int(p.distanceToStepEnd.rounded())) m・\(p.maneuver.text)"
-        let spoken="進む方向は\(abs(angle)<15 ? "ほぼ正面":abs(angle)>150 ? "後ろ":"\(angle>0 ? "右":"左")に約\(degrees)度")です。方位は概算です。足元と周囲を同行者と確認してください。"
-        return (angle,text,spoken)
+    /// Signed angle to the route for the camera arrow (positive = right); nil while navigation, road matching or heading is not reliable.
+    var cameraAngle:Double? {
+        guard navigating,let p=progress,let sample=location.sample,positionRoutable,let heading,headingReliable else { return nil }
+        return RouteTracker.relativeBearing(from:sample.coordinate,to:p.lookahead,heading:heading)
     }
     /// Called periodically while the camera guidance is shown; speaks direction changes via `DirectionAnnouncer`.
     func announceDirection() {
         guard speakDirection,navigating,showARArrow else { directionAnnouncer.reset();return }
-        let state=cameraDirection
-        guard let text=directionAnnouncer.update(angle:state.angle,reason:state.spoken,now:ProcessInfo.processInfo.systemUptime) else { return }
+        let angle=cameraAngle
+        // Hold reasons (e.g. poor heading accuracy) are not spoken: the arrow simply disappears.
+        guard let text=directionAnnouncer.update(angle:angle,reason:"",now:ProcessInfo.processInfo.systemUptime),!text.isEmpty else { return }
         // Short lifetime: a queued cue that is already stale must not be spoken after the user has turned.
-        speech.say(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":state.angle.map { Int($0.rounded()) },"text":text])
+        sayNavigation(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":angle.map { Int($0.rounded()) },"text":text])
     }
     func updatePosition() {
         guard let sample=location.sample else { matchedEdge=nil;offRoadDistance=nil;positionState=location.status;if navigating { hold(positionState) };return }
@@ -327,7 +385,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let verdict=positionResolver.evaluate(sample,network:network)
         offRoadDistance=nil
         switch verdict {
-        case .offRoad(let distance): matchedEdge=nil;offRoadDistance=distance;positionState="道路データのない場所です。最寄りの道路まで約\(Int(distance.rounded()))メートル"
+        case .offRoad(let distance): matchedEdge=nil;offRoadDistance=distance;positionState="道路データのない場所です。"
         case .outside: matchedEdge=nil;positionState="対応範囲外です。案内を保留します。"
         case .uncertain(let message): matchedEdge=nil;positionState=message
         case .matched(let id): matchedEdge=id;positionState="\(sample.simulated ? "模擬位置":"実位置")・道路候補を照合。精度約\(Int(sample.accuracy))メートル"
@@ -343,39 +401,37 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         guard let route else { hold("経路を確認中です");return }
         if offRoadDistance != nil {
             // Off the road data: walk the approach step to the road; once there, normal matching takes over.
-            guard stepIndex == 0,let approach=route.steps.first,approach.isApproach,let entry=approach.shape.last else {
+            guard stepIndex == 0,route.steps.first?.isApproach == true else {
                 if lastDeviationTimestamp != sample.timestamp { deviationSamples += 1;lastDeviationTimestamp=sample.timestamp }
                 hold("道路から離れました。立ち止まって周囲を確認してください。")
                 if deviationSamples >= 3 { deviationSamples=0;reroute(blockage:false) };return
             }
             deviationSamples=0
-            let distance=Int(sample.coordinate.distance(to:entry).rounded()),road=route.steps.dropFirst().first.map(stepName) ?? "道路"
-            nextInstruction="道路データのない場所です。地図の点線に沿って、最寄りの道路（\(road)）まで約\(distance)メートル移動してください。建物・段差・車に注意し、同行者と確認してください。"
+            nextInstruction="点線に沿って、近くの道へ。"
             let key2="\(routeVersion):approach"
-            if lastSpoken != key2 { lastSpoken=key2;speech.say(nextInstruction) }
+            if lastSpoken != key2 { lastSpoken=key2;sayNavigation(nextInstruction) }
             return
         }
         if !route.steps.isEmpty && !route.steps.contains(where: { $0.id == matchedEdge }) {
             if lastDeviationTimestamp != sample.timestamp { deviationSamples += 1;lastDeviationTimestamp=sample.timestamp }
-            hold("経路との対応を確認中です。立ち止まって確認してください。")
+            hold("経路の確認中です。立ち止まって確認してください。")
             if deviationSamples >= 3 { deviationSamples=0;reroute(blockage:false) };return
         }
         deviationSamples=0
         if let index=route.steps.enumerated().dropFirst(stepIndex).first(where:{$0.element.id==matchedEdge})?.offset,index<=stepIndex+1,index != stepIndex { stepIndex=index;debugLog(.navigation,.info,"Step advanced (matched)",["step":stepIndex,"of":route.steps.count]) }
         if let end=place(route.destinationID),sample.accuracy <= 8,sample.coordinate.distance(to:end.coordinate) <= 6,stepIndex >= max(0,route.steps.count-1) {
             if lastArrivalTimestamp != sample.timestamp { arrivalSamples += 1;lastArrivalTimestamp=sample.timestamp }
-            if arrivalSamples >= 3 { navigating=false;speech.invalidateRoute();stopSimulatedWalk();nextInstruction="目的地の道路接続点付近です。施設入口と受入状況を同行者と確認してください。";speech.say(nextInstruction);debugLog(.navigation,.success,"Arrived near destination connection");return }
+            if arrivalSamples >= 3 { navigating=false;speech.invalidateRoute();stopSimulatedWalk();nextInstruction="目的地に到着しました。";speech.say(nextInstruction);debugLog(.navigation,.success,"Arrived near destination connection");return }
         } else { arrivalSamples=0 }
-        if route.steps.isEmpty { hold("目的地の実験接続点付近です。同行者と確認してください。");return }
+        if route.steps.isEmpty { hold("目的地に到着しました。");return }
         if stepIndex < route.steps.count-1,let end=place(route.steps[stepIndex].to), sample.accuracy <= 8,sample.coordinate.distance(to:end.coordinate) <= 6 { stepIndex += 1;debugLog(.navigation,.info,"Step advanced (junction reached)",["step":stepIndex,"of":route.steps.count]) }
-        let step=route.steps[min(stepIndex,route.steps.count-1)]
-        let road=stepName(step)
-        let distance=place(step.to).map { Int(sample.coordinate.distance(to:$0.coordinate).rounded()) } ?? Int(step.distance)
-        let following=stepIndex+1 < route.steps.count ? route.steps[stepIndex+1]:nil
-        let turn=matchedEdge == step.id ? TurnGuidance.instruction(current:step,next:following,sample:sample):nil
-        nextInstruction=turn.map { "約\(distance)メートル先。"+$0+" \(road)。" } ?? "次は\(name(step.to))です。\(road)の経路を同行者と確認。残り約\(distance)メートル。向きは確認中です。"
-        let key2="\(routeVersion):\(stepIndex)"
-        if lastSpoken != key2 { lastSpoken=key2;speech.say(nextInstruction) }
+        // No corner-by-corner announcements: while the route is straight ahead (or the heading is unknown) repeat 「直進です。」
+        // every `straightInterval` seconds; when a turn is needed the camera direction cues (「右へ。」...) take over.
+        let bucket=cameraAngle.map { DirectionBucket.of($0) }
+        let straight=bucket == nil || bucket == .ahead
+        nextInstruction=straight ? DirectionBucket.ahead.phrase:bucket!.phrase
+        let now=ProcessInfo.processInfo.systemUptime
+        if straight,straightInterval > 0,now-lastStraight >= straightInterval { sayNavigation(DirectionBucket.ahead.phrase,ttl:straightInterval) }
     }
     private func hold(_ text:String) { nextInstruction=text;if lastSpoken != text { speech.invalidateRoute();speech.say(text);lastSpoken=text;debugLog(.navigation,.warning,"Guidance held",["reason":text]) } }
     func record(_ event:MetricEvent) { if metrics.count>=2000 { metrics.removeFirst();droppedMetrics += 1 };metrics.append(event) }
