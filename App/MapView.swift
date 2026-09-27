@@ -40,12 +40,10 @@ struct GuideMap: UIViewRepresentable {
         c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
         if map.layoutMargins != insets { map.layoutMargins=insets }
         guard let network=store.network else { return }
-        // Static layer (network and boundary) is built once per mode; only small dynamic layers are replaced.
+        // The static road-network layer is built once per mode; only small dynamic layers are replaced.
         let baseKey="\(mode)|\(network.id)|\(network.version)"
         if baseKey != c.baseKey {
             c.baseKey=baseKey;c.dynamicKey="";map.removeOverlays(map.overlays);map.removeAnnotations(map.annotations.filter { !($0 is MKUserLocation) });c.simulatedPin=nil;c.dynamicOverlays=[];c.dynamicPins=[]
-            let b=network.bounds
-            add([Coordinate(b.south,b.west),Coordinate(b.south,b.east),Coordinate(b.north,b.east),Coordinate(b.north,b.west),Coordinate(b.south,b.west)],title:"boundary",map:map)
             let lines=network.edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
             for title in mode == .report ? ["selectableCasing","selectable"]:["walk"] { let multi=MKMultiPolyline(lines);multi.title=title;map.addOverlay(multi,level:.aboveRoads) }
         }
