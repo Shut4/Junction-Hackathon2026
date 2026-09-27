@@ -33,7 +33,7 @@ public struct DebugLogEntry: Codable, Identifiable, Sendable {
         return title.localizedCaseInsensitiveContains(q) || (operationID?.localizedCaseInsensitiveContains(q) ?? false) || fields.contains { $0.key.localizedCaseInsensitiveContains(q) || $0.value.localizedCaseInsensitiveContains(q) }
     }
 }
-/// Bounded developer log. Callers must not put images, location history or trace points into fields.
+/// Bounded developer log. Callers must not put images or location history into fields.
 public struct DebugLogBuffer: Codable, Sendable {
     public var schema=1
     public private(set) var capacity:Int
