@@ -9,8 +9,11 @@ REGIONS={
   'destinations':[('kokura','小倉駅南側・実験接続点',33.8860,130.8821),('kyomachi','京町・実験接続点',33.8847,130.8810),('uomachi','魚町・実験接続点',33.8830,130.8806),('castle','小倉城付近・実験接続点',33.8846,130.8750),('riverwalk','紫川東岸・実験接続点',33.8815,130.8770)],
  },
  'tobata': {
-  'name':'九工大前駅・戸畑キャンパス周辺','bounds':(33.8880,130.8320,33.9010,130.8520),'network_id':'tobata-ground-osm',
-  'destinations':[('kyukodai-mae','九工大前駅付近・実験接続点',33.9001,130.8406),('kit-main-gate','戸畑キャンパス正門付近・実験接続点',33.8947,130.8393),('kit-south','戸畑キャンパス南側・実験接続点',33.8918,130.8398)],
+  # 2023-01-01 administrative boundary bbox: 33.8695925–33.92948691 /
+  # 130.80574278–130.86934186. The extraction bbox adds roughly 150–180 m
+  # while keeping its east edge at Kokura's west edge to avoid an overlap area.
+  'name':'戸畑区全域','bounds':(33.8680,130.8040,33.9310,130.8710),'network_id':'tobata-ground-osm',
+  'destinations':[('tobata-station','戸畑駅周辺・実験接続点',33.8962318,130.8216472),('tobata-ward-office','戸畑区役所周辺・実験接続点',33.8947315,130.8288489),('kyukodai-mae','九工大前駅付近・実験接続点',33.9001,130.8406),('kit-main-gate','戸畑キャンパス正門付近・実験接続点',33.8947,130.8393),('kit-south','戸畑キャンパス南側・実験接続点',33.8918,130.8398)],
  },
 }
 WALK={'footway','path','pedestrian','steps','corridor'}
@@ -34,8 +37,12 @@ if args.fetch:
  for endpoint in ('https://overpass.private.coffee/api/interpreter','https://lz4.overpass-api.de/api/interpreter','https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'):
   try:
    req=urllib.request.Request(endpoint,data=payload,headers={'User-Agent':'JunctionGuide-MVP/1.0','Accept':'application/json'})
-   raw.write_bytes(urllib.request.urlopen(req,timeout=120).read());break
-  except (urllib.error.URLError,TimeoutError) as error:last_error=error
+   body=urllib.request.urlopen(req,timeout=120).read();response=json.loads(body);timestamp=response.get('osm3s',{}).get('timestamp_osm_base')
+   if not timestamp:raise ValueError('OSM基準時刻がありません')
+   base_time=datetime.datetime.fromisoformat(timestamp.replace('Z','+00:00'));age=datetime.datetime.now(datetime.timezone.utc)-base_time
+   if age>datetime.timedelta(days=14):raise ValueError(f'OSM基準時刻が古すぎます（{timestamp}）')
+   raw.write_bytes(body);break
+  except (urllib.error.URLError,TimeoutError,json.JSONDecodeError,ValueError) as error:last_error=error
  else:raise SystemExit(f'Overpass APIから取得できませんでした: {last_error}')
 if not raw.exists():raise SystemExit(f'{raw.relative_to(ROOT)} がありません。Overpass APIから取得する場合は --fetch を付けて実行してください。')
 
@@ -67,7 +74,8 @@ for node in adjacency:
   for neighbor in adjacency[queue.pop()]:
    if neighbor not in seen:seen.add(neighbor);component.add(neighbor);queue.append(neighbor)
  components.append(component)
-component=max(components,key=len);edges=[e for e in edges if e['from'] in component and e['to'] in component]
+component_sizes=sorted((len(item) for item in components),reverse=True);component=max(components,key=len)
+edges_before_component_filter=len(edges);edges=[e for e in edges if e['from'] in component and e['to'] in component]
 by_node=collections.defaultdict(list)
 for edge in edges:by_node[edge['from']].append(edge);by_node[edge['to']].append(edge)
 def signature(edge):return (edge['name'],edge['kind'],edge['direction'],edge['layer'],edge['sourceID'])
@@ -92,10 +100,10 @@ places=[{'id':node,'name':'接続点 '+node[-5:],'coordinate':coord(nodes[node])
 destinations=[]
 for identifier,name,lat,lon in region['destinations']:
  node=min(active,key=lambda candidate:distance(nodes[candidate],{'lat':lat,'lon':lon}));candidate_distance=distance(nodes[node],{'lat':lat,'lon':lon})
- if candidate_distance>40:raise SystemExit(f'{name} に40m以内の道路接続点がありません（{candidate_distance:.1f}m）。座標または範囲を確認してください。')
+ if candidate_distance>40:raise SystemExit(f'{name} に40m以内の道路接続点がありません（{candidate_distance:.1f}m、最寄り {nodes[node]["lat"]},{nodes[node]["lon"]}）。座標または範囲を確認してください。')
  destinations.append({'id':identifier,'name':name,'nodeID':node,'note':'OSMネットワーク上の実験接続点。施設入口・避難所ではありません。同行者による現地確認が必要です。'})
 network={'id':region['network_id'],'name':region['name'],'version':d['osm3s']['timestamp_osm_base'],'bounds':dict(zip(('south','west','north','east'),B)),'source':'© OpenStreetMap contributors / ODbL 1.0','acquiredAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'isSimulated':False,'nodes':places,'edges':merged,'destinations':destinations}
 output.write_text(json.dumps(network,ensure_ascii=False,indent=2));query_path.write_text(query+'\n')
-print('region:',args.region,'components:',len(components),'nodes:',len(places),'segments:',len(merged))
+print('region:',args.region,'components:',len(components),'component_nodes:',component_sizes[:10],'discarded_edges:',edges_before_component_filter-len(edges),'nodes:',len(places),'segments:',len(merged))
 for destination,definition in zip(destinations,region['destinations']):
  node=nodes[destination['nodeID']];print(destination['name'],destination['nodeID'],f'{distance(node,{"lat":definition[2],"lon":definition[3]}):.1f}m',node['lat'],node['lon'])

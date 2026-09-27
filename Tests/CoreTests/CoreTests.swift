@@ -207,6 +207,21 @@ final class CoreTests:XCTestCase {
         XCTAssertEqual(NetworkCatalog.containing(tobataPoint,in:[kokura,tobata])?.id,tobata.id)
         XCTAssertFalse(NetworkCatalog.canRoute(from:kokuraPoint,to:tobataPoint,in:kokura))
         XCTAssertFalse(NetworkCatalog.canRoute(from:kokuraPoint,to:tobataPoint,in:tobata))
+        XCTAssertEqual(tobata.bounds.east,kokura.bounds.west,"Regional rectangles may touch but must not overlap by area")
+        let sharedBoundary=Coordinate(33.88,kokura.bounds.west)
+        XCTAssertEqual(NetworkCatalog.containing(sharedBoundary,in:[kokura,tobata])?.id,kokura.id,"The app's catalog order keeps the shared boundary deterministic")
+    }
+    func testTobataAdministrativeExtentsAreCoveredAndRoutable() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Data")
+        let tobata=try JSONDecoder().decode(Network.self,from:Data(contentsOf:root.appendingPathComponent("tobata-network.json")))
+        // Extrema of the published 2023-01-01 Tobata administrative boundary. The
+        // saved rectangle intentionally adds a small margin around all four sides.
+        let boundaryExtents=[Coordinate(33.8695925,130.835),Coordinate(33.92948691,130.835),Coordinate(33.895,130.80574278),Coordinate(33.895,130.86934186)]
+        let destination=try XCTUnwrap(tobata.destinations.first?.nodeID),router=Router(network:tobata)
+        for point in boundaryExtents {
+            XCTAssertTrue(tobata.bounds.contains(point))
+            XCTAssertNoThrow(try router.resolveOffRoadRoute(from:point,to:destination,blocked:[]).get())
+        }
     }
     func testReportsRemainSeparatedByRegionalStore() throws {
         let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Data")
