@@ -31,7 +31,7 @@ struct GuideMap: UIViewRepresentable {
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
         let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;map.addGestureRecognizer(tap)
         context.coordinator.mode=mode
-        map.accessibilityLabel=mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。"
+        map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。")
         if mode == .navigation { context.coordinator.following=true }
         return map
     }
@@ -62,13 +62,13 @@ struct GuideMap: UIViewRepresentable {
                 let lines=edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
                 for title in [name+"Casing",name] { let multi=MKMultiPolyline(lines);multi.title=title;map.addOverlay(multi,level:.aboveRoads);c.dynamicOverlays.append(multi) }
             }
-            if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:"× 通行不可登録",subtitle:"\(edge.name)・タップして削除",segmentID:edge.id,map:map)) } }
-            if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:"選択した目的地・受入状況未確認",map:map)) }
+            if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:localized("× 通行不可登録"),subtitle:localized("{0}・タップして削除",edge.name),segmentID:edge.id,map:map)) } }
+            if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:localized("選択した目的地・受入状況未確認"),map:map)) }
             if let dropped=store.inspected,dropped.droppedPin { c.dynamicPins.append(pin(dropped.coordinate,kind:.dropped,title:dropped.name,subtitle:"ドロップしたピン",map:map)) }
         }
         if store.simulated,let sample=store.location.sample {
             if let existing=c.simulatedPin { existing.coordinate=sample.coordinate.clLocation }
-            else { c.simulatedPin=pin(sample.coordinate,kind:.simulated,title:"模擬位置",subtitle:"実位置ではありません",map:map) }
+            else { c.simulatedPin=pin(sample.coordinate,kind:.simulated,title:localized("模擬位置"),subtitle:localized("実位置ではありません"),map:map) }
         } else if let existing=c.simulatedPin { map.removeAnnotation(existing);c.simulatedPin=nil }
         if c.focusToken != store.mapFocusToken { c.focusToken=store.mapFocusToken;if let target=store.mapFocus { c.apply(target,map:map,insets:insets) } }
         if mode == .navigation && c.following { c.follow(map:map) }

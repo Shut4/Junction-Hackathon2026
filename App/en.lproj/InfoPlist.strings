@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "Evacuation Navi";
+"NSCameraUsageDescription" = "The rear camera detects possible obstacles on this device. Images are not stored or sent.";
+"NSLocationWhenInUseUsageDescription" = "Your location is matched to roads in supported test areas for walking guidance. Location history is not stored or sent.";

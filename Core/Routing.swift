@@ -117,12 +117,12 @@ public enum TurnGuidance {
         let projected=Geometry.project(sample.coordinate,onto:current.shape)
         let diff=abs((sample.course-projected.bearing+540).truncatingRemainder(dividingBy:360)-180)
         guard diff<=30 else { return nil }
-        guard let next,next.shape.count>=2 else { return "経路に沿って進みます。" }
+        guard let next,next.shape.count>=2 else { return coreLocalized("経路に沿って進みます。") }
         let incoming=Geometry.bearing(current.shape[current.shape.count-2],current.shape.last!),outgoing=Geometry.bearing(next.shape[0],next.shape[1])
         let angle=(outgoing-incoming+540).truncatingRemainder(dividingBy:360)-180
-        if abs(angle)<25 { return "次の接続点で経路に沿って直進します。" }
-        if abs(angle)>150 { return "次の接続点で折り返す経路です。同行者と向きを確認してください。" }
-        return "次の接続点で\(angle>0 ? "右":"左")に曲がる経路です。横断箇所と足元を同行者と確認してください。"
+        if abs(angle)<25 { return coreLocalized("次の接続点で経路に沿って直進します。") }
+        if abs(angle)>150 { return coreLocalized("次の接続点で折り返す経路です。同行者と向きを確認してください。") }
+        return coreLocalized("次の接続点で{0}に曲がる経路です。横断箇所と足元を同行者と確認してください。",coreLocalized(angle>0 ? "右":"左"))
     }
 }
 /// `offRoad`: inside the region and accurate enough, but no road within the match radius (distance to the closest road).

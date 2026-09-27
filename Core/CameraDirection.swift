@@ -20,12 +20,12 @@ public enum DirectionBucket: String, Sendable, CaseIterable {
     }
     public func phrase(degrees: Int) -> String {
         switch self {
-        case .ahead: return "正面方向です。そのまま進んでください。"
-        case .slightRight: return "やや右方向です。"
-        case .slightLeft: return "やや左方向です。"
-        case .right: return "右へ約\(degrees)度、向きを変えてください。"
-        case .left: return "左へ約\(degrees)度、向きを変えてください。"
-        case .behind: return "後ろ方向です。向きを変えてください。"
+        case .ahead: return coreLocalized("正面方向です。そのまま進んでください。")
+        case .slightRight: return coreLocalized("やや右方向です。")
+        case .slightLeft: return coreLocalized("やや左方向です。")
+        case .right: return coreLocalized("右へ約{0}度、向きを変えてください。",degrees)
+        case .left: return coreLocalized("左へ約{0}度、向きを変えてください。",degrees)
+        case .behind: return coreLocalized("後ろ方向です。向きを変えてください。")
         }
     }
 }

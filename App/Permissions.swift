@@ -27,7 +27,7 @@ import AVFoundation
     func requestNotification() async {
         requesting=true;defer { requesting=false }
         do { _=try await UNUserNotificationCenter.current().requestAuthorization(options:[.alert,.sound]) }
-        catch { notification="確認できません：\(error.localizedDescription)";return }
+        catch { notification=localized("確認できません：{0}",error.localizedDescription);return }
         await refresh()
     }
     func requestLocation() { locationAuthorization=locationManager.authorizationStatus;if locationAuthorization == .notDetermined { locationManager.requestWhenInUseAuthorization() } }
@@ -40,24 +40,24 @@ struct TutorialScreen:View {
     @ObservedObject var permissions:TutorialPermissions
     var recoveryStep:Int? = nil
     private var page:Int { recoveryStep ?? step }
-    private var locationDeniedReason:String { "位置情報の許可は経路案内に必要です。iOS設定でこのアプリの位置情報を「使用中のみ許可」にして戻ってください。" }
-    private var cameraDeniedReason:String { "カメラの許可は障害物候補の検出と通知に必要です。iOS設定でこのアプリのカメラを許可して戻ってください。" }
+    private var locationDeniedReason:String { localized("位置情報の許可は経路案内に必要です。iOS設定でこのアプリの位置情報を「使用中のみ許可」にして戻ってください。") }
+    private var cameraDeniedReason:String { localized("カメラの許可は障害物候補の検出と通知に必要です。iOS設定でこのアプリのカメラを許可して戻ってください。") }
     var body:some View {
         ScrollView { VStack(alignment:.leading,spacing:24) {
             Text("避難ナビの使い方").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
-            Text("\(min(page,4)+1) / 5").accessibilityLabel("チュートリアル全5ページ中\(min(page,4)+1)ページ")
+            Text("\(min(page,4)+1) / 5").accessibilityLabel(localized("チュートリアル全5ページ中{0}ページ",min(page,4)+1))
             Image(systemName:symbol).font(.system(size:64)).foregroundStyle(.blue).accessibilityHidden(true)
-            Text(title).font(.title.bold()).accessibilityAddTraits(.isHeader)
-            Text(message).font(.title3)
+            Text(localized(title)).font(.title.bold()).accessibilityAddTraits(.isHeader)
+            Text(localized(message)).font(.title3)
             if page==1 {
-                Label("通知：\(permissions.notification)",systemImage:"bell")
+                Label(localized("通知：{0}",localized(permissions.notification)),systemImage:"bell")
                 PrimaryButton(title:"通知の許可を確認",symbol:"bell.badge") { Task { await permissions.requestNotification();if step==1 { step=2 } } }.disabled(permissions.requesting)
             } else if page==2 {
-                Label("位置情報：\(permissions.location)",systemImage:"location")
+                Label(localized("位置情報：{0}",localized(permissions.location)),systemImage:"location")
                 PrimaryButton(title:"位置情報の許可を確認",symbol:"location") { permissions.requestLocation();syncPageWithPermissions() }
                 if permissions.location=="許可なし" { Text(locationDeniedReason).accessibilityIdentifier("locationPermissionReason") }
             } else if page==3 {
-                Label("カメラ：\(permissions.camera)",systemImage:"camera")
+                Label(localized("カメラ：{0}",localized(permissions.camera)),systemImage:"camera")
                 PrimaryButton(title:"カメラの許可を確認",symbol:"camera") { Task { await permissions.requestCamera();syncPageWithPermissions() } }.disabled(permissions.requesting)
                 if permissions.camera=="許可なし" { Text(cameraDeniedReason).accessibilityIdentifier("cameraPermissionReason") }
             }
@@ -84,10 +84,10 @@ struct TutorialScreen:View {
     }
     private func announcePage() {
         let detail:String
-        if page==2 && permissions.location=="許可なし" { detail="許可なし。\(locationDeniedReason)" }
-        else if page==3 && permissions.camera=="許可なし" { detail="許可なし。\(cameraDeniedReason)" }
-        else { detail=message }
-        UIAccessibility.post(notification:.screenChanged,argument:page==2 || page==3 ? "\(title)。\(detail)":title)
+        if page==2 && permissions.location=="許可なし" { detail=localized("許可なし。{0}",locationDeniedReason) }
+        else if page==3 && permissions.camera=="許可なし" { detail=localized("許可なし。{0}",cameraDeniedReason) }
+        else { detail=localized(message) }
+        UIAccessibility.post(notification:.screenChanged,argument:page==2 || page==3 ? localized("{0}。{1}",localized(title),detail):localized(title))
     }
     var symbol:String { ["figure.walk","bell","location","camera","map"][min(max(page,0),4)] }
     var title:String { ["選んだ場所までの避難を支援","通知の許可","位置情報の許可","カメラの許可","地図とカメラで案内"][min(max(page,0),4)] }

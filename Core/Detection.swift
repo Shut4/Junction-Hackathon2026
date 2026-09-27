@@ -35,7 +35,7 @@ public struct NoticeFilter: Sendable {
             if let match { i=match;list[i].box=d.box;list[i].last=now } else { list.append(Track(box:d.box,first:now,last:now));i=list.count-1 }
             if now-list[i].first >= persistence {
                 if list[i].notified == nil && now-classLast[d.label,default: -.infinity] >= cooldown {
-                    result.append(DetectionNotice(label:d.label,text:"カメラに\(name)を検出しました。",capturedAt:d.capturedAt)); list[i].notified=now;classLast[d.label]=now;notices += 1
+                    result.append(DetectionNotice(label:d.label,text:coreLocalized("カメラに{0}を検出しました。",coreLocalized(name)),capturedAt:d.capturedAt)); list[i].notified=now;classLast[d.label]=now;notices += 1
                 } else { suppressed += 1 }
             }
             tracks[d.label]=list
