@@ -62,7 +62,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
         do { try device.lockForConfiguration();device.activeFormat=format;device.activeDepthDataFormat=depthFormat;device.unlockForConfiguration() }
         catch { headLevel?(nil,"深度の設定に失敗しました");return }
         let v=CMVideoFormatDescriptionGetDimensions(format.formatDescription),d=CMVideoFormatDescriptionGetDimensions(depthFormat.formatDescription)
-        headLevel?(nil,"深度 \(d.width)×\(d.height)・映像 \(v.width)×\(v.height)")
+        headLevel?(nil,localized("深度 {0}×{1}・映像 {2}×{3}",d.width,d.height,v.width,v.height))
     }
     func depthDataOutput(_ output:AVCaptureDepthDataOutput,didOutput depthData:AVDepthData,timestamp:CMTime,connection:AVCaptureConnection) {
         let now=ProcessInfo.processInfo.systemUptime
@@ -92,7 +92,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             }
         }
         let result=HeadLevelGeometry.evaluate(points:points,gravity:SIMD3(Float(g.x),Float(g.y),Float(g.z)),cameraHeight:cameraHeight,config:headLevelConfig)
-        headLevel?(result,"深度 \(points.count)点・床\(result.floorMeasured ? "推定":"仮定") \(String(format:"%.2f",-result.floor))m")
+        headLevel?(result,localized("深度 {0}点・床{1} {2}m",points.count,localized(result.floorMeasured ? "推定":"仮定"),String(format:"%.2f",-result.floor)))
     }
     func captureOutput(_ output:AVCaptureOutput,didOutput sampleBuffer:CMSampleBuffer,from connection:AVCaptureConnection) {
         let now=ProcessInfo.processInfo.systemUptime
@@ -187,13 +187,13 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     func showSimulated(_ items:[Detection]) { guard !running else { return };simulatedDetections=true;detections=items }
     private func receive(_ detections:[Detection],captured:Double,start:Double,end:Double,error:String?) {
         guard running else { return }
-        if let error=error ?? (injectError ? "模擬認識エラー":nil) { status="認識エラー：\(error)";debugLog(.model,.error,"Inference error",["error":error,"injected":injectError]);stopAfterError();return }
+        if let error=error ?? (injectError ? localized("模擬認識エラー"):nil) { status=localized("認識エラー：{0}",localized(error));debugLog(.model,.error,"Inference error",["error":error,"injected":injectError]);stopAfterError();return }
         if inferenceCount == 0 { debugLog(.model,.success,"First inference completed",["ms":Int((end-start)*1000),"objects":detections.count]) }
         if lastCaptured>0,captured>lastCaptured { let fps=1/(captured-lastCaptured);framesPerSecond=framesPerSecond == 0 ? fps:framesPerSecond*0.8+fps*0.2 };lastCaptured=captured
         frameTime=captured;inferenceStart=start;inferenceEnd=end;inferenceCount += 1;inferenceLatency=end-start
         status="端末内で認識中";modelStatus="認識処理実行中"
         self.detections=detections
-        labels=Array(Set(detections.prefix(5).map { DetectionLabels.japanese[$0.label] ?? $0.label })).sorted().joined(separator:"、")
+        labels=Array(Set(detections.prefix(5).map { localized(DetectionLabels.japanese[$0.label] ?? $0.label) })).sorted().joined(separator:localized("、"))
         if labels.isEmpty { labels="検出候補なし" }
         decisionTime=ProcessInfo.processInfo.systemUptime;decisionLatency=decisionTime-captured
         onMetric?(MetricEvent(kind:"inference",frame:captured,inferenceStart:start,inferenceEnd:end,decision:decisionTime))

@@ -41,8 +41,8 @@ struct RootView:View {
         guard let scene=UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first,var top=scene.keyWindow?.rootViewController else { return }
         while let next=top.presentedViewController,!next.isBeingDismissed { top=next }
         if let existing=top as? UIAlertController { existing.message=message;return }
-        let alert=UIAlertController(title:"状態",message:message,preferredStyle:.alert)
-        alert.addAction(UIAlertAction(title:"閉じる",style:.cancel) { _ in onClose() })
+        let alert=UIAlertController(title:localized("状態"),message:localized(message),preferredStyle:.alert)
+        alert.addAction(UIAlertAction(title:localized("閉じる"),style:.cancel) { _ in onClose() })
         top.present(alert,animated:true)
     }
 }

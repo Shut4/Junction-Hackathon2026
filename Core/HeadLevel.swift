@@ -92,9 +92,9 @@ public struct HeadLevelAnnouncer: Sendable {
         return (hit.stage, Self.text(hit))
     }
     public static func text(_ hit: HeadLevelHit) -> String {
-        let side = hit.lateral > 0.15 ? "右寄り" : hit.lateral < -0.15 ? "左寄り" : "正面"
+        let side = coreLocalized(hit.lateral > 0.15 ? "右寄り" : hit.lateral < -0.15 ? "左寄り" : "正面")
         let meters = (hit.distance * 2).rounded() / 2
-        let distance = hit.distance < 1 ? "すぐ近く" : "約\(meters.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(meters)) : String(format: "%.1f", meters))メートル"
-        return hit.stage == .danger ? "止まってください。頭の高さ、\(side)\(distance)に障害物。" : "頭の高さ、\(side)\(distance)に障害物があります。"
+        let distance = hit.distance < 1 ? coreLocalized("すぐ近く") : coreLocalized("約{0}メートル",meters.truncatingRemainder(dividingBy: 1) == 0 ? String(Int(meters)) : String(format: "%.1f", meters))
+        return hit.stage == .danger ? coreLocalized("止まってください。頭の高さ、{0}{1}に障害物。",side,distance) : coreLocalized("頭の高さ、{0}{1}に障害物があります。",side,distance)
     }
 }

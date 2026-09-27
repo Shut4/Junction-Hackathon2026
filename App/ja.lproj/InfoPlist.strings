@@ -1,0 +1,3 @@
+"CFBundleDisplayName" = "避難ナビ";
+"NSCameraUsageDescription" = "背面カメラから障害物候補を端末内で検出します。画像は保存・送信しません。";
+"NSLocationWhenInUseUsageDescription" = "対応している実験地域で現在位置を照合し、歩行経路を案内します。位置履歴は保存・送信しません。";

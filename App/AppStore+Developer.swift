@@ -4,7 +4,7 @@ import SwiftUI
 extension AppStore {
     func tapVersion() {
         let now=Date();if let lastTap,now.timeIntervalSince(lastTap)>3 { versionTaps=0 };self.lastTap=now;versionTaps += 1
-        if versionTaps>=7 { developer=true;versionTaps=0;notice="アプリ内DeveloperModeを有効にしました";debugLog(.developer,.success,"DeveloperMode enabled") }
+        if versionTaps>=7 { developer=true;versionTaps=0;notice=localized("アプリ内DeveloperModeを有効にしました");debugLog(.developer,.success,"DeveloperMode enabled") }
     }
     func switchSimulation(_ enabled:Bool) {
         stopNavigation();camera.stop();speech.stop();simulationTask?.cancel();positionResolver.reset()
@@ -23,7 +23,7 @@ extension AppStore {
     func moveSimulation(to coordinate:Coordinate) { guard developer,simulated else { return };location.useSimulation(coordinate) }
     /// Walks the simulated position along the current route. Real GPS is never replaced outside DeveloperMode.
     func startSimulatedWalk() {
-        guard developer,simulated,let route else { notice="模擬位置を有効にし、経路を確認してから開始してください";return }
+        guard developer,simulated,let route else { notice=localized("模擬位置を有効にし、経路を確認してから開始してください");return }
         let shape=RouteTracker.shape(of:route),total=Geometry.length(shape)
         walkTask?.cancel();simulatedWalkActive=true
         debugLog(.developer,.start,"Simulated walk started",["distanceM":Int(total),"speed":simulatedWalkSpeed])
@@ -51,7 +51,7 @@ extension AppStore {
             try? await Task.sleep(for:.milliseconds(700));guard !Task.isCancelled,developer else { return };let now=ProcessInfo.processInfo.systemUptime
             let notices=simulationFilter.process([Detection(label:"pole",confidence:0.9,box:box,capturedAt:now,simulated:true)],now:now)
             simulatedNoticeCount=simulationFilter.notices
-            notices.forEach { record(MetricEvent(kind:"notice",frame:$0.capturedAt,decision:now,simulated:true));speech.say("模擬検出。"+$0.text,obstacle:true,capturedAt:$0.capturedAt) }
+            notices.forEach { record(MetricEvent(kind:"notice",frame:$0.capturedAt,decision:now,simulated:true));speech.say(localized("模擬検出。")+$0.text,obstacle:true,capturedAt:$0.capturedAt) }
         }
     }
     func closeDeveloper() {
@@ -62,7 +62,7 @@ extension AppStore {
     func failSave(_ enabled:Bool) { activeStore.failWrite=enabled;debugLog(.developer,.warning,"Save failure injection \(enabled ? "on":"off")") }
     func failRead(_ enabled:Bool) { activeStore.failRead=enabled;debugLog(.developer,.warning,"Read failure injection \(enabled ? "on":"off")");retryRead() }
     func closeAll() {
-        guard developer,simulated,let network else { notice="全閉鎖は模擬領域でのみ実行できます";return }
+        guard developer,simulated,let network else { notice=localized("全閉鎖は模擬領域でのみ実行できます");return }
         let all=network.edges.map { Report(segmentID:$0.id,hazard:.other,observedAt:Date(),explanation:"DeveloperMode全閉鎖") }
         do { try simulatedPersistence.save(all,network:network);reports=all;debugLog(.developer,.warning,"All simulated segments closed",["count":all.count]);if navigating { reroute(blockage:true) } else { calculate(usePosition:false) } } catch { storageError=error.localizedDescription }
     }
