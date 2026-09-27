@@ -1,24 +1,44 @@
 import SwiftUI
 
-/// Direction card under the 3D ground arrow: text and a read-aloud button. The arrow itself is `GroundArrowView`.
-/// Not anchored to the world; accuracy depends on GPS and the magnetometer.
+/// The 3D ground arrow (`GroundArrowView`) carries the direction; this only exposes it to VoiceOver as one short phrase.
+/// No visible card, no heading-accuracy text and no read-aloud button: direction changes are spoken automatically.
 struct ARDirectionIndicator:View {
     @EnvironmentObject var store:AppStore
     var body:some View {
-        let state=store.cameraDirection
-        VStack(spacing:6) {
-            if state.angle == nil { Image(systemName:"questionmark.circle").font(.system(size:48)).foregroundStyle(.white.opacity(0.8)).accessibilityHidden(true) }
-            Text(localized(state.text)).font(.headline).multilineTextAlignment(.center).fixedSize(horizontal:false,vertical:true)
-            Button("方向を読み上げ",systemImage:"speaker.wave.2") { store.speech.say(state.spoken) }.font(.subheadline.bold()).buttonStyle(.bordered).tint(.white)
-        }
-        .foregroundStyle(.white).padding(14).background(RoundedRectangle(cornerRadius:20).fill(.black.opacity(0.45)))
-        .accessibilityElement(children:.contain).accessibilityLabel(localized(state.spoken)).accessibilityIdentifier("arDirection")
+        let angle=store.cameraAngle
+        Color.clear.frame(height:1)
+            .accessibilityElement().accessibilityLabel(angle.map { localized("進む方向、{0}",DirectionBucket.of($0).phrase) } ?? localized("進む方向を確認中")).accessibilityIdentifier("arDirection")
     }
 }
 
 enum DetectionNames {
     static let japanese=DetectionLabels.japanese
-    static func color(_ label:String)->Color { label == "person" ? .yellow:japanese[label] != nil ? .orange:.cyan }
+    static func color(_ label:String,overrides:[String:SceneTier]=[:])->Color {
+        switch SceneCatalog.tier(label,overrides:overrides) { case .hazard?: .orange; case .landmark?: .cyan; case .context?: .gray; case .off?: .white.opacity(0.4); case nil: .white }
+    }
+}
+
+/// Colour and symbol per speech priority, shared by the on-screen surroundings list.
+enum SceneStyle {
+    static func color(_ p:SpeechPriority)->Color { switch p { case .critical: .red; case .high: .orange; case .normal: .blue; case .low: .gray } }
+    static func symbol(_ p:SpeechPriority)->String { switch p { case .critical: "exclamationmark.octagon.fill"; case .high: "exclamationmark.triangle.fill"; case .normal: "mappin.circle.fill"; case .low: "info.circle.fill" } }
+}
+
+/// "Surroundings": head-level warning, walkable ground and detected objects, most useful first.
+/// VoiceOver reads it as one element (all items, in the same order) and is told it changes often.
+struct SceneList:View {
+    let items:[SceneItem];let limit:Int
+    var body:some View {
+        VStack(alignment:.leading,spacing:3) {
+            if items.isEmpty { Text("周囲の検出なし").font(.subheadline) }
+            ForEach(Array(items.prefix(limit).enumerated()),id:\.offset) { _,item in
+                Label(item.text,systemImage:SceneStyle.symbol(item.priority)).font(item.priority >= .high ? .subheadline.bold():.subheadline)
+                    .padding(.horizontal,8).padding(.vertical,3).background(SceneStyle.color(item.priority).opacity(item.priority == .low ? 0.6:0.9),in:Capsule())
+            }
+        }
+        .accessibilityElement(children:.ignore).accessibilityLabel(items.isEmpty ? "周囲の検出なし":"周囲。"+items.map(\.text).joined())
+        .accessibilityAddTraits(.updatesFrequently).accessibilityIdentifier("sceneList")
+    }
 }
 
 /// Model bounding boxes on the aspect-filled preview. Assumes the 640×480 buffer rotated to portrait (3:4).
@@ -40,99 +60,115 @@ struct DetectionOverlay:View {
     }
 }
 
+/// Detected objects marked on the preview like the reference design: a ringed dot at the object with its name below.
+/// Visual only (VoiceOver gets the same information from the top bar).
+struct SceneMarkers:View {
+    let detections:[Detection];let minConfidence:Double;var tiers:[String:SceneTier]=[:]
+    var body:some View {
+        GeometryReader { geometry in
+            // Same aspect-fill mapping as `DetectionOverlay`: the 3:4 portrait frame fills the screen.
+            let size=geometry.size,scale=max(size.width/3,size.height/4),w=3*scale,h=4*scale,ox=(size.width-w)/2,oy=(size.height-h)/2
+            ForEach(Array(detections.filter { $0.confidence>=minConfidence && (SceneCatalog.tier($0.label,overrides:tiers) ?? .off) != .off }.prefix(8).enumerated()),id:\.offset) { _,d in
+                let x=ox+(d.box.x+d.box.width/2)*w,y=oy+(1-d.box.y-d.box.height/2)*h
+                VStack(spacing:6) {
+                    Circle().fill(.white).frame(width:26,height:26).overlay(Circle().fill(.black).frame(width:14,height:14))
+                    Text(DetectionNames.japanese[d.label] ?? d.label).font(.title2.weight(.semibold)).foregroundStyle(.white).shadow(color:.black.opacity(0.8),radius:3)
+                }.fixedSize().position(x:x,y:y+18)
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
+    }
+}
+
+/// Colour of the top bar and the round buttons: the most urgent item decides it (yellow when nothing needs attention).
+enum SceneBarStyle {
+    static let calm=Color(red:0.92,green:0.73,blue:0.29)
+    static func color(_ p:SpeechPriority?)->Color {
+        switch p { case .critical?: Color(red:0.89,green:0.36,blue:0.25); case .high?: Color(red:0.93,green:0.52,blue:0.18); case .normal?: Color(red:0.20,green:0.47,blue:0.85); default: calm }
+    }
+}
+
 struct CameraScreen:View {
     @EnvironmentObject var store:AppStore
     @State private var report=false
     @State private var stop=false
     @State private var details=false
     @State private var settings=false
-    @Environment(\.dynamicTypeSize) private var textSize
     var body:some View {
+        let items=store.sceneItems,top=items.first(where: { $0.priority > .low })
+        let tint=SceneBarStyle.color(top?.priority)
         ZStack {
             Color.black.ignoresSafeArea()
             CameraPreview(session:store.camera.engine.session).ignoresSafeArea().accessibilityHidden(true)
             if store.developer && store.showBoxes { DetectionOverlay(detections:store.camera.detections,minConfidence:store.boxMinConfidence,showLabels:store.showBoxLabels).ignoresSafeArea() }
-            if store.navigating && store.showARArrow,let angle=store.cameraDirection.angle {
+            SceneMarkers(detections:store.camera.detections,minConfidence:store.noticeTuning.confidence,tiers:store.noticeTuning.tiers).ignoresSafeArea()
+            if store.navigating && store.showARArrow,let angle=store.cameraAngle {
                 GroundArrowView(angle:angle,cameraHeight:store.arrowCameraHeight,distance:store.arrowDistance,fieldOfView:store.camera.verticalFieldOfView).ignoresSafeArea().allowsHitTesting(false).accessibilityHidden(true)
             }
             if !store.camera.running && !(store.navigating && store.showARArrow) { stoppedHint }
-            VStack(spacing:8) {
-                if !textSize.isAccessibilitySize { HStack { backButton;Spacer() } }
-                if store.navigating { InstructionBanner(compact:true) }
-                if textSize.isAccessibilitySize { statusCard } else { ViewThatFits(in:.vertical) { statusCard;ScrollView { statusCard } }.frame(maxHeight:details ? 220:120) }
+            VStack(spacing:0) {
+                topBar(top:top,items:items,tint:tint)
+                if details { detailsCard(items).padding(.horizontal,12).padding(.top,8) }
                 Spacer(minLength:8)
                 if store.navigating && store.showARArrow { ARDirectionIndicator() }
-                if textSize.isAccessibilitySize { accessibilityControls } else { controlBar }
-            }.padding(.horizontal,12).padding(.vertical,8)
+                HStack {
+                    roundButton(store.navigating ? "地図ナビに切り替え":"地図へ戻る",symbol:"map.fill",tint:tint,id:store.navigating ? "switchToMapNavigation":"cameraBack") {
+                        if store.navigating { store.switchGuidance(to:.map) } else { store.closeGuidance() }
+                    }
+                    Spacer()
+                    Menu {
+                        Button("周囲を読み上げ",systemImage:"speaker.wave.2") { store.speakSurroundingsNow() }
+                        Button(details ? "詳細を隠す":"詳細を表示",systemImage:"info.circle") { details.toggle() }
+                        Button("通行不可を登録",systemImage:"exclamationmark.triangle") { report=true }
+                        Button("設定",systemImage:"gearshape") { settings=true }
+                        if store.navigating { Button("地図へ戻る",systemImage:"chevron.left") { store.closeGuidance() } }
+                        Button("案内を停止",systemImage:"xmark.octagon",role:.destructive) { stop=true }
+                    } label: { roundLabel(symbol:"line.3.horizontal",tint:tint) }.accessibilityLabel("メニュー").accessibilityIdentifier("cameraMenu")
+                }.padding(.horizontal,24).padding(.bottom,8).accessibilityElement(children:.contain).accessibilityIdentifier("cameraControls")
+            }
         }
+        .animation(.easeOut(duration:0.2),value:top?.priority)
         // Spoken direction cues for the arrow, only while this screen is shown.
         .task { store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
         .sheet(isPresented:$settings) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .confirmationDialog("案内・カメラ・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("停止",role:.destructive) { store.camera.stop();store.stopNavigation() };Button("取消",role:.cancel) {} }
     }
+    /// Full-width coloured bar: the single most important thing in large type, the route step below it while navigating.
+    /// Tapping it reads the surroundings aloud; VoiceOver reads it first, with the other items as its value.
+    private func topBar(top:SceneItem?,items:[SceneItem],tint:Color)->some View {
+        let title=top.map { $0.text.trimmingCharacters(in:CharacterSet(charactersIn:"。")) } ?? (store.camera.running ? "障害物なし":store.camera.status)
+        return VStack(alignment:.leading,spacing:6) {
+            Text(title).font(.system(size:40,weight:.bold)).minimumScaleFactor(0.5).lineLimit(2)
+            if store.navigating { Text(store.nextInstruction).font(.title3.weight(.semibold)).lineLimit(2).opacity(0.95) }
+        }
+        .foregroundStyle(.white).frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,24).padding(.top,12).padding(.bottom,22)
+        // The coloured shape runs up under the status bar, like the reference design.
+        .background { UnevenRoundedRectangle(bottomLeadingRadius:22,bottomTrailingRadius:22).fill(tint).ignoresSafeArea(edges:.top) }
+        .contentShape(Rectangle()).onTapGesture { store.speakSurroundingsNow() }
+        .accessibilityElement(children:.ignore).accessibilityLabel(title)
+        .accessibilityValue([store.navigating ? store.nextInstruction:nil,items.count > 1 ? "ほかに、"+items.dropFirst().map(\.text).joined():nil].compactMap { $0 }.joined(separator:" "))
+        .accessibilityHint("ダブルタップで周囲を読み上げます").accessibilityAddTraits([.isHeader,.updatesFrequently,.isButton])
+        .accessibilityAction { store.speakSurroundingsNow() }.accessibilitySortPriority(10).accessibilityIdentifier("sceneBar")
+    }
+    private func detailsCard(_ items:[SceneItem])->some View {
+        VStack(alignment:.leading,spacing:4) {
+            SceneList(items:items,limit:6)
+            if !store.camera.running || store.camera.modelStatus == "未導入" { Text(store.camera.status).font(.subheadline).accessibilityIdentifier("cameraStatus") }
+            Text(store.positionState).font(.subheadline);Text("モデル："+store.camera.modelStatus).font(.subheadline)
+            Text("距離・歩ける範囲は2つのカメラの深度からの概算です。足元と周囲を同行者と確認してください。").font(.caption)
+        }.frame(maxWidth:.infinity,alignment:.leading).padding(12).foregroundStyle(.white).background(.black.opacity(0.55),in:RoundedRectangle(cornerRadius:16))
+    }
+    private func roundLabel(symbol:String,tint:Color)->some View {
+        Image(systemName:symbol).font(.system(size:34,weight:.semibold)).foregroundStyle(.white).frame(width:76,height:76).background(Circle().fill(tint)).shadow(color:.black.opacity(0.25),radius:6,y:3)
+    }
+    private func roundButton(_ title:String,symbol:String,tint:Color,id:String,action:@escaping ()->Void)->some View {
+        Button(action:action) { roundLabel(symbol:symbol,tint:tint) }.buttonStyle(.plain).accessibilityLabel(title).accessibilityIdentifier(id)
+    }
     private var stoppedHint:some View {
         VStack(spacing:8) {
+            // The reason itself is in the top bar.
             Image(systemName:"video.slash").font(.largeTitle)
-            Text(localized(store.camera.status)).font(.title2.bold())
-            if !textSize.isAccessibilitySize { Text("カメラは画面を開くと自動で起動します。起動しない場合は地図へ戻り、もう一度カメラボタンを押してください").font(.subheadline) }
-        }.foregroundStyle(.white).multilineTextAlignment(.center).accessibilityHidden(true)
+            Text("カメラは画面を開くと自動で起動します。起動しない場合は地図へ戻り、もう一度カメラボタンを押してください").font(.subheadline)
+        }.foregroundStyle(.white).multilineTextAlignment(.center).padding(.horizontal,24).accessibilityHidden(true)
     }
-    /// Kept small and translucent so the camera image stays visible behind it.
-    private var statusCard:some View {
-        VStack(alignment:.leading,spacing:4) {
-            if !store.navigating { Text(localized(store.route == nil ? "目的地を選び、経路を確認して案内を開始してください":store.nextInstruction)).font(textSize.isAccessibilitySize ? .title2.bold():.headline).accessibilityAddTraits(.isHeader) }
-            Text(localized(store.targetName)).font(.subheadline)
-            Text(localized(store.camera.status)).font(.subheadline).accessibilityIdentifier("cameraStatus")
-            Text(localized(store.camera.labels)).font(.subheadline.bold())
-            if store.headLevelWarnings,let hit=store.camera.headLevel { Label(localized(HeadLevelAnnouncer.text(hit)),systemImage:"exclamationmark.triangle.fill").font(.subheadline.bold()).padding(.horizontal,8).padding(.vertical,4).background(hit.stage == .danger ? Color.red:Color.orange,in:Capsule()).accessibilityIdentifier("headLevelWarning") }
-            if details { Text(localized(store.positionState));Text(localized("モデル：{0}",localized(store.camera.modelStatus)));Text("画像内の候補です。距離・通行可能性・回避方向は判断しません。") }
-        }.frame(maxWidth:.infinity,alignment:.leading).padding(12).foregroundStyle(.white).background(.black.opacity(0.5),in:RoundedRectangle(cornerRadius:16))
-    }
-    /// Returns to the map (destination selection) and stops the camera.
-    private var backButton:some View {
-        Button { store.closeGuidance() } label: {
-            Image(systemName:"chevron.left").font(.title3.weight(.semibold)).foregroundStyle(.white).frame(width:48,height:48).background(Circle().fill(.black.opacity(0.5)))
-        }.accessibilityLabel("戻る").accessibilityHint("地図・目的地選択へ戻り、カメラを停止します").accessibilityIdentifier("cameraBack")
-    }
-    /// One row of icon buttons at the bottom; less frequent actions are in the "その他" menu.
-    private var controlBar:some View {
-        HStack(spacing:4) {
-            if store.navigating { CameraBarButton(title:"地図ナビに切り替え",caption:"地図ナビ",symbol:"map.fill") { store.switchGuidance(to:.map) }.accessibilityIdentifier("switchToMapNavigation") }
-            Menu {
-                Button(localized(details ? "状態表示を縮小":"状態表示を展開"),systemImage:"info.circle") { details.toggle() }
-                Button("通行不可を登録",systemImage:"exclamationmark.triangle") { report=true }
-                Button("設定",systemImage:"gearshape") { settings=true }
-                Button("案内を停止",systemImage:"xmark.octagon",role:.destructive) { stop=true }
-            } label: { CameraBarLabel(caption:"その他",symbol:"ellipsis") }.accessibilityLabel("その他の操作")
-        }.padding(.horizontal,8).padding(.vertical,10).background(.black.opacity(0.5),in:RoundedRectangle(cornerRadius:22)).accessibilityElement(children:.contain).accessibilityIdentifier("cameraControls")
-    }
-    /// Maximum text sizes: full-width labelled buttons in a scroll view, as before.
-    private var accessibilityControls:some View {
-        VStack(spacing:8) {
-            ScrollView { VStack(spacing:10) {
-                if store.navigating { Button("地図ナビに切り替え",systemImage:"map.fill") { store.switchGuidance(to:.map) }.frame(minHeight:48).accessibilityIdentifier("switchToMapNavigation") }
-                Button(localized(details ? "状態表示を縮小":"状態表示を展開"),systemImage:"info.circle") { details.toggle() }.frame(minHeight:48)
-                Button("通行不可を登録",systemImage:"exclamationmark.triangle") { report=true }.frame(minHeight:48)
-                Button("設定",systemImage:"gearshape") { settings=true }.frame(minHeight:48)
-                Button("案内を停止",role:.destructive) { stop=true }.frame(minHeight:48)
-            }.padding() }.accessibilityIdentifier("cameraControls").frame(maxHeight:300).background(.regularMaterial,in:RoundedRectangle(cornerRadius:18))
-            Button("戻る",systemImage:"chevron.left") { store.closeGuidance() }.accessibilityHint("地図・目的地選択へ戻り、カメラを停止します").accessibilityIdentifier("cameraBack").font(.headline).frame(maxWidth:.infinity,minHeight:48).padding(10).background(.regularMaterial,in:RoundedRectangle(cornerRadius:14))
-        }
-    }
-}
-
-private struct CameraBarLabel:View {
-    let caption:String;let symbol:String
-    var body:some View {
-        VStack(spacing:4) {
-            Image(systemName:symbol).font(.system(size:20,weight:.semibold)).frame(width:48,height:48).background(Circle().fill(Color.white.opacity(0.18)))
-            Text(localized(caption)).font(.caption.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.7)
-        }.foregroundStyle(.white).frame(maxWidth:.infinity,minHeight:44).contentShape(Rectangle())
-    }
-}
-
-private struct CameraBarButton:View {
-    let title:String;let caption:String;let symbol:String;let action:()->Void
-    var body:some View { Button(action:action) { CameraBarLabel(caption:caption,symbol:symbol) }.buttonStyle(.plain).accessibilityLabel(localized(title)) }
 }
