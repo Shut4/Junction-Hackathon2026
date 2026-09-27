@@ -466,10 +466,12 @@ final class CoreTests:XCTestCase {
         var nearPole=farPole;nearPole.distance=1.8;XCTAssertEqual(f.process([nearPole],now:0).first?.priority,.critical)
         let block=Detection(label:"braille_block",confidence:0.9,box:Box(x:0.1,y:0.1,width:0.2,height:0.2),capturedAt:0)
         XCTAssertEqual(f.process([block],now:0).first?.hazard,false,"landmarks never beep")
-        // People and vehicles are off by default, but can be turned back on per label.
+        // People and vehicles are landmarks by default (spoken, no warning sound); a label can be moved per DeveloperMode.
         let car=Detection(label:"car",confidence:0.9,box:Box(x:0.6,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:2.5,lateral:0.5)
-        var g=NoticeFilter();t.apply(to:&g);XCTAssertTrue(g.process([car],now:0).isEmpty)
+        var g=NoticeFilter();t.apply(to:&g);let landmark=g.process([car],now:0).first
+        XCTAssertEqual(landmark?.priority,.normal);XCTAssertEqual(landmark?.hazard,false)
         t.tiers=["car":.hazard];var h=NoticeFilter();t.apply(to:&h);XCTAssertEqual(h.process([car],now:0).first?.priority,.high)
+        XCTAssertEqual(SceneCatalog.classes["guardrail"]?.tier,.hazard);XCTAssertEqual(SceneCatalog.classes["elevator"]?.tier,.context);XCTAssertEqual(SceneCatalog.classes["train"]?.tier,.off)
         XCTAssertEqual(HeadLevelConfig().buzzerDistance,1);XCTAssertEqual(Earcon.buzzer(seconds:0.25).samples(sampleRate:1000).left.count,250,"buzzer chunks have no gaps")
     }
 
