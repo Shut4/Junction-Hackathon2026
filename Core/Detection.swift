@@ -34,24 +34,24 @@ public enum SceneTier: Int, Sendable, Comparable, CaseIterable, Codable {
 }
 public struct SceneClass: Sendable { public let name: String; public let tier: SceneTier }
 /// The 39 VIDVIP classes. Signal colours are deliberately not spoken: crossing decisions stay with the user and companion.
-/// People and vehicles are off for now (too frequent in town); DeveloperMode can turn them back on per label.
+/// People and vehicles are landmarks (spoken, no warning sound); DeveloperMode can change any label's tier.
 public enum SceneCatalog {
     /// Tier for a label with DeveloperMode overrides applied; nil for labels outside the catalogue.
     public static func tier(_ label: String, overrides: [String: SceneTier] = [:]) -> SceneTier? { overrides[label] ?? classes[label]?.tier }
     public static let classes: [String: SceneClass] = [
         "stairs": .init(name:"階段",tier:.hazard),"steps": .init(name:"段差",tier:.hazard),"pole": .init(name:"ポール",tier:.hazard),
-        "bollard": .init(name:"車止め",tier:.hazard),"safety-cone": .init(name:"コーン",tier:.hazard),"person": .init(name:"人",tier:.off),
-        "bicycle": .init(name:"自転車",tier:.off),"bicycler": .init(name:"自転車に乗った人",tier:.off),"motorbike": .init(name:"バイク",tier:.off),
-        "car": .init(name:"車",tier:.off),"bus": .init(name:"バス",tier:.off),"truck": .init(name:"トラック",tier:.off),
+        "bollard": .init(name:"車止め",tier:.hazard),"safety-cone": .init(name:"コーン",tier:.hazard),"person": .init(name:"人",tier:.landmark),
+        "bicycle": .init(name:"自転車",tier:.landmark),"bicycler": .init(name:"自転車に乗った人",tier:.landmark),"motorbike": .init(name:"バイク",tier:.landmark),
+        "car": .init(name:"車",tier:.landmark),"bus": .init(name:"バス",tier:.landmark),"truck": .init(name:"トラック",tier:.landmark),
         "braille_block": .init(name:"点字ブロック",tier:.landmark),"crosswalk": .init(name:"横断歩道",tier:.landmark),
         "signal_red": .init(name:"歩行者信号",tier:.landmark),"signal_blue": .init(name:"歩行者信号",tier:.landmark),"traffic_light": .init(name:"信号機",tier:.landmark),
-        "signal_button": .init(name:"押しボタン",tier:.landmark),"handrail": .init(name:"手すり",tier:.landmark),"elevator": .init(name:"エレベーター",tier:.landmark),
-        "escalator": .init(name:"エスカレーター",tier:.landmark),"faregates": .init(name:"改札",tier:.landmark),"door": .init(name:"ドア",tier:.landmark),
-        "bus_stop_sign": .init(name:"バス停",tier:.landmark),"bathroom": .init(name:"トイレ",tier:.landmark),"guardrail": .init(name:"ガードレール",tier:.landmark),
+        "signal_button": .init(name:"押しボタン",tier:.landmark),"handrail": .init(name:"手すり",tier:.landmark),"elevator": .init(name:"エレベーター",tier:.context),
+        "escalator": .init(name:"エスカレーター",tier:.context),"faregates": .init(name:"改札",tier:.context),"door": .init(name:"ドア",tier:.context),
+        "bus_stop_sign": .init(name:"バス停",tier:.landmark),"bathroom": .init(name:"トイレ",tier:.context),"guardrail": .init(name:"ガードレール",tier:.hazard),
         "white_line": .init(name:"白線",tier:.context),"fence": .init(name:"フェンス",tier:.context),"wall": .init(name:"壁",tier:.context),
         "tree": .init(name:"木",tier:.context),"shrubs": .init(name:"植え込み",tier:.context),"signboard": .init(name:"看板",tier:.context),
-        "vending_machine": .init(name:"自動販売機",tier:.context),"postbox": .init(name:"ポスト",tier:.context),"train_ticket_machine": .init(name:"券売機",tier:.context),
-        "flag": .init(name:"旗",tier:.context),"monument": .init(name:"記念碑",tier:.context),"train": .init(name:"電車",tier:.context),"boat": .init(name:"船",tier:.context),
+        "vending_machine": .init(name:"自動販売機",tier:.context),"postbox": .init(name:"ポスト",tier:.off),"train_ticket_machine": .init(name:"券売機",tier:.off),
+        "flag": .init(name:"旗",tier:.off),"monument": .init(name:"記念碑",tier:.off),"train": .init(name:"電車",tier:.off),"boat": .init(name:"船",tier:.off),
     ]
 }
 /// Japanese names for the model classes. Shared by the filter and the UI.
