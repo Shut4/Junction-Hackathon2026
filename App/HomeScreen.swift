@@ -51,7 +51,7 @@ struct HomeScreen:View {
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
         .fullScreenCover(isPresented:$store.guidanceActive) { GuidanceContainer().environmentObject(store) }
         .confirmationDialog("目的地の入口・受入状況と経路を同行者と確認してください",isPresented:Binding(get:{pendingMode != nil},set:{ if !$0 { pendingMode=nil } }),titleVisibility:.visible,presenting:pendingMode) { mode in
-            Button(mode == .map ? "確認してナビを開始":"確認して全面カメラで案内開始") { store.startGuidance(mode) }
+            Button(localized(mode == .map ? "確認してナビを開始":"確認して全面カメラで案内開始")) { store.startGuidance(mode) }
             Button("取消",role:.cancel) {}
         }
         .confirmationDialog("この通行禁止区域を削除しますか？",isPresented:reportRemovalDialogIsPresented,titleVisibility:.visible) {
@@ -62,7 +62,7 @@ struct HomeScreen:View {
             Button("キャンセル",role:.cancel) { store.pendingReportRemoval=nil }
         } message: {
             if let report = store.pendingReportRemoval {
-                Text("\(store.edge(report.segmentID)?.name ?? "選択した道路区間")を経路検索の対象に戻します。")
+                Text(localized("{0}を経路検索の対象に戻します。",store.edge(report.segmentID)?.name ?? localized("選択した道路区間")))
             }
         }
     }
@@ -72,7 +72,7 @@ struct HomeScreen:View {
             else { Image(systemName:"magnifyingglass").font(.title3).foregroundStyle(.secondary).frame(width:28).accessibilityHidden(true) }
             TextField("目的地を入力",text:$query).focused($searchFocused).submitLabel(.search).onSubmit { performSearch() }.font(.title3).accessibilityIdentifier("destinationQuery")
             if searchOpen || !query.isEmpty {
-                Button(query.isEmpty ? "検索を閉じる":"入力を消去",systemImage:"xmark.circle.fill") {
+                Button(localized(query.isEmpty ? "検索を閉じる":"入力を消去"),systemImage:"xmark.circle.fill") {
                     if query.isEmpty { closeSearch() }
                     else { query="";search.clear();searchOpen=true;searchFocused=true }
                 }
@@ -87,8 +87,8 @@ struct HomeScreen:View {
         ScrollView(.horizontal,showsIndicators:false) {
             HStack(spacing:8) {
                 ForEach(store.destinations) { d in
-                    Button { store.inspected=nil;store.chooseSavedDestination(d);query=d.name } label: { Label(d.name.replacingOccurrences(of:"・実験接続点",with:""),systemImage:"figure.walk").font(.subheadline.weight(.medium)).padding(.horizontal,14).padding(.vertical,9).background(Capsule().fill(store.destinationID == d.id ? Color.blue.opacity(0.18):Color(.systemBackground)).shadow(color:.black.opacity(0.12),radius:4,y:2)) }
-                        .buttonStyle(.plain).accessibilityLabel("\(d.name)を目的地にする")
+                    Button { store.inspected=nil;store.chooseSavedDestination(d);query=localized(d.name) } label: { Label(localized(d.name).replacingOccurrences(of:localized("・実験接続点"),with:""),systemImage:"figure.walk").font(.subheadline.weight(.medium)).padding(.horizontal,14).padding(.vertical,9).background(Capsule().fill(store.destinationID == d.id ? Color.blue.opacity(0.18):Color(.systemBackground)).shadow(color:.black.opacity(0.12),radius:4,y:2)) }
+                        .buttonStyle(.plain).accessibilityLabel(localized("{0}を目的地にする",localized(d.name)))
                 }
             }.padding(.horizontal,14).padding(.vertical,4)
         }.frame(maxWidth:.infinity).accessibilityIdentifier("savedChipsScroll")
@@ -97,15 +97,15 @@ struct HomeScreen:View {
         ScrollView { VStack(alignment:.leading,spacing:0) {
             if search.searching { ProgressView("検索中").padding() }
             if !search.results.isEmpty {
-                ForEach(Array(search.results.enumerated()),id:\.offset) { i,item in resultRow(title:item.name ?? "名称なし",subtitle:item.address?.fullAddress ?? "",symbol:"mappin.circle.fill",tint:.red) { choose(item) }.accessibilityIdentifier("destinationResult.\(i)") }.id("results-\(search.resultsQuery ?? "")")
+                ForEach(Array(search.results.enumerated()),id:\.offset) { i,item in resultRow(title:item.name ?? localized("名称なし"),subtitle:item.address?.fullAddress ?? "",symbol:"mappin.circle.fill",tint:.red) { choose(item) }.accessibilityIdentifier("destinationResult.\(i)") }.id("results-\(search.resultsQuery ?? "")")
             } else {
                 ForEach(Array(search.suggestions.prefix(8).enumerated()),id:\.element) { i,c in resultRow(title:c.title,subtitle:c.subtitle,symbol:"magnifyingglass",tint:.secondary) { searchFocused=false;Task { await search.find(c.title,network:store.network,completion:c);if search.results.count==1,let item=search.results.first { choose(item) } } }.accessibilityIdentifier("destinationSuggestion.\(i)") }
                 ForEach(store.destinations.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }) { d in
-                    resultRow(title:d.name,subtitle:"保存済み・通信なしで選択可能",symbol:"figure.walk.circle.fill",tint:.green) { store.chooseSavedDestination(d);query=d.name;closeSearch() }.accessibilityLabel(d.name)
+                    resultRow(title:localized(d.name),subtitle:localized("保存済み・通信なしで選択可能"),symbol:"figure.walk.circle.fill",tint:.green) { store.chooseSavedDestination(d);query=localized(d.name);closeSearch() }.accessibilityLabel(localized(d.name))
                 }
-                if !query.isEmpty { resultRow(title:"「\(query)」を検索",subtitle:"施設名・住所・「緯度, 経度」",symbol:"arrow.up.left.circle",tint:.blue) { performSearch() }.accessibilityIdentifier("destinationSearchButton") }
+                if !query.isEmpty { resultRow(title:localized("「{0}」を検索",query),subtitle:"施設名・住所・「緯度, 経度」",symbol:"arrow.up.left.circle",tint:.blue) { performSearch() }.accessibilityIdentifier("destinationSearchButton") }
             }
-            Text(search.status).font(.caption).foregroundStyle(.secondary).padding(12)
+            Text(localized(search.status)).font(.caption).foregroundStyle(.secondary).padding(12)
             resultRow(title:"保存済み地点・座標から選ぶ",subtitle:"一覧・緯度経度の入力",symbol:"list.bullet.circle",tint:.blue) { searchFocused=false;destinations=true }
         }.padding(.vertical,6) }
         .background(RoundedRectangle(cornerRadius:22).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.15),radius:8,y:3))
@@ -115,14 +115,14 @@ struct HomeScreen:View {
         Button(action:action) {
             HStack(spacing:14) {
                 Image(systemName:symbol).font(.title2).foregroundStyle(tint).frame(width:32).accessibilityHidden(true)
-                VStack(alignment:.leading,spacing:2) { Text(title).font(.headline).foregroundStyle(.primary);if !subtitle.isEmpty { Text(subtitle).font(.subheadline).foregroundStyle(.secondary) } }
+                VStack(alignment:.leading,spacing:2) { Text(localized(title)).font(.headline).foregroundStyle(.primary);if !subtitle.isEmpty { Text(localized(subtitle)).font(.subheadline).foregroundStyle(.secondary) } }
                 Spacer(minLength:0)
             }.padding(.horizontal,16).padding(.vertical,10).frame(minHeight:52).contentShape(Rectangle())
         }.buttonStyle(.plain)
     }
     private var floatingButtons:some View {
         HStack(alignment:.bottom) {
-            if store.developer { Label(store.simulated ? "DEV・模擬位置":"DEV",systemImage:"hammer.fill").font(.caption.bold()).padding(8).background(Capsule().fill(Color.orange.opacity(0.9))).foregroundStyle(.white) }
+            if store.developer { Label(localized(store.simulated ? "DEV・模擬位置":"DEV"),systemImage:"hammer.fill").font(.caption.bold()).padding(8).background(Capsule().fill(Color.orange.opacity(0.9))).foregroundStyle(.white) }
             Spacer()
             VStack(spacing:12) {
                 circleButton("通行不可を登録",symbol:"exclamationmark.triangle.fill",tint:.orange) { report=true }
@@ -132,7 +132,7 @@ struct HomeScreen:View {
         }
     }
     private func circleButton(_ title:String,symbol:String,tint:Color,action:@escaping ()->Void)->some View {
-        Button(title,systemImage:symbol,action:action).labelStyle(.iconOnly).font(.title2).foregroundStyle(tint).frame(width:56,height:56).background(Circle().fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:6,y:2))
+        Button(localized(title),systemImage:symbol,action:action).labelStyle(.iconOnly).font(.title2).foregroundStyle(tint).frame(width:56,height:56).background(Circle().fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:6,y:2))
     }
     private func bottomPanel(maxHeight:CGFloat)->some View {
         VStack(spacing:0) {
@@ -185,16 +185,16 @@ struct HomeScreen:View {
                 if store.navigating { navigatingCard }
                 if let error=store.storageError {
                     VStack(alignment:.leading,spacing:6) {
-                        Label(error,systemImage:"exclamationmark.triangle.fill").font(.subheadline.bold()).foregroundStyle(.red)
+                        Label(localized(error),systemImage:"exclamationmark.triangle.fill").font(.subheadline.bold()).foregroundStyle(.red)
                         if store.storageIncompatible { Text("道路データを更新したため、以前の報告を確認するまで経路案内を保留しています。").font(.caption) }
                         Button(store.storageIncompatible ? "設定で報告の引き継ぎを確認":"設定で報告の状態を確認") { settings=true }.buttonStyle(.bordered).accessibilityIdentifier("openStorageSettings")
                     }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.red.opacity(0.1),in:RoundedRectangle(cornerRadius:14))
                 }
-                Text(store.targetName).font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                Text(store.destinationMessage).font(.subheadline).foregroundStyle(.secondary)
+                Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                Text(localized(store.destinationMessage)).font(.subheadline).foregroundStyle(.secondary)
                 if !store.destinationConnections.isEmpty && store.customDestination==nil {
                     Text("案内の終点を確認").font(.headline)
-                    ForEach(Array(store.destinationConnections.prefix(expanded ? 5:3))) { c in Button { store.confirmConnection(c.nodeID) } label: { Label("\(store.name(c.nodeID))・選択地点から約\(Int(c.distance.rounded())) m",systemImage:"point.topleft.down.to.point.bottomright.curvepath").frame(maxWidth:.infinity,minHeight:44,alignment:.leading) }.buttonStyle(.bordered) }
+                    ForEach(Array(store.destinationConnections.prefix(expanded ? 5:3))) { c in Button { store.confirmConnection(c.nodeID) } label: { Label(localized("{0}・選択地点から約{1} m",store.name(c.nodeID),Int(c.distance.rounded())),systemImage:"point.topleft.down.to.point.bottomright.curvepath").frame(maxWidth:.infinity,minHeight:44,alignment:.leading) }.buttonStyle(.bordered) }
                     Text("道路接続点から入口までの経路は未確認です。近い候補が正しい入口とは限りません。").font(.caption)
                 }
                 if let route=store.route {
@@ -207,10 +207,10 @@ struct HomeScreen:View {
                 } else {
                     PrimaryButton(title:"通行不可を避ける経路を確認",symbol:"arrow.triangle.turn.up.right.diamond") { store.calculate(usePosition:true) }.disabled(store.currentDestination==nil)
                 }
-                if let message=store.routeMessage { Text(message).font(.subheadline).accessibilityIdentifier("routeMessage") }
-                Text(store.positionState).font(.subheadline)
+                if let message=store.routeMessage { Text(localized(message)).font(.subheadline).accessibilityIdentifier("routeMessage") }
+                Text(localized(store.positionState)).font(.subheadline)
                 if store.currentDestination != nil || store.selectedTarget != nil { Button("目的地の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
-                Button(details ? "状態の詳細を閉じる":"位置・道路・保存の状態を確認",systemImage:"info.circle") { details.toggle() }.frame(minHeight:44)
+                Button(localized(details ? "状態の詳細を閉じる":"位置・道路・保存の状態を確認"),systemImage:"info.circle") { details.toggle() }.frame(minHeight:44)
                 if details { StateCard() }
                 Text("長押しで目的地を選択。青：経路、赤と×：通行不可登録。保存済み地点は上部のチップから選択できます").font(.caption).foregroundStyle(.secondary)
                 SourceFooter()
@@ -232,7 +232,7 @@ struct HomeScreen:View {
         searchOpen=true;searchFocused=false
         let parts=query.split(separator:",").map { $0.trimmingCharacters(in:.whitespaces) }
         if parts.count==2,let latitude=Double(parts[0]),let longitude=Double(parts[1]) {
-            guard latitude.isFinite,longitude.isFinite,abs(latitude)<=90,abs(longitude)<=180 else { store.notice="緯度・経度を確認してください";return }
+            guard latitude.isFinite,longitude.isFinite,abs(latitude)<=90,abs(longitude)<=180 else { store.notice=localized("緯度・経度を確認してください");return }
             store.chooseTarget(Coordinate(latitude,longitude),name:"指定した座標");searchOpen=false;search.clear();return
         }
         Task { await search.find(query,network:store.network) }

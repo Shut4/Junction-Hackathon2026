@@ -4,7 +4,7 @@ import AVFoundation
 
 @MainActor final class SpeechController: NSObject, ObservableObject, @preconcurrency AVSpeechSynthesizerDelegate {
     @Published var pending = 0
-    @Published var status = "待機中"
+    @Published var status = localized("待機中")
     @Published var lastStartLatency: Double?
     private let synth = AVSpeechSynthesizer()
     private var queue = SpeechQueue()
@@ -19,7 +19,7 @@ import AVFoundation
         if active?.route == true { synth.stopSpeaking(at:.immediate) }
         pending = queue.count
     }
-    func stop() { queue.stop();pending=0;synth.stopSpeaking(at:.immediate);status="停止" }
+    func stop() { queue.stop();pending=0;synth.stopSpeaking(at:.immediate);status=localized("停止") }
     /// Legacy form: obstacle = high priority, otherwise a route message (dropped when the route changes).
     func say(_ text: String, obstacle: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil) {
         say(text,priority:obstacle ? .high:.normal,route:!obstacle,capturedAt:capturedAt,ttl:ttl ?? (obstacle ? 2:nil))
@@ -44,14 +44,14 @@ import AVFoundation
         while let item=queue.next() {
             pending=queue.count
             active=item
-            do { try AVAudioSession.sharedInstance().setCategory(.playback,mode:.spokenAudio,options:[.duckOthers]); try AVAudioSession.sharedInstance().setActive(true) } catch { status="音声出力を開始できません";debugLog(.speech,.error,"Audio session activation failed",["error":error.localizedDescription]);active=nil;continue }
-            let utterance = AVSpeechUtterance(string:item.text);utterance.voice=AVSpeechSynthesisVoice(language:"ja-JP");utterance.rate=0.48;synth.speak(utterance);return
+            do { try AVAudioSession.sharedInstance().setCategory(.playback,mode:.spokenAudio,options:[.duckOthers]); try AVAudioSession.sharedInstance().setActive(true) } catch { status=localized("音声出力を開始できません");debugLog(.speech,.error,"Audio session activation failed",["error":error.localizedDescription]);active=nil;continue }
+            let utterance = AVSpeechUtterance(string:item.text);utterance.voice=AVSpeechSynthesisVoice(language:Bundle.main.preferredLocalizations.first?.hasPrefix("en") == true ? "en-US":"ja-JP");utterance.rate=0.48;synth.speak(utterance);return
         }
-        status="待機中";try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
+        status=localized("待機中");try? AVAudioSession.sharedInstance().setActive(false,options:.notifyOthersOnDeactivation)
     }
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,didStart utterance:AVSpeechUtterance) {
-        status="発話中"
-        onMetric?(MetricEvent(kind:"speechStartCallback",frame:active?.detectionTime,speechStart:ProcessInfo.processInfo.systemUptime,simulated:utterance.speechString.hasPrefix("模擬")))
+        status=localized("発話中")
+        onMetric?(MetricEvent(kind:"speechStartCallback",frame:active?.detectionTime,speechStart:ProcessInfo.processInfo.systemUptime,simulated:utterance.speechString.hasPrefix(localized("模擬"))))
         if let time=active?.detectionTime { lastStartLatency=ProcessInfo.processInfo.systemUptime-time }
         debugLog(.speech,.info,"Speech started",["characters":utterance.speechString.count,"priority":active.map { "\($0.priority)" } ?? "none","pending":pending,"detectionLatencyMs":lastStartLatency.map { Int($0*1000) }])
         #if DEBUG
@@ -123,32 +123,32 @@ struct HeadingSample { var degrees:Double;var accuracy:Double;var timestamp:Date
 @MainActor final class LocationController: NSObject,ObservableObject,@preconcurrency CLLocationManagerDelegate {
     @Published var sample: LocationSample?
     @Published var heading: HeadingSample?
-    @Published var status = "位置情報を開始していません"
+    @Published var status = localized("位置情報を開始していません")
     private let manager = CLLocationManager()
     private var simulationClock: Task<Void,Never>?
     private var lastAccuracyBucket = -1
     var simulated = false
-    var authorization:String { switch manager.authorizationStatus { case .authorizedWhenInUse:return "使用中のみ許可";case .authorizedAlways:return "常に許可";case .denied:return "拒否";case .restricted:return "制限";default:return "未確認" } }
+    var authorization:String { switch manager.authorizationStatus { case .authorizedWhenInUse:return localized("使用中のみ許可");case .authorizedAlways:return localized("常に許可");case .denied:return localized("拒否");case .restricted:return localized("制限");default:return localized("未確認") } }
     var headingAvailable:Bool { CLLocationManager.headingAvailable() }
     override init() { super.init();manager.delegate=self;manager.desiredAccuracy=kCLLocationAccuracyBest;manager.distanceFilter=kCLDistanceFilterNone;manager.pausesLocationUpdatesAutomatically=false;manager.headingFilter=3;manager.headingOrientation = .portrait }
     func start() {
         guard !simulated else { return }
         if manager.authorizationStatus == .notDetermined { manager.requestWhenInUseAuthorization();debugLog(.permission,.request,"Location authorization requested",direction:.outgoing) }
-        else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted { status="位置情報が許可されていません";debugLog(.permission,.warning,"Location not authorized",["status":authorization]) }
+        else if manager.authorizationStatus == .denied || manager.authorizationStatus == .restricted { status=localized("位置情報が許可されていません");debugLog(.permission,.warning,"Location not authorized",["status":authorization]) }
         else {
             manager.startUpdatingLocation();if CLLocationManager.headingAvailable() { manager.startUpdatingHeading() }
-            status="位置を取得中";debugLog(.location,.start,"Location updates started",["heading":CLLocationManager.headingAvailable() ? "available":"unavailable"])
+            status=localized("位置を取得中");debugLog(.location,.start,"Location updates started",["heading":CLLocationManager.headingAvailable() ? "available":"unavailable"])
         }
     }
     func stop() {
         manager.stopUpdatingLocation();manager.stopUpdatingHeading();simulationClock?.cancel();simulationClock=nil
-        sample=nil;heading=nil;status="位置情報を停止しました";lastAccuracyBucket = -1;debugLog(.location,.info,"Location updates stopped")
+        sample=nil;heading=nil;status=localized("位置情報を停止しました");lastAccuracyBucket = -1;debugLog(.location,.info,"Location updates stopped")
     }
     /// Simulated samples are re-stamped every second, like a stationary receiver, so continuity checks can pass.
     func useSimulation(_ coordinate: Coordinate,course:Double = -1,speed:Double = -1) {
         if !simulated { debugLog(.developer,.info,"Simulated location enabled") }
         simulated=true;manager.stopUpdatingLocation();manager.stopUpdatingHeading()
-        sample=LocationSample(coordinate:coordinate,accuracy:3,timestamp:Date(),simulated:true,course:course,courseAccuracy:course>=0 ? 5:-1,speed:speed);status="模擬位置"
+        sample=LocationSample(coordinate:coordinate,accuracy:3,timestamp:Date(),simulated:true,course:course,courseAccuracy:course>=0 ? 5:-1,speed:speed);status=localized("模擬位置")
         if heading == nil || heading?.simulated == false { heading=HeadingSample(degrees:max(0,course),accuracy:5,timestamp:Date(),simulated:true) }
         if simulationClock == nil {
             simulationClock=Task { [weak self] in
@@ -170,7 +170,7 @@ struct HeadingSample { var degrees:Double;var accuracy:Double;var timestamp:Date
     func locationManager(_ manager:CLLocationManager,didUpdateLocations locations:[CLLocation]) {
         guard !simulated, let l=locations.last else { return }
         let first=sample == nil
-        sample=LocationSample(coordinate:Coordinate(l.coordinate.latitude,l.coordinate.longitude),accuracy:l.horizontalAccuracy,timestamp:l.timestamp,course:l.course,courseAccuracy:l.courseAccuracy,speed:l.speed);status="実位置を受信"
+        sample=LocationSample(coordinate:Coordinate(l.coordinate.latitude,l.coordinate.longitude),accuracy:l.horizontalAccuracy,timestamp:l.timestamp,course:l.course,courseAccuracy:l.courseAccuracy,speed:l.speed);status=localized("実位置を受信")
         // Coordinates are deliberately not logged.
         let bucket=l.horizontalAccuracy<0 ? -2:l.horizontalAccuracy<=10 ? 0:l.horizontalAccuracy<=20 ? 1:2
         if first { debugLog(.location,.success,"First location fix",["accuracy":Int(l.horizontalAccuracy)]) }
@@ -185,5 +185,5 @@ struct HeadingSample { var degrees:Double;var accuracy:Double;var timestamp:Date
         heading=HeadingSample(degrees:degrees,accuracy:newHeading.headingAccuracy,timestamp:newHeading.timestamp,simulated:false)
         if firstOrDegraded { debugLog(.location,newHeading.headingAccuracy<0 ? .warning:.info,"Heading state",["accuracy":Int(newHeading.headingAccuracy),"reference":newHeading.trueHeading>=0 ? "true":"magnetic"]) }
     }
-    func locationManager(_ manager:CLLocationManager,didFailWithError error:Error) { sample=nil;status="位置を取得できません：\(error.localizedDescription)";debugLog(.location,.error,"Location error",["error":error.localizedDescription]) }
+    func locationManager(_ manager:CLLocationManager,didFailWithError error:Error) { sample=nil;status=localized("位置を取得できません：{0}",error.localizedDescription);debugLog(.location,.error,"Location error",["error":error.localizedDescription]) }
 }

@@ -11,17 +11,25 @@ objects=[]
 def add(key,body):objects.append(f'{uid(key)} = {{ {body} }};')
 for f in files:
  p=rel(f);kind='sourcecode.swift' if f.suffix=='.swift' else 'folder.assetcatalog' if f.suffix=='.xcassets' else 'folder' if f.suffix=='.mlmodelc' else 'text.xml' if f.suffix=='.xcprivacy' else 'text.json';add(p,f'isa = PBXFileReference; lastKnownFileType = {kind}; path = "{p}"; sourceTree = SOURCE_ROOT;');add('build'+p,f'isa = PBXBuildFile; fileRef = {uid(p)};')
+# Localized resources (App/<lang>.lproj/*.strings): one PBXVariantGroup per file name with a reference per language,
+# so regenerating the project keeps the English/Japanese strings.
+variants={}
+for f in sorted(r.glob('App/*.lproj/*.strings')): variants.setdefault(f.name,[]).append(f)
+for name,fs in variants.items():
+ for f in fs: add(rel(f),f'isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = {f.parent.stem}; path = "{rel(f)}"; sourceTree = SOURCE_ROOT;')
+ add('variant'+name,'isa = PBXVariantGroup; children = ('+','.join(uid(rel(f)) for f in fs)+f'); name = {name}; sourceTree = "<group>";')
+ add('buildvariant'+name,f'isa = PBXBuildFile; fileRef = {uid("variant"+name)};')
 # Signing values come from Config/Base.xcconfig + untracked Config/Local.xcconfig.
 add('xcconfig','isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Config/Base.xcconfig"; sourceTree = SOURCE_ROOT;')
 add('product','isa = PBXFileReference; explicitFileType = wrapper.application; path = JunctionGuide.app; sourceTree = BUILT_PRODUCTS_DIR;')
 add('uitestfile','isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Tests/UITests/SmokeTests.swift; sourceTree = SOURCE_ROOT;')
 add('uitestbuild',f'isa = PBXBuildFile; fileRef = {uid("uitestfile")};')
 add('uitestproduct','isa = PBXFileReference; explicitFileType = wrapper.cfbundle; path = JunctionGuideUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR;')
-add('main','isa = PBXGroup; children = ('+','.join(uid(rel(f)) for f in files)+','+uid('xcconfig')+','+uid('uitestfile')+','+uid('products')+'); sourceTree = "<group>";')
+add('main','isa = PBXGroup; children = ('+','.join(uid(rel(f)) for f in files)+''.join(','+uid('variant'+n) for n in variants)+','+uid('xcconfig')+','+uid('uitestfile')+','+uid('products')+'); sourceTree = "<group>";')
 add('products',f'isa = PBXGroup; children = ({uid("product")},{uid("uitestproduct")}); name = Products; sourceTree = "<group>";')
 add('uitestsources',f'isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = ({uid("uitestbuild")}); runOnlyForDeploymentPostprocessing = 0;')
 for name,kind in [('sources','PBXSourcesBuildPhase'),('resources','PBXResourcesBuildPhase'),('frameworks','PBXFrameworksBuildPhase')]:
- fs=[uid('build'+rel(f)) for f in files if (name=='sources' and f.suffix=='.swift') or (name=='resources' and f.suffix in ['.json','.mlmodelc','.xcprivacy','.xcassets'])]
+ fs=[uid('build'+rel(f)) for f in files if (name=='sources' and f.suffix=='.swift') or (name=='resources' and f.suffix in ['.json','.mlmodelc','.xcprivacy','.xcassets'])]+([uid('buildvariant'+n) for n in variants] if name=='resources' else [])
  add(name,f'isa = {kind}; buildActionMask = 2147483647; files = ('+','.join(fs)+'); runOnlyForDeploymentPostprocessing = 0;')
 settings='CLANG_ENABLE_MODULES = YES; SWIFT_VERSION = 6.0; IPHONEOS_DEPLOYMENT_TARGET = 26.0; SDKROOT = iphoneos;'
 appsettings='PRODUCT_NAME = "$(TARGET_NAME)"; PRODUCT_BUNDLE_IDENTIFIER = "$(JG_BUNDLE_ID)"; DEVELOPMENT_TEAM = "$(JG_TEAM)"; INFOPLIST_FILE = App/Info.plist; GENERATE_INFOPLIST_FILE = NO; TARGETED_DEVICE_FAMILY = 1; CODE_SIGN_STYLE = Automatic; SWIFT_EMIT_LOC_STRINGS = YES; ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;'

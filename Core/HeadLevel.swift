@@ -106,7 +106,7 @@ public struct HeadLevelAnnouncer: Sendable {
         // Short, no metres: closeness is carried by the stage (vibration and colour).
         let side = hit.lateral > 0.15 ? "右" : hit.lateral < -0.15 ? "左" : "正面"
         let place = NoticeFilter.position(side: side, close: hit.stage == .danger)
-        return hit.stage == .danger ? "止まって。" : "\(place)に障害物。"
+        return hit.stage == .danger ? coreLocalized("止まって。") : coreLocalized("{0}に障害物。",place)
     }
 }
 

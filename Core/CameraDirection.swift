@@ -20,12 +20,12 @@ public enum DirectionBucket: String, Sendable, CaseIterable {
     }
     public var phrase: String {
         switch self {
-        case .ahead: return "直進です。"
-        case .slightRight: return "少し右へ。"
-        case .slightLeft: return "少し左へ。"
-        case .right: return "右へ。"
-        case .left: return "左へ。"
-        case .behind: return "後ろへ。"
+        case .ahead: return coreLocalized("直進です。")
+        case .slightRight: return coreLocalized("少し右へ。")
+        case .slightLeft: return coreLocalized("少し左へ。")
+        case .right: return coreLocalized("右へ。")
+        case .left: return coreLocalized("左へ。")
+        case .behind: return coreLocalized("後ろへ。")
         }
     }
 }

@@ -123,6 +123,26 @@ final class SmokeTests:XCTestCase {
   reach(next,app:app);next.tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
+ @MainActor func testEnglishAppLanguage() throws {
+  let app=XCUIApplication()
+  app.launchArguments=["-AppleLanguages","(en)","-AppleLocale","en_US","-tutorialComplete","YES","--ui-testing","--reset-test-data"]
+  app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
+  app.launch()
+  for label in ["Check location permission","Check camera permission"] {
+   let button=app.buttons[label]
+   XCTAssertTrue(button.waitForExistence(timeout:10),label)
+   button.tap();answerPermissionAlert(app)
+  }
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
+  XCTAssertTrue(app.buttons["Report a blocked road"].exists)
+  app.buttons["Settings"].tap()
+  XCTAssertTrue(app.navigationBars["Settings"].waitForExistence(timeout:5))
+  XCTAssertTrue(app.staticTexts["Location and camera access are required to use this app. Notifications are optional; in-app audio still works without them."].exists)
+  app.buttons["Done"].tap()
+  app.buttons["Report a blocked road"].tap()
+  XCTAssertTrue(app.navigationBars["Blocked road report"].waitForExistence(timeout:5))
+  XCTAssertTrue(app.buttons["Back"].exists)
+ }
  @MainActor func testCameraPermissionRevocationBlocksHome() throws {
   let app=launchMap()
   app.terminate();app.resetAuthorizationStatus(for:.camera);app.launch()

@@ -65,14 +65,14 @@ struct DebugLogScreen:View {
             Section("統合デバッグログ") {
                 VStack(alignment:.leading,spacing:4) {
                     Text("ログ保存").font(.subheadline.bold())
-                    Text(DebugLogger.persists ? "有効（直近\(DebugLogger.capacity)件を再起動後も保持）/ \(DebugLogger.fileName)":"無効（メモリ内の直近\(DebugLogger.capacity)件のみ）").font(.subheadline).foregroundStyle(.secondary)
+                    Text(DebugLogger.persists ? localized("有効（直近{0}件を再起動後も保持）/ {1}",DebugLogger.capacity,DebugLogger.fileName):localized("無効（メモリ内の直近{0}件のみ）",DebugLogger.capacity)).font(.subheadline).foregroundStyle(.secondary)
                 }
                 Text("再起動をまたぐ不具合の調査に備え、DEBUGビルドでは直近ログをApplication Supportへ保存します。Releaseビルドでは保存しません。画像・位置座標・位置履歴は記録しません。").font(.footnote).foregroundStyle(.secondary)
-                if let error=logger.saveError { Label("保存エラー：\(error)",systemImage:"exclamationmark.triangle").foregroundStyle(.red) }
-                Picker("カテゴリ",selection:$category) { Text("ALL").tag(LogCategory?.none);ForEach(LogCategory.allCases,id:\.self) { Text("\($0.rawValue)（\($0.label)）").tag(Optional($0)) } }
-                Picker("レベル",selection:$level) { Text("ALL").tag(LogLevel?.none);ForEach(LogLevel.allCases,id:\.self) { Text("\($0.rawValue)（\($0.label)）").tag(Optional($0)) } }
+                if let error=logger.saveError { Label(localized("保存エラー：{0}",error),systemImage:"exclamationmark.triangle").foregroundStyle(.red) }
+                Picker("カテゴリ",selection:$category) { Text("ALL").tag(LogCategory?.none);ForEach(LogCategory.allCases,id:\.self) { Text(localized("{0}（{1}）",$0.rawValue,localized($0.label))).tag(Optional($0)) } }
+                Picker("レベル",selection:$level) { Text("ALL").tag(LogLevel?.none);ForEach(LogLevel.allCases,id:\.self) { Text(localized("{0}（{1}）",$0.rawValue,localized($0.label))).tag(Optional($0)) } }
                 TextField("タイトル、詳細、Operation IDを検索",text:$query).textInputAutocapitalization(.never).autocorrectionDisabled().accessibilityIdentifier("debugLogSearch")
-                Text("表示 \(entries.count)件・保持 \(logger.buffer.entries.count)件・上限超過で破棄 \(logger.buffer.dropped)件").font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("debugLogCount")
+                Text(localized("表示 {0}件・保持 {1}件・上限超過で破棄 {2}件",entries.count,logger.buffer.entries.count,logger.buffer.dropped)).font(.caption).foregroundStyle(.secondary).accessibilityIdentifier("debugLogCount")
                 if entries.isEmpty { Text("該当するログはありません").foregroundStyle(.secondary) }
                 ForEach(entries) { entry in DebugLogRow(entry:entry,expanded:expanded.contains(entry.id)) { if expanded.contains(entry.id) { expanded.remove(entry.id) } else { expanded.insert(entry.id) } } }
             }
@@ -88,24 +88,24 @@ struct DebugLogScreen:View {
 }
 struct DebugLogRow:View {
     let entry:DebugLogEntry;let expanded:Bool;let toggle:()->Void
-    static let formatter:DateFormatter = { let f=DateFormatter();f.locale=Locale(identifier:"ja_JP");f.dateFormat="yyyy/MM/dd HH:mm:ss.SSS";return f }()
+    static let formatter:DateFormatter = { let f=DateFormatter();f.locale=Locale(identifier:Bundle.main.preferredLocalizations.first ?? "ja");f.dateFormat="yyyy/MM/dd HH:mm:ss.SSS";return f }()
     var body:some View {
         VStack(alignment:.leading,spacing:10) {
             Button(action:toggle) {
                 HStack(alignment:.top) {
                     VStack(alignment:.leading,spacing:4) {
-                        Text(entry.title).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
-                        Text("\(Self.formatter.string(from:entry.date)) / \(entry.category.rawValue)（\(entry.category.label)）/ \(Text("\(entry.level.rawValue)（\(entry.level.label)）").foregroundStyle(entry.level.tint))").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
+                        Text(localized(entry.title)).font(.headline).foregroundStyle(.primary).multilineTextAlignment(.leading)
+                        Text("\(Self.formatter.string(from:entry.date)) / \(entry.category.rawValue)（\(localized(entry.category.label))）/ \(Text("\(entry.level.rawValue)（\(localized(entry.level.label))）").foregroundStyle(entry.level.tint))").font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.leading)
                     }
                     Spacer()
                     Image(systemName:expanded ? "chevron.down":"chevron.right").font(.headline).foregroundStyle(.primary).accessibilityHidden(true)
                 }.contentShape(Rectangle())
-            }.buttonStyle(.plain).accessibilityValue(expanded ? "展開中":"折りたたみ")
+            }.buttonStyle(.plain).accessibilityValue(localized(expanded ? "展開中":"折りたたみ"))
             if expanded {
                 VStack(alignment:.leading,spacing:8) {
                     Grid(alignment:.leading,horizontalSpacing:12,verticalSpacing:6) {
-                        row("発生日時",Self.formatter.string(from:entry.date));row("カテゴリ","\(entry.category.rawValue)（\(entry.category.label)）")
-                        row("レベル","\(entry.level.rawValue)（\(entry.level.label)）");row("方向",entry.direction.rawValue)
+                        row("発生日時",Self.formatter.string(from:entry.date));row("カテゴリ",localized("{0}（{1}）",entry.category.rawValue,localized(entry.category.label)))
+                        row("レベル",localized("{0}（{1}）",entry.level.rawValue,localized(entry.level.label)));row("方向",entry.direction.rawValue)
                         if let op=entry.operationID { row("Operation ID",op) }
                     }
                     if !entry.fields.isEmpty {
@@ -118,5 +118,5 @@ struct DebugLogRow:View {
             }
         }.padding(.vertical,4)
     }
-    private func row(_ key:String,_ value:String)->some View { GridRow { Text(key).font(.subheadline.bold());Text(value).font(.subheadline).foregroundStyle(.secondary) } }
+    private func row(_ key:String,_ value:String)->some View { GridRow { Text(localized(key)).font(.subheadline.bold());Text(value).font(.subheadline).foregroundStyle(.secondary) } }
 }

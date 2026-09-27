@@ -144,10 +144,10 @@ public struct NoticeFilter: Sendable {
     }
     /// Short and without metres, e.g. 「目の前に段差。」「左前にポール。」. Closeness is conveyed by priority and vibration.
     public static func text(_ d: Detection, name: String, close: Double = closeDistance) -> String {
-        "\(position(side: d.side, close: (d.distance ?? .infinity) <= close))に\(name)。"
+        coreLocalized("{0}に{1}。", position(side: d.side, close: (d.distance ?? .infinity) <= close), coreLocalized(name))
     }
     /// 「目の前」「すぐ左」「すぐ右」 when close, else 「前方」「左前」「右前」.
     public static func position(side: String, close: Bool) -> String {
-        switch side { case "左": close ? "すぐ左" : "左前"; case "右": close ? "すぐ右" : "右前"; default: close ? "目の前" : "前方" }
+        coreLocalized(side == "左" ? (close ? "すぐ左" : "左前") : side == "右" ? (close ? "すぐ右" : "右前") : (close ? "目の前" : "前方"))
     }
 }
