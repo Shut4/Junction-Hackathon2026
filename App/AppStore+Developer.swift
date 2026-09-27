@@ -42,7 +42,7 @@ extension AppStore {
     func stopSimulatedWalk() { if walkTask != nil { walkTask?.cancel();walkTask=nil;simulatedWalkActive=false;debugLog(.developer,.cancelled,"Simulated walk stopped") } }
     func simulateNotice() {
         simulationTask?.cancel();simulationFilter.reset()
-        simulationFilter.confidence=camera.filter.confidence;simulationFilter.persistence=camera.filter.persistence;simulationFilter.cooldown=camera.filter.cooldown
+        noticeTuning.apply(to:&simulationFilter)
         debugLog(.developer,.start,"Simulated pole detection")
         simulationTask=Task { [weak self] in guard let self else { return };let box=Box(x:0.4,y:0.3,width:0.2,height:0.5);let t=ProcessInfo.processInfo.systemUptime
             let simulatedDetection=Detection(label:"pole",confidence:0.9,box:box,capturedAt:t,simulated:true)

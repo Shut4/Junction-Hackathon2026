@@ -18,14 +18,14 @@ public enum DirectionBucket: String, Sendable, CaseIterable {
         let nudged = [angle - margin, angle + margin].map { of($0) }
         return nudged.contains(current) ? current : raw
     }
-    public func phrase(degrees: Int) -> String {
+    public var phrase: String {
         switch self {
-        case .ahead: return "正面方向です。そのまま進んでください。"
-        case .slightRight: return "やや右方向です。"
-        case .slightLeft: return "やや左方向です。"
-        case .right: return "右へ約\(degrees)度、向きを変えてください。"
-        case .left: return "左へ約\(degrees)度、向きを変えてください。"
-        case .behind: return "後ろ方向です。向きを変えてください。"
+        case .ahead: return "直進です。"
+        case .slightRight: return "少し右へ。"
+        case .slightLeft: return "少し左へ。"
+        case .right: return "右へ。"
+        case .left: return "左へ。"
+        case .behind: return "後ろへ。"
         }
     }
 }
@@ -54,7 +54,7 @@ public struct DirectionAnnouncer: Sendable {
         let turning = bucket != .ahead && bucket != .slightLeft && bucket != .slightRight
         guard bucket != spoken || (turning && now - lastSpoke >= repeatTurn) else { return nil }
         spoken = bucket; lastSpoke = now
-        return bucket.phrase(degrees: Int((abs(angle) / 5).rounded() * 5))
+        return bucket.phrase
     }
 }
 
