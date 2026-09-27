@@ -1,5 +1,13 @@
 import Foundation
 
+public func coreLocalized(_ key:String,_ arguments:Any...) -> String {
+    var text=Bundle.main.localizedString(forKey:key,value:key,table:nil)
+    for (index,argument) in arguments.enumerated() {
+        text=text.replacingOccurrences(of:"{\(index)}",with:String(describing:argument))
+    }
+    return text
+}
+
 public struct Coordinate: Codable, Hashable, Sendable {
     public var latitude: Double
     public var longitude: Double
@@ -57,9 +65,9 @@ public struct Report: Codable, Identifiable, Sendable {
 }
 public enum CoreError: Error, LocalizedError { case invalidNetwork, incompatibleReports, corruptReports, disconnectedSelection
     public var errorDescription: String? { switch self {
-    case .invalidNetwork: return "道路データに不整合があります。案内を開始できません。"
-    case .incompatibleReports: return "道路データの版と報告が一致しません。報告を保持して案内を保留します。"
-    case .corruptReports: return "報告を読み込めません。報告なしとは扱いません。"
-    case .disconnectedSelection: return "離れた区間が含まれています。連続する区間を選んでください。"
+    case .invalidNetwork: return coreLocalized("道路データに不整合があります。案内を開始できません。")
+    case .incompatibleReports: return coreLocalized("道路データの版と報告が一致しません。報告を保持して案内を保留します。")
+    case .corruptReports: return coreLocalized("報告を読み込めません。報告なしとは扱いません。")
+    case .disconnectedSelection: return coreLocalized("離れた区間が含まれています。連続する区間を選んでください。")
     } }
 }

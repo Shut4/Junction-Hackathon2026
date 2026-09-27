@@ -106,7 +106,7 @@ public struct HeadLevelAnnouncer: Sendable {
         // Short, no metres: closeness is carried by the stage (vibration and colour).
         let side = hit.lateral > 0.15 ? "右" : hit.lateral < -0.15 ? "左" : "正面"
         let place = NoticeFilter.position(side: side, close: hit.stage == .danger)
-        return hit.stage == .danger ? "止まって。" : "\(place)に障害物。"
+        return hit.stage == .danger ? coreLocalized("止まって。") : coreLocalized("{0}に障害物。",place)
     }
 }
 
@@ -151,7 +151,7 @@ public struct DepthGrid: Sendable {
             let ring = depths(in: Box(x: box.x - box.width * pad, y: box.y - box.height * pad, width: box.width * (1 + 2 * pad), height: box.height * (1 + 2 * pad)), excluding: box)
             if ring.count >= 6 {
                 let around = HeadLevelGeometry.percentile(ring, 0.5), spread = HeadLevelGeometry.percentile(inside, 0.8) - near
-                if around - near < c.minContrast && spread < c.minContrast { return "平面（画面・写真の可能性）" }
+                if around - near < c.minContrast && spread < c.minContrast { return coreLocalized("平面（画面・写真の可能性）") }
             }
         }
         if DepthCheck.groundLabels.contains(label), box.y > 0.02, let floor, let axes = HeadLevelGeometry.axes(gravity: gravity) {
@@ -165,7 +165,7 @@ public struct DepthGrid: Sendable {
             } }
             if zs.count >= 3 {
                 let p = HeadLevelGeometry.devicePoint(u: Float(u * step), v: Float(v * step), depth: zs.sorted()[zs.count / 2], fx: fx, fy: fy, cx: cx, cy: cy)
-                if simd_dot(p, axes.up) - floor > c.groundTolerance { return "床から浮いている" }
+                if simd_dot(p, axes.up) - floor > c.groundTolerance { return coreLocalized("床から浮いている") }
             }
         }
         return nil

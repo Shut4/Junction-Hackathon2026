@@ -97,16 +97,16 @@ public struct WalkableAnnouncer: Sendable {
     public func cues(_ p: WalkableProfile, headLevel: Bool = false) -> [(key: String, priority: SpeechPriority, text: String)] {
         var out: [(String, SpeechPriority, String)] = []
         if let d = p.blockedAhead, d <= timing.blockedDistance, !headLevel {
-            let way = p.passSide.map { "\($0.japanese)へ。" } ?? "止まってください。"
-            out.append(("blocked", d <= timing.criticalDistance ? .critical : .high, "\(place(d))に障害物。" + way))
+            let way = p.passSide.map { coreLocalized("{0}へ。", coreLocalized($0.japanese)) } ?? coreLocalized("止まってください。")
+            out.append(("blocked", d <= timing.criticalDistance ? .critical : .high, coreLocalized("{0}に障害物。", place(d)) + way))
         }
-        if let d = p.dropAhead, d <= timing.dropDistance { out.append(("drop", d <= timing.criticalDistance ? .critical : .high, "\(place(d))に段差。")) }
+        if let d = p.dropAhead, d <= timing.dropDistance { out.append(("drop", d <= timing.criticalDistance ? .critical : .high, coreLocalized("{0}に段差。", place(d)))) }
         for side in [WalkSide.left, .right] {
             guard let e = p.edge(side), e.distance <= config.edgeNear else { continue }
-            if e.kind == .drop { out.append(("edgeDrop-\(side.rawValue)", .high, "\(side.japanese)に段差。\(side.opposite.japanese)へ。")) }
-            else { out.append(("edge-\(side.rawValue)", .normal, "少し\(side.opposite.japanese)へ。")) }
+            if e.kind == .drop { out.append(("edgeDrop-\(side.rawValue)", .high, coreLocalized("{0}に段差。{1}へ。", coreLocalized(side.japanese), coreLocalized(side.opposite.japanese)))) }
+            else { out.append(("edge-\(side.rawValue)", .normal, coreLocalized("少し{0}へ。", coreLocalized(side.opposite.japanese)))) }
         }
-        if p.blockedAhead == nil, let w = p.width, w < config.narrowWidth { out.append(("narrow", .normal, "道が狭いです。")) }
+        if p.blockedAhead == nil, let w = p.width, w < config.narrowWidth { out.append(("narrow", .normal, coreLocalized("道が狭いです。"))) }
         return out.enumerated().sorted { $0.element.1 == $1.element.1 ? $0.offset < $1.offset : $0.element.1 > $1.element.1 }.map { ($0.element.0, $0.element.1, $0.element.2) }
     }
     public mutating func update(_ p: WalkableProfile?, headLevel: Bool = false, now: Double) -> (priority: SpeechPriority, text: String)? {
@@ -121,7 +121,7 @@ public struct WalkableAnnouncer: Sendable {
         return nil
     }
     /// 「目の前」 within `timing.criticalDistance`, else 「前方」. No metres are spoken.
-    func place(_ d: Float) -> String { d <= timing.criticalDistance ? "目の前" : "前方" }
+    func place(_ d: Float) -> String { coreLocalized(d <= timing.criticalDistance ? "目の前" : "前方") }
 }
 
 /// One line of the on-screen "surroundings" list, most useful first.
@@ -135,7 +135,7 @@ public enum SceneSummary {
         if let w = walkable {
             items += announcer.cues(w, headLevel: headLevel != nil).map { SceneItem(priority: $0.priority, text: $0.text, distance: nil) }
             if w.blockedAhead == nil && w.dropAhead == nil && w.groundSeen {
-                items.append(SceneItem(priority: .low, text: "前方は歩けます。", distance: nil))
+                items.append(SceneItem(priority: .low, text: coreLocalized("前方は歩けます。"), distance: nil))
             }
         }
         var nearest: [String: Detection] = [:]
