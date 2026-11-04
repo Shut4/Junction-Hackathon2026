@@ -9,6 +9,7 @@ public struct WalkRoute: Sendable {
     public var steps: [RouteStep]
     public var distance: Double
     public var destinationID: String
+    public var destinationCoordinate: Coordinate
     /// Exact closure snapshot supplied to the search that produced this route.
     /// Keeping this with the result prevents the UI from describing a newer or older search state.
     public var excludedSegmentIDs: Set<String>
@@ -16,11 +17,12 @@ public struct WalkRoute: Sendable {
     public var blockedSegmentsInRoute: Set<String> { Set(steps.map(\.id)).intersection(excludedSegmentIDs) }
 }
 public enum RouteFailure: Error, Equatable, Sendable {
-    case unmatchedPosition, blockedStart, outsideNetwork, noRoute
+    case unmatchedPosition, blockedStart, blockedDestination, outsideNetwork, noRoute
     public var message:String {
         switch self {
         case .unmatchedPosition: return "現在位置に対応する道路がありません。位置情報と選択地域を確認してください。"
         case .blockedStart: return "現在位置の道路が通行不可に登録されています。経路案内を開始できません。"
+        case .blockedDestination: return "案内の終点に接続する道路が通行不可です。別の接続候補を選択してください。"
         case .outsideNetwork: return "現在位置または目的地が選択地域の対応範囲外です。地域をまたぐ経路には対応していません。"
         case .noRoute: return "通行不可区間を除外した経路がありません。道路網の接続と通行不可の登録状況を確認してください。"
         }
@@ -54,7 +56,8 @@ public struct Router: Sendable {
         guard let distance = costs[end] else { return nil }
         var steps: [RouteStep] = [], cursor = end
         while cursor != start { guard let step = previous[cursor] else { return nil }; steps.insert(step, at: 0); cursor = step.from }
-        let result=WalkRoute(steps:steps,distance:distance,destinationID:end,excludedSegmentIDs:blocked)
+        guard let destinationCoordinate=network.place(end)?.coordinate else { return nil }
+        let result=WalkRoute(steps:steps,distance:distance,destinationID:end,destinationCoordinate:destinationCoordinate,excludedSegmentIDs:blocked)
         // This is intentionally checked at the Core boundary as well as before display.
         // A future routing optimization must never turn a blocked edge into a fallback.
         guard result.blockedSegmentsInRoute.isEmpty else { return nil }
@@ -104,6 +107,76 @@ public struct Router: Sendable {
             }
         }
         return options.min { $0.distance < $1.distance }
+    }
+
+    /// Route to an exact point on a saved road. The unverified gap from the user's selected place to this
+    /// endpoint is intentionally not part of the route.
+    public func route(from start:String,to connection:DestinationConnection,blocked:Set<String>)->WalkRoute? {
+        guard nodeIDs.contains(start),let edge=network.edge(connection.edgeID),!blocked.contains(edge.id) else { return nil }
+        let fraction=min(1,max(0,connection.fraction))
+        var options:[WalkRoute]=[]
+        for (node,startFraction,allowed) in [(edge.from,0.0,edge.direction != "backward"),(edge.to,1.0,edge.direction != "forward")] where allowed {
+            guard var found=route(from:start,to:node,blocked:blocked) else { continue }
+            let distance=abs(fraction-startFraction)*edge.distance
+            if distance>0.1 {
+                found.steps.append(RouteStep(id:edge.id,from:node,to:"destination",distance:distance,shape:Geometry.slice(edge.shape,from:startFraction,to:fraction)))
+                found.distance += distance
+            }
+            found.destinationID="connection:"+edge.id
+            found.destinationCoordinate=connection.coordinate
+            options.append(found)
+        }
+        return options.min { $0.distance<$1.distance }
+    }
+
+    public func resolveRoute(from p:Coordinate,on edgeID:String,to connection:DestinationConnection,blocked:Set<String>)->Result<WalkRoute,RouteFailure> {
+        guard network.bounds.contains(p),network.edge(connection.edgeID) != nil else { return .failure(.outsideNetwork) }
+        guard let startEdge=network.edge(edgeID) else { return .failure(.unmatchedPosition) }
+        guard !blocked.contains(startEdge.id) else { return .failure(.blockedStart) }
+        guard !blocked.contains(connection.edgeID) else { return .failure(.blockedDestination) }
+        guard let route=route(from:p,on:edgeID,to:connection,blocked:blocked) else { return .failure(.noRoute) }
+        return .success(route)
+    }
+
+    public func resolveOffRoadRoute(from p:Coordinate,to connection:DestinationConnection,blocked:Set<String>,slack:Double=30,limit:Int=8)->Result<WalkRoute,RouteFailure> {
+        guard network.bounds.contains(p),network.edge(connection.edgeID) != nil else { return .failure(.outsideNetwork) }
+        guard !blocked.contains(connection.edgeID) else { return .failure(.blockedDestination) }
+        let near=network.edges.filter { !blocked.contains($0.id) }.map { ($0.id,Geometry.project(p,onto:$0.shape)) }.sorted { $0.1.distance<$1.1.distance }
+        guard let closest=near.first?.1.distance else { return .failure(.noRoute) }
+        var best:WalkRoute?
+        for (id,projection) in near.prefix(limit) where projection.distance<=closest+slack {
+            guard var found=route(from:p,on:id,to:connection,blocked:blocked) else { continue }
+            found.steps.insert(RouteStep(id:RouteStep.approachID,from:"current",to:"entry",distance:projection.distance,shape:[p,projection.coordinate]),at:0)
+            found.distance += projection.distance
+            if best == nil || found.distance<best!.distance { best=found }
+        }
+        return best.map { .success($0) } ?? .failure(.noRoute)
+    }
+
+    public func route(from p:Coordinate,on edgeID:String,to connection:DestinationConnection,blocked:Set<String>)->WalkRoute? {
+        guard let startEdge=network.edge(edgeID),let destinationEdge=network.edge(connection.edgeID),!blocked.contains(startEdge.id),!blocked.contains(destinationEdge.id) else { return nil }
+        let start=Geometry.project(p,onto:startEdge.shape),destinationFraction=min(1,max(0,connection.fraction))
+        var options:[WalkRoute]=[]
+
+        if startEdge.id == destinationEdge.id {
+            let forward=destinationFraction>=start.fraction
+            if (forward && startEdge.direction != "backward") || (!forward && startEdge.direction != "forward") {
+                let distance=abs(destinationFraction-start.fraction)*startEdge.distance
+                let steps=distance>0.1 ? [RouteStep(id:startEdge.id,from:"current",to:"destination",distance:distance,shape:Geometry.slice(startEdge.shape,from:start.fraction,to:destinationFraction))]:[]
+                options.append(WalkRoute(steps:steps,distance:distance,destinationID:"connection:"+destinationEdge.id,destinationCoordinate:connection.coordinate,excludedSegmentIDs:blocked))
+            }
+        }
+
+        for (node,endFraction,allowed) in [(startEdge.from,0.0,startEdge.direction != "forward"),(startEdge.to,1.0,startEdge.direction != "backward")] where allowed {
+            guard var found=route(from:node,to:connection,blocked:blocked) else { continue }
+            let distance=abs(endFraction-start.fraction)*startEdge.distance
+            if distance>0.1 {
+                found.steps.insert(RouteStep(id:startEdge.id,from:"current",to:node,distance:distance,shape:Geometry.slice(startEdge.shape,from:start.fraction,to:endFraction)),at:0)
+                found.distance += distance
+            }
+            options.append(found)
+        }
+        return options.min { $0.distance<$1.distance }
     }
 }
 public struct LocationSample: Sendable {

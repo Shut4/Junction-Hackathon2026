@@ -58,7 +58,7 @@ extension AppStore {
         guard let place=inspected else { return }
         inspected=nil
         chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? localized("地図で選んだ目的地")):place.name)
-        if calculateRoute,let first=destinationConnections.first,destinationConnections.count==1 { confirmConnection(first.nodeID);calculate(usePosition:true) }
+        if calculateRoute,let first=destinationConnections.first,destinationConnections.count==1 { confirmConnection(first.edgeID);calculate(usePosition:true) }
     }
 }
 struct PlaceCard:View {

@@ -11,14 +11,28 @@ final class CoreTests:XCTestCase {
         XCTAssertTrue(matcher.tap(Coordinate(34,131),radius:15).edgeIDs.isEmpty)
         XCTAssertTrue(matcher.tap(Coordinate(33.888,130.888),radius:15).edgeIDs.isEmpty)
     }
-    func testDestinationConnectionsRequireCoverageAndExplicitCandidates() {
+    func testDestinationConnectionsProjectOntoRoadsAcrossCoveredRegion() {
         let n=fixture()
-        XCTAssertEqual(DestinationConnection.candidates(for:n.nodes[0].coordinate,network:n).first?.nodeID,"a")
+        let middle=Coordinate(33.883,130.8805)
+        let projected=DestinationConnection.candidates(for:middle,network:n)
+        XCTAssertEqual(projected.first?.edgeID,"ab")
+        XCTAssertEqual(projected.first?.distance ?? .infinity,0,accuracy:0.1)
         XCTAssertTrue(DestinationConnection.candidates(for:Coordinate(35.0,139.0),network:n).isEmpty)
         XCTAssertTrue(DestinationConnection.candidates(for:Coordinate(.nan,130.88),network:n).isEmpty)
-        XCTAssertTrue(DestinationConnection.candidates(for:Coordinate(33.888,130.888),network:n).isEmpty)
-        var disconnected=n;disconnected.nodes.append(Place(id:"orphan",name:"入口未接続",coordinate:Coordinate(33.883,130.88001)))
-        XCTAssertFalse(DestinationConnection.candidates(for:disconnected.nodes.last!.coordinate,network:disconnected).contains { $0.nodeID=="orphan" })
+        XCTAssertFalse(DestinationConnection.candidates(for:Coordinate(33.888,130.888),network:n).isEmpty,"every finite point inside advertised coverage gets a saved-road endpoint")
+        var empty=n;empty.edges=[]
+        XCTAssertTrue(DestinationConnection.candidates(for:middle,network:empty).isEmpty)
+    }
+    func testShinzutsumiParkUsesNearbyRoadSegmentBeyondFortyMetreNodes() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let data=try Data(contentsOf:root.appendingPathComponent("Data/tobata-network.json"))
+        let network=try JSONDecoder().decode(Network.self,from:data)
+        let park=Coordinate(33.89800372649751,130.84239911645375)
+        let nearestNode=try XCTUnwrap(network.nodes.map { park.distance(to:$0.coordinate) }.min())
+        let candidate=try XCTUnwrap(DestinationConnection.candidates(for:park,network:network).first)
+        XCTAssertGreaterThan(nearestNode,40)
+        XCTAssertEqual(candidate.edgeID,"osm:166677343:1781302633:1781302616")
+        XCTAssertEqual(candidate.distance,22.6,accuracy:0.5)
     }
     func testSpeechPriorityDuplicatesRouteInvalidationAndStop() {
         var q=SpeechQueue();let now=Date()
@@ -66,6 +80,20 @@ final class CoreTests:XCTestCase {
         XCTAssertEqual(r.distance,n.edges[0].distance/2,accuracy:0.1)
         XCTAssertEqual(r.steps.first?.shape.first?.longitude,p.longitude)
         XCTAssertNil(Router(network:n).route(from:p,on:"ab",to:"c",blocked:["ab"]))
+    }
+    func testRouteEndsAtProjectedPointAndRespectsDirectionAndClosure() throws {
+        let n=fixture(),router=Router(network:n),edge=n.edges[1]
+        let target=Coordinate((n.nodes[1].coordinate.latitude+n.nodes[2].coordinate.latitude)/2,n.nodes[1].coordinate.longitude)
+        let connection=try XCTUnwrap(DestinationConnection.candidates(for:target,network:n).first(where:{$0.edgeID==edge.id}))
+        let route=try XCTUnwrap(router.route(from:"a",to:connection,blocked:[]))
+        XCTAssertEqual(route.steps.map(\.id),["ab","bc"])
+        XCTAssertEqual(route.destinationCoordinate.latitude,target.latitude,accuracy:1e-8)
+        XCTAssertEqual(try XCTUnwrap(route.steps.last?.shape.last?.latitude),target.latitude,accuracy:1e-8)
+        XCTAssertNil(router.route(from:"a",to:connection,blocked:["bc"]))
+
+        var oneWay=n;oneWay.edges[1].direction="backward"
+        let reverseApproach=try XCTUnwrap(Router(network:oneWay).route(from:"a",to:connection,blocked:[]))
+        XCTAssertEqual(reverseApproach.steps.map(\.id),["ad","dc","bc"],"a backward-only destination edge must be entered from its to-node")
     }
     func testConnectedSelectionRejectsDisconnected() {
         let matcher=RoadMatcher(network:fixture())
