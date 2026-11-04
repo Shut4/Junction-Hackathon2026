@@ -1,0 +1,825 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>全体仕様・分担｜白杖振動デバイス</title><style>body{margin:0;background:#f3f6fa;color:#193047;font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans',sans-serif;line-height:1.85}header{background:#17344f;color:white;padding:22px 28px;position:sticky;top:0;z-index:1}nav{display:flex;flex-wrap:wrap;gap:8px 22px}nav a{color:#fff;text-decoration:none;font-size:15px}main{max-width:1120px;margin:24px auto;padding:28px 36px;background:#fff;border-radius:14px}h1{font-size:29px;line-height:1.5}h2{margin-top:42px;border-bottom:2px solid #dce5ef;padding-bottom:8px;font-size:23px}h3{margin-top:30px;font-size:19px}a{color:#1465ad}table{display:block;overflow:auto;border-collapse:collapse;width:100%;font-size:14px;margin:18px 0}th,td{padding:10px 13px;border:1px solid #dce4ec;vertical-align:top;min-width:90px}th{background:#edf3f9;text-align:left}pre{background:#eef3f8;border-radius:9px;padding:18px;overflow:auto;font-size:14px;line-height:1.6}code{font-family:ui-monospace,monospace;overflow-wrap:anywhere}p code,li code,td code{background:#eef3f8;padding:2px 4px}blockquote{margin:20px 0;padding:12px 20px;background:#edf5fd;border-left:5px solid #3274a6}img{max-width:100%}footer{color:#53697d;font-size:13px;border-top:1px solid #dce4ec;margin-top:34px;padding-top:14px}li{margin:7px 0}@media(max-width:700px){main{padding:18px;margin:12px}header{position:static;padding:16px}h1{font-size:25px}}@media print{header{position:static}main{padding:0;margin:0}body{background:white}pre{white-space:pre-wrap}table{display:table;font-size:10px}th,td{min-width:0;padding:5px}h2{break-after:avoid}tr{break-inside:avoid}}</style><header><nav><a href="index.html">最初に読む</a><a href="implementation.html">全体仕様・分担</a><a href="ble-protocol.html">BLE仕様案</a><a href="tasks-tests.html">タスク・試験</a><a href="cane-circuit.png">回路図</a><a href="references/cane-device-specifications-2026-10-16.zip">仕様書ZIP</a></nav></header><main><h1>白杖振動デバイス：チーム実装仕様・分担ガイド</h1>
+<p>更新日：2026年10月17日 / 対象：Mac 2人・Windows 2人 / 状態：実装前の共有仕様 v0.1</p>
+<blockquote>
+<p><strong>作るもの：iPhoneが胸・頭の高さの障害物を検知し、BLEで白杖へ通知して、黒いグリップ内のモーターを振動させる。</strong>
+既存の検知コードを利用する。BLE・ファームウェア・電池回路・グリップ一体化は追加作業。
+本書の「提案」は、この資料で具体化した実装案であり、実装済み・実機検証済みという意味ではない。</p>
+</blockquote>
+<h2>1. 最初にチームで共有すること</h2>
+<table>
+<thead>
+<tr>
+<th>区分</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>ユーザー指定</td>
+<td>白杖は全長110cm、黒いグリップ。iPhoneは首から掛け、背面カメラを進行方向へ向ける。費用を抑える</td>
+</tr>
+<tr>
+<td>今回の機能</td>
+<td>iPhoneで検知 → BLEで危険度送信 → グリップの振動で知らせる</td>
+</tr>
+<tr>
+<td>最新の電源案</td>
+<td>単3アルカリ電池2本で基板とモーターを駆動。XIAO用に昇降圧回路を追加</td>
+</tr>
+<tr>
+<td>最終的に目指す機構</td>
+<td>電池・回路・モーターが黒いグリップ周辺にまとまる構成。既存グリップ内へそのまま収まるかは未確認</td>
+</tr>
+<tr>
+<td>最初の完成形</td>
+<td>卓上または仮ケースで、実際の障害物検知からモーター振動まで一通り動作する</td>
+</tr>
+<tr>
+<td>動作条件</td>
+<td>対応iPhoneで深度取得可能、カメラが前方を向く、アプリ前面起動中、BLE接続中</td>
+</tr>
+<tr>
+<td>今回追加しない範囲</td>
+<td>白杖側の距離センサー・カメラ、クラウド、独立AI検知、方向別の複数モーター、スマホロック中の継続検知</td>
+</tr>
+<tr>
+<td>検証状態</td>
+<td>新しい外部振動システムは未実機検証。既存コード・過去資料の存在と、今回の結合テスト合格を区別する</td>
+</tr>
+</tbody></table>
+<h2>2. 全体の流れ</h2>
+<pre><code class="language-text">首掛けiPhone（画面は身体側、背面カメラは前方）
+  │ AVFoundation：深度を取得 / Core Motion：重力・傾き
+  ▼
+既存のHeadLevelGeometry：進路上の胸・頭の高さの障害物を判定
+  ▼
+追加する状態生成処理：注意・危険・検出なし・検知不能を整理
+  │ Core Bluetooth / BLE GATT
+  ▼
+XIAO ESP32C3：受信・期限確認・振動パターン生成
+  │ D1（GPIO3）をHIGH/LOW
+  ▼
+DRV8835：モーターへの電源をON/OFF
+  ▼
+黒いグリップカバー内のコイン型モーター → 指・手に振動
+</code></pre>
+<p>スマホと白杖の間に電線は不要。首掛けホルダーは背面カメラを塞がず、歩行中の揺れ・反転・下向きを抑える。カメラの向きが進行方向と違えば、検知領域もずれる。</p>
+<h2>3. 現在のアプリで実装されていること</h2>
+<p>2026-10-17に現在の作業ツリーを確認。アプリ本体はSwift 35ファイル・3,885行（空行・コメント込み）、テスト2ファイル・888行。今回、アプリのソース変更やビルド・テストは行っていない。</p>
+<table>
+<thead>
+<tr>
+<th>機能</th>
+<th>現状</th>
+<th>根拠</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>カメラ映像・深度取得</td>
+<td>コードあり。対応形式がなければ深度非対応を表示</td>
+<td><code>App/Camera.swift</code></td>
+</tr>
+<tr>
+<td>重力方向から高さ・進路を計算</td>
+<td>コードあり</td>
+<td><code>Core/HeadLevel.swift</code></td>
+</tr>
+<tr>
+<td>胸・頭の高さの障害物判定</td>
+<td>コードあり。深度点の幾何判定</td>
+<td><code>HeadLevelGeometry.evaluate</code></td>
+</tr>
+<tr>
+<td>音声・iPhone本体の振動</td>
+<td>コードあり</td>
+<td><code>App/AppStore.swift</code> / <code>App/Services.swift</code></td>
+</tr>
+<tr>
+<td>画像の物体認識</td>
+<td>Vision/Core MLの既存コードあり。胸・頭の高さ判定の必須処理とは別</td>
+<td><code>App/Camera.swift</code> / <code>Docs/MODEL.md</code></td>
+</tr>
+<tr>
+<td>地図・経路案内・通行不可報告</td>
+<td>既存機能。今回の白杖連携の中心対象外</td>
+<td>README / Coreの経路処理</td>
+</tr>
+<tr>
+<td>BLE接続・送受信</td>
+<td><strong>未実装</strong>。CoreBluetooth実装を検出しなかった</td>
+<td>App / Coreを検索</td>
+</tr>
+<tr>
+<td>Bluetooth利用目的文</td>
+<td><strong>未追加</strong></td>
+<td><code>App/Info.plist</code>に<code>NSBluetoothAlwaysUsageDescription</code>なし</td>
+</tr>
+<tr>
+<td>白杖のファームウェア</td>
+<td><strong>未作成</strong></td>
+<td>今回のリポジトリに対象実装なし</td>
+</tr>
+<tr>
+<td>外部回路・一体型グリップ</td>
+<td>接続図・仕様書・構想のみ</td>
+<td><code>output/hardware</code></td>
+</tr>
+</tbody></table>
+<h3>胸・頭の高さ検知の初期値</h3>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>現コードの初期値</th>
+<th>意味</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>前方距離</td>
+<td>0.3〜2.5m</td>
+<td>この範囲の深度点を対象</td>
+</tr>
+<tr>
+<td>進路幅</td>
+<td>中心から左右各0.45m</td>
+<td>合計0.9m</td>
+</tr>
+<tr>
+<td>床からの高さ</td>
+<td>1.0〜2.0m</td>
+<td>利用者の身長に自動追従する実装ではない</td>
+</tr>
+<tr>
+<td>危険</td>
+<td>2.0m以内</td>
+<td><code>.danger</code></td>
+</tr>
+<tr>
+<td>注意</td>
+<td>2.0m超〜2.5m</td>
+<td><code>.caution</code></td>
+</tr>
+<tr>
+<td>深度点数</td>
+<td>12点以上</td>
+<td>高さ・進路条件を満たす点が必要</td>
+</tr>
+<tr>
+<td>深度処理間隔</td>
+<td>少なくとも0.2秒</td>
+<td>最大約5回/秒。実際の取得頻度は端末依存</td>
+</tr>
+<tr>
+<td>カメラ高さの初期値</td>
+<td>1.3m</td>
+<td>床が推定できない場合に使用。設定値は保存される</td>
+</tr>
+<tr>
+<td>音声警告の継続判定</td>
+<td>2フレーム</td>
+<td>即時の単発ノイズを抑える</td>
+</tr>
+<tr>
+<td>音声の再通知間隔</td>
+<td>5秒</td>
+<td>外部振動の更新周期には流用しない</td>
+</tr>
+<tr>
+<td>近接ブザー</td>
+<td>1m以内</td>
+<td>現コードの音通知。外部モーターとは別</td>
+</tr>
+</tbody></table>
+<p>これらは定数の初期値であり、端末の保存済み設定と一致するとは限らない。首掛け位置と利用者に合わせて確認する。1mより近くても新しい第3の振動段階は今回追加せず、まず既存の注意／危険で統一する提案。</p>
+<h3>今回の追加で特に直す境界</h3>
+<ul>
+<li><code>HeadLevelAnnouncer</code>は音声の再通知制御。ここからだけBLE送信すると5秒間隔などに制限されるため、深度結果から独立して外部通知状態を生成する。</li>
+<li><code>hit == nil</code>だけでは検知不能と検出なしを区別できない。無効姿勢・深度欠損・停止・最新フレーム時刻を持つ状態へ拡張する。</li>
+<li><code>HeadLevelGeometry.axes(...) == nil</code>時は現在<code>hit=nil</code>の結果を返す。この結果をCLEARへ変換しない。</li>
+<li>カメラ側はnil結果を<code>onDepth</code>へ転送しない経路がある。最後の有効フレーム時刻だけでなく、明示的な取得エラーも外部状態へ伝える。</li>
+<li><code>App/JunctionGuideApp.swift</code>は背景移行で<code>store.pause()</code>を呼び、カメラ等を停止する。前面復帰後は新しい深度を得るまで検知不能とする。</li>
+</ul>
+<h2>4. 4人の担当と引き渡す成果物</h2>
+<table>
+<thead>
+<tr>
+<th>担当</th>
+<th>主担当範囲</th>
+<th>最初に作るもの</th>
+<th>完了条件</th>
+<th>接続先</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>A：Mac①</strong></td>
+<td>検知・状態生成・アプリ統合</td>
+<td>深度結果→外部通知状態への変換</td>
+<td>注意／危険／検出なし／検知不能と時刻を出力。停止・無効姿勢でCLEARにしない</td>
+<td>Bへ状態を渡す</td>
+</tr>
+<tr>
+<td><strong>B：Mac②</strong></td>
+<td>iOS BLE・接続画面</td>
+<td>実機から4状態を手動送信する画面</td>
+<td>XIAO検索・明示選択・接続・Write・Status受信・切断表示</td>
+<td>AとCをつなぐ</td>
+</tr>
+<tr>
+<td><strong>C：Windows①</strong></td>
+<td>ファームウェア</td>
+<td>BLE受信とGPIO出力</td>
+<td>共通UUID／10バイト仕様で受信、パターン出力、期限切れ停止、Status返信</td>
+<td>Bの送信とDの回路</td>
+</tr>
+<tr>
+<td><strong>D：Windows②</strong></td>
+<td>回路・電源・黒いグリップ・試験</td>
+<td>回路組立と単独ON/OFF確認</td>
+<td>電圧・極性・電流測定、収納寸法確認、折りたたみと握りの確認</td>
+<td>Cへ回路、全員へ測定結果</td>
+</tr>
+</tbody></table>
+<p>Dは回路単独確認用の短いスケッチを作る場合も、Cの本体ファームウェアと別ファイルにする。CがGPIO割り当てを変更する場合は先にB/Dへ共有。</p>
+<h3>ファイル担当案（これから追加・変更する候補）</h3>
+<table>
+<thead>
+<tr>
+<th>担当</th>
+<th>主に扱うファイル</th>
+<th>競合を減らす取り決め</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>A</td>
+<td><code>Core/HeadLevel.swift</code>、新規<code>Core/CaneAlertState.swift</code>、<code>App/Camera.swift</code>、<code>App/AppStore.swift</code></td>
+<td>既存ファイルの編集はAが集約</td>
+</tr>
+<tr>
+<td>B</td>
+<td>新規<code>App/CaneBLEManager.swift</code>、新規<code>App/CaneDeviceScreen.swift</code>、共通プロトコルSwiftファイル、<code>App/Info.plist</code></td>
+<td>画面の入口追加・AppStoreへの接続はAと共同確認</td>
+</tr>
+<tr>
+<td>C</td>
+<td>新規<code>Firmware/CaneVibration/</code>、共通定数ヘッダー、ファームウェア導入README</td>
+<td>ボード・ライブラリのバージョンを記録</td>
+</tr>
+<tr>
+<td>D</td>
+<td>新規<code>Hardware/</code>の組立記録・CAD、<code>Docs/</code>の実機試験結果</td>
+<td>回路図と実配線を照合し、変更はA/B/Cへ連絡</td>
+</tr>
+</tbody></table>
+<p>上記の新規ファイル・ディレクトリは担当範囲の提案で、まだ実装されていない。</p>
+<h2>5. 使用技術・各PCの環境</h2>
+<table>
+<thead>
+<tr>
+<th>対象</th>
+<th>技術</th>
+<th>開発環境</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>画面・アプリ統合</td>
+<td>Swift 6 / SwiftUI</td>
+<td>Mac + Xcode</td>
+</tr>
+<tr>
+<td>映像・深度</td>
+<td>AVFoundation / AVCaptureDepthDataOutput</td>
+<td>深度出力できるiPhone実機</td>
+</tr>
+<tr>
+<td>傾き</td>
+<td>Core Motion / CMMotionManager</td>
+<td>iPhone実機</td>
+</tr>
+<tr>
+<td>iOS BLE</td>
+<td>Core Bluetooth / GATT</td>
+<td>Mac + Xcode + iPhone</td>
+</tr>
+<tr>
+<td>白杖側</td>
+<td>XIAO ESP32C3 / Arduino IDE / C++ / ESP32用BLEライブラリ</td>
+<td>Windowsでも開発・USB書き込み可</td>
+</tr>
+<tr>
+<td>電源</td>
+<td>TPS63802による5V出力、XIAO内の3.3V生成</td>
+<td>テスターで調整・確認</td>
+</tr>
+<tr>
+<td>モーター</td>
+<td>DRV8835による固定極性ON/OFF</td>
+<td>D1(GPIO3)で制御</td>
+</tr>
+<tr>
+<td>共同作業</td>
+<td>Git / GitHub / 仕様ファイル</td>
+<td>全員。アカウント・証明書は共有しない</td>
+</tr>
+</tbody></table>
+<p>現在のXcodeプロジェクトは最低iOS 26.0、Swift 6.0。Mac側はこのターゲットと接続iPhoneを扱えるXcodeを使う。具体的なXcode版・ESP32ボードパッケージ版は開始時に全員で記録する。</p>
+<p>WindowsでiOSの文章・コードを編集することはできるが、今回のAppleフレームワークを含むiOSアプリのビルド・署名・実機インストールはMac側。<code>Core</code>もsimd等を使っているため、Windowsでそのまま全テストが動くとは扱わない。</p>
+<h3>Mac側の開始手順</h3>
+<ol>
+<li>Gitで同じ基準のソースを取得し、現在の変更差分を確認する。</li>
+<li><code>Config/Local.xcconfig.example</code>を<code>Config/Local.xcconfig</code>へコピーし、自分の<code>JG_TEAM</code>と固有の<code>JG_BUNDLE_ID</code>を設定する。秘密・署名情報はGitへ入れない。</li>
+<li><code>JunctionGuide.xcodeproj</code>を開き、Scheme <code>JunctionGuide</code>を選択する。</li>
+<li>iPhoneの開発モード・信頼・カメラ許可を確認。深度ステータスと実際のデータ取得を確認する。</li>
+<li>Bは<code>NSBluetoothAlwaysUsageDescription</code>を追加する。Bluetoothの拒否・電源OFFは接続画面で区別する。</li>
+<li>モデルファイルはGit対象外。既存の全機能を再現する場合は<code>Docs/MODEL.md</code>と<code>Scripts/install_model.sh</code>を確認する。モデル未導入と深度非対応を混同しない。</li>
+</ol>
+<h3>無料Apple Account</h3>
+<p>Personal Teamで自分のiPhoneへ開発用インストール可能。プロビジョニングは発行から7日で期限切れとなり、再ビルド・再インストールが必要。10 App IDs、3 devices、1台あたり3 appsの制限あり。TestFlight／App Store配布は有料プログラム側。デモ前日に再インストールする。</p>
+<p>出典：<a href="https://developer.apple.com/help/account/basics/about-your-developer-account/">Apple Developer account overview</a>。これは開発運用の条件であり、今回の実機署名成功を保証するものではない。</p>
+<h2>6. iOSで追加する画面・状態</h2>
+<p>Bが追加する最小画面：デバイス検索、候補一覧、接続／切断、接続状態、手動テスト4状態、最終受信Status、エラー表示。</p>
+<table>
+<thead>
+<tr>
+<th>表示・内部状態</th>
+<th>挙動案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>未接続／接続中／接続済み</td>
+<td>状態を明示。機器名だけで選ばずUUID・接続情報も確認</td>
+</tr>
+<tr>
+<td>Bluetooth OFF／権限拒否</td>
+<td>送信を止めて理由を表示</td>
+</tr>
+<tr>
+<td>検知不能</td>
+<td>取得停止・古いフレーム・無効姿勢を表示。検出なし表示に置き換えない</td>
+</tr>
+<tr>
+<td>手動テスト</td>
+<td>画面上で「模擬」と明示。自動判定と同時送信しない。退出時は検知不能へ</td>
+</tr>
+<tr>
+<td>再接続直後</td>
+<td>古い危険状態を再送しない。最初は検知不能、新しい有効判定後に自動通知再開</td>
+</tr>
+<tr>
+<td>背景移行／停止</td>
+<td>検知不能を送れるなら送信。送れなくても白杖側のTTLで期限切れにする</td>
+</tr>
+</tbody></table>
+<p>初回は前面実行だけ。画面ロック／背景カメラ継続をBLEのバックグラウンド設定だけで解決した扱いにしない。</p>
+<h2>7. BLE通信・振動の共通仕様</h2>
+<p>詳細・バイト例は <a href="ble-protocol.html">BLE_PROTOCOL_DRAFT.md</a>。以下は並行実装のための提案値で、B/Cが実装開始時に同じ版へ固定する。</p>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>提案</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>役割</td>
+<td>iPhone=Central、XIAO=Peripheral</td>
+</tr>
+<tr>
+<td>Device name</td>
+<td><code>CaneVibe-01</code>。名前だけを機器識別に使わない</td>
+</tr>
+<tr>
+<td>発見方法</td>
+<td>専用Service UUIDをAdvertisingに含め、iPhone側でフィルター</td>
+</tr>
+<tr>
+<td>Command</td>
+<td>10バイト固定 / Write with response</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>10バイト固定 / Read + Notify</td>
+</tr>
+<tr>
+<td>状態</td>
+<td>0=検出なし、1=注意、2=危険、3=検知不能</td>
+</tr>
+<tr>
+<td>送信周期</td>
+<td>接続中250msを目標、状態変更時は早めに送信。Writeを無制限に積まない</td>
+</tr>
+<tr>
+<td>フレーム鮮度</td>
+<td>最終有効深度が600msより古ければ検知不能へ</td>
+</tr>
+<tr>
+<td>指示の有効期限</td>
+<td>受信から1,000ms。期限切れ・切断で危険振動を停止</td>
+</tr>
+<tr>
+<td>認証</td>
+<td>管理されたデモ環境で手動選択。暗号化・Bonding設計は未決定。公開利用対応とは扱わない</td>
+</tr>
+<tr>
+<td>電池残量</td>
+<td>最初の版では表示しない。電圧測定回路は現在の購入リストにない</td>
+</tr>
+</tbody></table>
+<p>検出なしは「有効な範囲内で対象が検出されなかった」という意味で、周囲の安全保証ではない。音声の5秒クールダウンをBLE更新に流用しない。</p>
+<h3>振動パターンの提案</h3>
+<table>
+<thead>
+<tr>
+<th>状態</th>
+<th>提案パターン</th>
+<th>備考</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>検出なし</td>
+<td>OFF</td>
+<td>新しい有効判定だけで到達</td>
+</tr>
+<tr>
+<td>注意</td>
+<td>ON 150ms → OFF 850msを反復</td>
+<td>状態が続く間だけ</td>
+</tr>
+<tr>
+<td>危険</td>
+<td>ON 200ms → OFF 150msを反復</td>
+<td>注意より高い頻度</td>
+</tr>
+<tr>
+<td>検知不能／切断／TTL切れ</td>
+<td>危険振動を停止。必要なら50ms×3回を一度だけ</td>
+<td>動作不能の通知パターンは利用者確認で最終決定。繰り返し再生しない</td>
+</tr>
+</tbody></table>
+<p>同じ状態の250ms更新で毎回パターンを先頭に戻さない。状態変更時だけスケジュールを切り替え、受信処理を<code>delay()</code>で長時間止めない。1個のモーターで左右方向を伝える仕様は今回設けない。</p>
+<h2>8. 回路・組立条件</h2>
+<p><a href="cane-circuit.png">全体回路図</a> / <a href="cane-circuit.svg">拡大用SVG</a> / <a href="cane-circuit.md">詳細接続表</a></p>
+<pre><code class="language-text">単3アルカリ2本（公称3V）→ スイッチ → VBAT
+  ├─ TPS63802（5V設定）→ 1S4 → XIAO 5V
+  └─ DRV8835 VM → OUT1/OUT2 → モーター
+XIAO 3V3 → DRV8835 VCC
+XIAO D1 / GPIO3 → DRV8835 IN1
+DRV8835 IN2・MODE → GND
+全てのGND → 電池－
+</code></pre>
+<ul>
+<li>D1という名前は「XIAOのD1端子」と「回路図のダイオードD1」の2か所で使われる。配線時は部品名と端子名を区別。</li>
+<li>TPS63802のVR1を必ず取り付け、XIAO未接続で5.00Vに調整。ENは基板内プルアップにより未接続。JP1短絡で省電力とする案。</li>
+<li>1S4の帯なし側(A)を電源出力、帯側(K)をXIAO 5Vへ。電圧降下後の基板入力を確認。</li>
+<li>DRV8835-PはIN/INモード。IN2=LOW固定、MODE=LOW、IN1=HIGHでOUT1=H/OUT2=L、IN1=LOWでHi-Z。</li>
+<li>LBV10B-009はブラシレス駆動回路内蔵・極性あり。逆転しない。初期版は秒単位ON/OFF。一般のブラシ付きモーター向けPWMをそのまま適用しない。</li>
+<li>USBデバッグ中は電池スイッチを切ってもXIAOはUSBで動く。電池が充電される回路ではない。</li>
+<li>モーターと無線送受信の負荷で電源が落ちないか測定。低電圧時の状態は未検証。ソフトウェアの電池監視は現状ない。</li>
+</ul>
+<h2>9. 黒いグリップと首掛け機構</h2>
+<table>
+<thead>
+<tr>
+<th>部位</th>
+<th>要求</th>
+<th>未確認点</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>白杖</td>
+<td>全長110cm、黒ゴムグリップ、5段折り</td>
+<td>実物の径、グリップ取り外し、シャフト・ゴム紐の経路</td>
+</tr>
+<tr>
+<td>モーター</td>
+<td>指に振動が伝わる位置、カバーの内部ポケットへ保持</td>
+<td>ゴムを挟むことによる減衰・起動時の体感</td>
+</tr>
+<tr>
+<td>電池</td>
+<td>交換可能、逆挿入を抑える、接点を絶縁</td>
+<td>単3×2本＋ホルダーの収納体積・重量</td>
+</tr>
+<tr>
+<td>回路</td>
+<td>固定・絶縁・配線の引張保護</td>
+<td>40×25mmのDRV8835-Pを含む収納</td>
+</tr>
+<tr>
+<td>折りたたみ</td>
+<td>接合部や内部ゴム紐を妨げない</td>
+<td>折りたたみ時の干渉</td>
+</tr>
+<tr>
+<td>アンテナ</td>
+<td>外付けアンテナを保持</td>
+<td>手・金属シャフトでの電波変化</td>
+</tr>
+<tr>
+<td>iPhone</td>
+<td>首掛け、背面カメラ前方、カメラ開口を確保</td>
+<td>歩行揺れ、反転、ホルダー寸法、カメラ高さ</td>
+</tr>
+</tbody></table>
+<p>最初は「モーターを既存グリップ外側へ仮固定＋薄い黒カバー」、電子回路・電池は仮ケースで検証。一体化はその後。既存グリップに空洞があることを前提に購入しない。画像生成で示したケース寸法・内部断面は構想であり採寸結果ではない。</p>
+<h2>10. 1台分の購入リスト</h2>
+<p>金額は2026-10-16に確認した記録値・予算。今回の資料作成では再見積もりしていない。白杖3,600円はユーザー提供画面の値。送料・在庫・注文時の選択を確認する。</p>
+<table>
+<thead>
+<tr>
+<th>品目</th>
+<th>数量</th>
+<th>記録値</th>
+<th>購入先</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>VISIONU白杖・110cm・黒</td>
+<td>1</td>
+<td>3,600円</td>
+<td><a href="https://www.amazon.co.jp/dp/B07B91QYJ4">Amazon</a></td>
+</tr>
+<tr>
+<td>XIAO ESP32C3</td>
+<td>1</td>
+<td>1,080円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g117454/">秋月117454</a></td>
+</tr>
+<tr>
+<td>AE-DRV8835-P</td>
+<td>1</td>
+<td>600円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g110346/">秋月110346</a></td>
+</tr>
+<tr>
+<td>LBV10B-009</td>
+<td>2（予備1）</td>
+<td>合計100円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g106787/">秋月106787</a></td>
+</tr>
+<tr>
+<td>AE-TPS63802</td>
+<td>1</td>
+<td>780円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g115557/">秋月115557</a></td>
+</tr>
+<tr>
+<td>1S4</td>
+<td>1</td>
+<td>20円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g100127/">秋月100127</a></td>
+</tr>
+<tr>
+<td>単3×2本・スイッチ付きBH-321-1AS</td>
+<td>1</td>
+<td>70円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g100327/">秋月100327</a></td>
+</tr>
+<tr>
+<td>単3アルカリ電池</td>
+<td>1パック</td>
+<td>予算110円</td>
+<td><a href="https://jp.daisonet.com/products/4550480478203">ダイソー</a></td>
+</tr>
+<tr>
+<td>ピンヘッダー1×40</td>
+<td>1</td>
+<td>35円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g100167/">秋月100167</a></td>
+</tr>
+<tr>
+<td>ユニバーサル基板72×47.5mm</td>
+<td>1</td>
+<td>110円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g100182/">秋月100182</a></td>
+</tr>
+<tr>
+<td>AWG24ワイヤー10色</td>
+<td>1セット</td>
+<td>440円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g110672/">秋月110672</a></td>
+</tr>
+<tr>
+<td>熱収縮チューブ1.5mm</td>
+<td>1</td>
+<td>40円</td>
+<td><a href="https://akizukidenshi.com/catalog/g/g106788/">秋月106788</a></td>
+</tr>
+<tr>
+<td>面ファスナー</td>
+<td>1パック</td>
+<td>110円</td>
+<td><a href="https://jp.daisonet.com/products/4550480325248">ダイソー（リンクは白。黒は店頭で同等品）</a></td>
+</tr>
+<tr>
+<td>薄手両面テープ</td>
+<td>1</td>
+<td>予算110円</td>
+<td><a href="https://jp.daisonet.com/collections/stationery0272">ダイソー一覧</a></td>
+</tr>
+<tr>
+<td>黒ビニールテープ</td>
+<td>1</td>
+<td>予算110円</td>
+<td><a href="https://jp.daisonet.com/collections/stationery0268">ダイソー一覧</a></td>
+</tr>
+<tr>
+<td>首掛けスマホホルダー</td>
+<td>1</td>
+<td>注文時確認</td>
+<td><a href="https://jp.daisonet.com/products/4549131906646">ダイソー</a></td>
+</tr>
+<tr>
+<td>USB-C通信ケーブル</td>
+<td>手持ち可</td>
+<td>注文時確認</td>
+<td><a href="https://jp.daisonet.com/products/4550480504599">ダイソー</a></td>
+</tr>
+</tbody></table>
+<p>固定金額＋消耗品予算は計7,315円。ホルダー・ケーブル・仮ケース・一体型グリップ製作・送料・工具は別。工具は借用を優先。以前の別体ケースSW-100やFeather、DRV2605L、専用LiPoは最新の必須購入品ではない。</p>
+<h2>11. 電池持ちの扱い</h2>
+<p>現時点では測定値なし。単3×2本なら容量mAhは2倍にならず、直列で電圧が加算される。アルカリ電池の容量は負荷・終止電圧・温度で変わる。</p>
+<p>以前の平均電流29.3mAは「50mAで5ms、27mAで45ms」という仮定の時間平均。通信間隔・実際の電流・給電測定点を確定した値ではなく、電池寿命の保証に使わない。</p>
+<p>D/Cが測る項目：電池側の平均電流とピーク、電池電圧、昇圧後5V、XIAO入力、3V3、振動時の電圧降下。電池側でモーターを含めて平均電流を測れば、同じ電流をもう一度足さない。基板側で測る場合は電圧と変換効率を含めた電力で換算する。</p>
+<pre><code class="language-text">平均電池電流 = 測定区間の消費電荷 / 測定時間
+基板入力電力 = 基板入力電圧 × その端子で測った電流
+電池からの必要電力 ≒ 基板入力電力 / 電源変換効率 + モーター側平均電力
+</code></pre>
+<p>8時間動作は評価目標。現状の証拠で達成済みとはしない。</p>
+<h2>12. 開発の順序・結合ポイント</h2>
+<table>
+<thead>
+<tr>
+<th>段階</th>
+<th>A</th>
+<th>B</th>
+<th>C</th>
+<th>D</th>
+<th>全体の出口</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>M0：準備</td>
+<td>iPhone深度取得確認</td>
+<td>UUID・バイト仕様をCと固定</td>
+<td>USB書き込み確認</td>
+<td>部品確認・電源調整</td>
+<td>全員が同じ仕様v0.1を参照</td>
+</tr>
+<tr>
+<td>M1：単独動作</td>
+<td>4状態をログで確認</td>
+<td>模擬Peripheralなどで送信処理準備</td>
+<td>PC指示で振動パターン</td>
+<td>回路単独ON/OFF・電圧確認</td>
+<td>GPIO→実振動</td>
+</tr>
+<tr>
+<td>M2：BLE連携</td>
+<td>状態出力を整備</td>
+<td>手動4状態→実XIAO</td>
+<td>受信とStatus返信</td>
+<td>実振動の確認</td>
+<td>iPhoneのボタン→白杖振動</td>
+</tr>
+<tr>
+<td>M3：実検知連携</td>
+<td>検知とBLE入力を接続</td>
+<td>自動更新・期限・画面</td>
+<td>切断・TTL・再接続</td>
+<td>遅延・電源・誤警告測定</td>
+<td>障害物→振動→解除</td>
+</tr>
+<tr>
+<td>M4：機構とデモ</td>
+<td>首掛け調整</td>
+<td>デモ表示・無料署名更新</td>
+<td>起動・再接続を安定化</td>
+<td>黒グリップ・収納・固定</td>
+<td>全員が一連の手順を再現</td>
+</tr>
+</tbody></table>
+<p>日程・担当者名・所有iPhone・工具・部品到着日は未指定。最初の打ち合わせで記入する。</p>
+<h2>13. 必要な試験と記録</h2>
+<p>詳細は <a href="tasks-tests.html">TASKS_AND_TESTS.md</a>。各試験は端末・iOS・アプリ版・FW版・電源・設定・期待結果・実結果・ログを記録する。</p>
+<table>
+<thead>
+<tr>
+<th>試験</th>
+<th>合格の考え方</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>深度非対応／姿勢不正／カメラ停止</td>
+<td>CLEARではなく検知不能になる</td>
+</tr>
+<tr>
+<td>注意・危険・解除</td>
+<td>状態に対応するパターンへ遷移。古い指示が残らない</td>
+</tr>
+<tr>
+<td>更新停止・アプリ背景・通信切断</td>
+<td>白杖側で最後の有効指示から1秒以内を目標に危険振動が終了</td>
+</tr>
+<tr>
+<td>再接続</td>
+<td>最初は検知不能、最新判定後に再開</td>
+</tr>
+<tr>
+<td>不正長・未対応版・無効TTL</td>
+<td>受理しない。GPIOは動かさず期限も延長しない</td>
+</tr>
+<tr>
+<td>電源ON／OFF・モーター負荷</td>
+<td>意図しない振動、リセット、異常な電圧降下がない</td>
+</tr>
+<tr>
+<td>握り・折りたたみ・首掛け</td>
+<td>接合部やカメラを塞がず、配線の引張・ケースのずれがない</td>
+</tr>
+<tr>
+<td>振動体感</td>
+<td>地面からの白杖の感触と、通知振動を区別できるか利用者と確認</td>
+</tr>
+<tr>
+<td>連続使用</td>
+<td>電池・iPhoneの発熱、検知欠損、BLE切断を記録</td>
+</tr>
+</tbody></table>
+<p>Status受信は「基板が指示を解釈した」証拠で、実振動を測った証拠ではない。モーターの振動センサーは搭載しないため、体感・動画・測定と区別する。</p>
+<p>iPhoneとXIAOは別時計。両者の時刻をそのまま引いて片道遅延を求めない。iPhone側の送信→Status受信は往復相当の指標。障害物提示→実振動は動画等で同じ時間軸に載せる。</p>
+<h2>14. Gitと共同作業</h2>
+<ul>
+<li>A/B/C/Dの分担ごとに作業ブランチを用意する案：<code>feature/ios-hazard-state</code>、<code>feature/ios-cane-ble</code>、<code>feature/cane-firmware</code>、<code>feature/cane-hardware-docs</code>。</li>
+<li>現在すでにAppStore・CameraGuidance・HomeScreen・翻訳・Detection・Walkableに未コミット変更がある。作業開始時に所有者を確認し、上書き・リセットしない。</li>
+<li>共通プロトコルのUUID・状態値・バイト順・タイムアウトを変えたら、B/C両方と仕様を同時更新する。<code>protocol_vectors.json</code>を共通照合データにする。</li>
+<li>Apple Account、署名情報、端末UDID、ローカルパス、秘密鍵は共有コードへ入れない。</li>
+<li>モデルはGit対象外。既存のモデル利用条件の未確認点は<code>Docs/MODEL.md</code>を保持し、公開・再配布を自動的に許可された扱いにしない。</li>
+<li>初回チェックはMacで<code>swift test</code>と適切なiPhoneへのビルド。ファームウェアは固定したボード設定でコンパイルし、実基板でGPIOとBLEを確認。</li>
+<li>テストファイルの存在と今回の実行結果を区別する。本書作成ではテストを実行していない。</li>
+</ul>
+<h2>15. 残っている決定事項</h2>
+<table>
+<thead>
+<tr>
+<th>項目</th>
+<th>担当</th>
+<th>現状</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>検証用iPhoneの型番・iOS・深度出力</td>
+<td>A</td>
+<td>未確定</td>
+</tr>
+<tr>
+<td>4人の担当者名と締切</td>
+<td>全員</td>
+<td>未指定</td>
+</tr>
+<tr>
+<td>UUID・10バイト通信案の採用版</td>
+<td>B/C</td>
+<td>本資料の提案。未実装</td>
+</tr>
+<tr>
+<td>検知不能の振動パターン</td>
+<td>全員・利用者</td>
+<td>提案値。危険通知との区別を確認</td>
+</tr>
+<tr>
+<td>深度の有効性基準・600ms閾値</td>
+<td>A</td>
+<td>追加設計が必要</td>
+</tr>
+<tr>
+<td>BLE接続間隔・ライブラリ版・再接続</td>
+<td>B/C</td>
+<td>実機で調整</td>
+</tr>
+<tr>
+<td>電池低下時の実用終止電圧・動作時間</td>
+<td>C/D</td>
+<td>未測定</td>
+</tr>
+<tr>
+<td>黒グリップの収納寸法・製造方法</td>
+<td>D</td>
+<td>白杖到着後に実測</td>
+</tr>
+<tr>
+<td>購入済み部品・工具・予算</td>
+<td>D</td>
+<td>購入済みの報告なし</td>
+</tr>
+</tbody></table>
+<h2>16. 同梱資料・出典</h2>
+<ul>
+<li><a href="ble-protocol.html">BLE通信仕様案</a></li>
+<li><a href="tasks-tests.html">担当タスク・結合試験表</a></li>
+<li><a href="protocol-draft.json">機械可読の通信仕様案</a> / <a href="protocol_vectors.json">共通バイト例</a></li>
+<li><a href="cane-circuit.png">全体回路図</a> / <a href="cane-circuit.md">配線表</a></li>
+<li><code>references/cane-device-specifications-2026-10-16.zip</code>：31件の公式・販売元資料。展開後のindex.htmlから個別資料へアクセス。</li>
+<li>既存コード根拠は同じリポジトリの <code>App/Camera.swift</code>、<code>Core/HeadLevel.swift</code>、<code>App/AppStore.swift</code>、<code>App/Services.swift</code>、<code>App/JunctionGuideApp.swift</code>、<code>App/Info.plist</code>、<code>JunctionGuide.xcodeproj/project.pbxproj</code>。</li>
+<li>既存モデルの記録：<code>Docs/MODEL.md</code>。本人用署名の手順：<code>README.md</code>、<code>Config/Local.xcconfig.example</code>。</li>
+<li><a href="https://developer.apple.com/documentation/corebluetooth">Apple Core Bluetooth</a>、<a href="https://developer.apple.com/help/account/basics/about-your-developer-account/">無料アカウントの制限</a>、<a href="https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/">XIAO公式ガイド</a>。</li>
+</ul>
+<footer>2026-10-17作成。追加機能・通信仕様は未実装の提案。判定・配線・収納は実機検証が必要です。</footer></main></html>

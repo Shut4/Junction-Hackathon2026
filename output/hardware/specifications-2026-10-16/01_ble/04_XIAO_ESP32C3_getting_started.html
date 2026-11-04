@@ -1,0 +1,441 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>XIAO ESP32C3 公式ガイド</title><style>body{font-family:sans-serif;max-width:1000px;margin:30px auto;line-height:1.6}pre{white-space:pre-wrap;word-break:break-word;font-family:inherit}</style><h1>XIAO ESP32C3 公式ガイド</h1><p>取得日：2026-10-16 JST</p><p>出典：<a href="https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/">https://wiki.seeedstudio.com/XIAO_ESP32C3_Getting_Started/</a></p><p>資料区分：仕様・ピン配置・外部電源・Arduino導入</p><p>以下は公開ページのテキスト保存です。原ページの図・動的コンテンツは上記リンクで確認してください。</p><hr><pre>Getting Started with Seeed Studio XIAO ESP32C3 | Seeed Studio Wiki
+Skip to main content
+Collaborate with Seeed - Creator, Ranger, or Contributor, there is always a role ideal for you!
+Quick Links
+Sensor and Sensing
+Networking
+Edge Computing
+Cloud
+Explore with Topics
+TinyML
+SenseCraft Model Assistant
+Home Assistant
+Open Source
+Edge AI
+Wiki 矽递科技 (中文)
+Wiki SeeedStudio (日本語)
+Wiki SeeedStudio (Español)
+FAQs
+NVIDIA Jetson Series
+Seeed Studio XIAO Series
+reComputer R1000 Series
+reTerminal
+reRouter
+Odyssey
+Wio Terminal
+Discord
+Email
+Forum
+Have Suggestions?
+Get Involved
+Affiliate &amp; Creator
+Rangers
+Contributors
+Apply for Rangers
+Direct to Assignments
+More about Rangers
+More about Contributors
+Bazaar 🛍️
+AI Platform
+SenseCraft AI
+reComputer AI Lab
+Search
+Getting Started
+Weekly Wiki
+Sensing
+Grove
+SenseCAP
+SenseCAP Watcher
+mmWave Radar Sensor
+XIAO
+Exhibition for XIAO Series
+XIAO SAMD21 Series
+XIAO RA4M1
+XIAO MG24
+XIAO RP2040 Series
+XIAO RP2350
+XIAO nRF52840 Series
+XIAO nRF54L15 Series
+XIAO nRF54LM20A Series
+XIAO ESP32C3
+Getting Started with Seeed Studio XIAO ESP32C3
+Pin Multiplexing
+XIAO ESP32C3 With NuttX(RTOS)
+XIAO ESP32C3 with Zephyr(RTOS)
+Wireless Connection
+Programming Language
+Application
+XIAO ESP32C5
+XIAO ESP32C6
+XIAO ESP32S3 Series
+XIAO STM32C5
+XIAO Debug Mate
+Expansion Boards for XIAO
+XIAO + ESP-IDF + ESP-Matter
+ESP-NOW on XIAO ESP32 Series
+PCB Design for XIAO
+Kit with Courses
+FAQs for XIAO Series
+XIAO Gadgets
+ePaper Displays
+LCD Displays
+Wio Terminal
+reSpeaker
+Other Sensing Modules
+Other Microcontrollers
+Network
+Mesh Network
+LoRa Wio Series
+SenseCAP Gateway
+SenseCAP K1100
+SenseCAP LoRaWAN Starter Kit
+Raspberry Pi Solutions
+Rockchip Solutions
+Other Network Devices
+Edge Computing
+RK Devices
+Raspberry Pi Devices
+NVIDIA® Jetson™
+ESP Devices
+BeagleBone®
+ODYSSEY
+reCamera
+Other Edge Devices
+Robotics Page
+SenseCraft &amp; Cloud
+SenseCraft AI
+CodeCraft
+SenseCraft APP
+SenseCraft Data Platform
+SenseCraft Seeedash
+SenseCraft Robotics
+Solutions
+Vision &amp; Video AI
+Acoustic &amp; Audio AI
+Home &amp; Building Automation
+Environmental Sensing
+Indoor Positioning &amp; Tracking
+Off-Grid Communication
+Fusion
+PCB &amp; PCBA
+Technology Topics
+Home Assistant
+TinyML
+Open Source
+Edge AI
+Contributions
+Github Contributions Guide
+Scale up Your Creation with Seeed Studio Fusion
+Popular Platforms
+Arduino
+Raspberry Pi
+Micro:bit
+Discontinued Products
+Product List
+About Seeed
+License
+XIAO
+XIAO ESP32C3
+Getting Started with Seeed Studio XIAO ESP32C3
+On this page
+Getting Started with Seeed Studio XIAO ESP32C3
+Introduction​
+Seeed Studio XIAO ESP32C3 is an IoT mini development board based on the Espressif ESP32-C3 WiFi/Bluetooth dual-mode chip, featuring a 32-bit RISC-V CPU that delivers powerful computing performance with its efficient architecture. It has excellent radio frequency performance, supporting IEEE 802.11 b/g/n WiFi, and Bluetooth 5 (BLE) protocols. This board comes included with an external antenna to increase the signal strength for your wireless applications. It also has a small and exquisite form-factor combined with a single-sided surface-mountable design. It is equipped with rich interfaces and has 11 digital I/O that can be used as PWM pins and 4 analog I/O that can be used as ADC pins. It supports four serial interfaces such as UART, I2C and SPI. There is also a small reset button and a bootloader mode button on the board. XIAO ESP32C3 is fully compatible with the Grove Shield for Seeeduino XIAO and Seeeduino XIAO Expansion board except for the Seeeduino XIAO Expansion board, the SWD spring contacts on the board will not be compatible.
+With regard to the features highlighted above, XIAO ESP32C3 is positioned as a high-performance, low-power, cost-effective IoT mini development board, suitable for low-power IoT applications and wireless wearable applications.
+This wiki will show you how you can quickly get started with XIAO ESP32C3!
+Get One Now 🖱️
+Specifications​
+ParameterDescription
+ProcessorESP32-C3 SoC
+RISC-V single-core 32-bit chip processor with a four-stage pipeline that operates at up to 160 MHz
+WirelessComplete 2.4GHz Wi-Fi subsystem
+Bluetooth Low Energy 5.0/ Bluetooth Mesh
+On-chip Memory400KB SRAM &amp; 4MB Flash
+Interface1x UART
+1x IIC
+1x SPI
+11x GPIO(PWM)
+4x ADC
+1x Reset button
+1x Boot button
+Dimensions21 x 17.8mm
+Power(Typ.)Max 3.3V Output Current: 500mA
+Test Condition: BAT Pin Input @ 3.8V
+Source Capability: 3A
+Charging current: 380mA(Fast) / 40mA(Trickle)
+Input voltage (VIN): 5V
+Input voltage (BAT): 3.7V
+Deep Sleep Power ConsumptionDeep Sleep Mode: 44 μA
+Wi-Fi Enabled Power ConsumptionActive Mode: 75 mA
+Modem-sleep Mode: 25 mA
+Light-sleep Mode: 4 mA
+BLE Enabled Power ConsumptionModem-sleep Mode: 27 mA
+Light-sleep Mode: 10 mA
+Working Temperature-40°C ~ 85°C
+Features​
+Powerful CPU: ESP32-C3, 32­bit RISC­-V single­core processor that operates at up to 160 MHz
+Complete Wi­Fi subsystem: Complies with IEEE 802.11b/g/n protocol and supports Station mode, SoftAP mode, SoftAP + Station mode, and promiscuous mode
+Bluetooth LE subsystem: Supports features of Bluetooth 5 and Bluetooth mesh
+Ultra-Low Power: Deep sleep power consumption is about 43μA
+Better RF performance: External RF antenna included
+Battery charging chip: Supports lithium battery charge and discharge management
+Rich on-chip resources: 400KB of SRAM, and 4MB of on-board flash memory
+Ultra small size: As small as a thumb(21x17.8mm) XIAO series classic form-factor for wearable devices and small projects
+Reliable security features: Cryptographic hardware accelerators that support AES-128/256, Hash, RSA, HMAC, digital signature and secure boot
+Rich interfaces: 1xI2C, 1xSPI, 2xUART, 11xGPIO(PWM), 4xADC, 1xJTAG bonding pad interface
+Single-sided components, surface mounting design
+Hardware overview​
+*A3(GP105) - Uses ADC2, which may become inoperative due to false sampling signals. For reliable analog reads, use ADC1(A0/A1/A2) instead. Refer to the ESP32-C3 datasheet.
+Front​
+Back​
+Pin Map​
+XIAO PinFunctionChip PinAlternate FunctionsDescription
+5VVBUSPower Input/Output
+GND
+3V33V3_OUTPower Output
+D0AnalogGPIO2ADC1_CH2,GPIO, ADC
+D1AnalogGPIO3ADC1_CH3GPIO, ADC
+D2AnalogGPIO4ADC1_CH4, FSPIHD, MTMSGPIO, ADC
+D3AnalogGPIO5ADC2_CH0, FSPIWP, MTDIGPIO, ADC
+D4SDAGPIO6FSPICLK, MTCKGPIO, I2C Data
+D5SCLGPIO7FSPID, MTDOGPIO, I2C Clock
+D6TXGPIO21U0TXDGPIO, UART Transmit
+D7RXGPIO20U0RXDGPIO, UART Receive
+D8SCKGPIO8GPIO, SPI Clock
+D9MISOGPIO9GPIO, SPI Data
+D10MOSIGPIO10FSPICS0GPIO, SPI Data
+MTDOGPIO7JTAG
+MTDIGPIO5JTAG, ADC
+MTCKGPIO6JTAG, ADC
+MTMSGPIO4JTAG, ADC
+ResetCHIP_ENEN
+BootGPIO9Enter Boot Mode
+U.FL-R-SMT1LNA_INUFL antenna
+LightVCC_3V3CHG-LED
+Power Pins​
+5V - This is 5v out from the USB port. You can also use this as a voltage input but you must have some sort of diode (schottky, signal, power) between your external power source and this pin with anode to battery, cathode to 5V pin.
+3V3 - This is the regulated output from the onboard regulator. You can draw 700mA
+GND - Power/data/signal ground
+Strapping Pins​
+According to the chip manual of ESP32C3, GPIO2, GPIO8 and GPIO9 in the chip are Strapping Pins, the high and low level configurations of these pins may allow the chip to enter into different Boot modes, please pay attention to this point when you use these pins, otherwise it may prevent your XIAO from uploading or executing the program all the time.
+Getting started​
+First, we are going to connect XIAO ESP32C3 to the computer, connect an LED to the board and upload a simple code from Arduino IDE to check whether the board is functioning well by blinking the connected LED.
+Hardware Preparation​
+You need to prepare the following:
+1 x Seeed Studio XIAO ESP32C3
+1 x Computer
+1 x USB Type-C cable
+tip
+Some USB cables can only supply power and cannot transfer data. If you don&#x27;t have a USB cable or don&#x27;t know if your USB cable can transmit data, you can check Seeed USB Type-C support USB 3.1.
+Step 1. Connect XIAO ESP32C3 to your computer via a USB Type-C cable.
+Step 2. Connect an LED to D10 pin as follows
+Note: Make sure to connect a resistor (about 150Ω) in series to limit the current through the LED and to prevent excess current that can burn out the LED
+Software Preparation​
+Step 1. Download and Install the latest version of Arduino IDE according to your operating system
+Step 2. Launch the Arduino application
+Step 3. Add ESP32 board package to your Arduino IDE
+Navigate to File &gt; Preferences, and fill &quot;Additional Boards Manager URLs&quot; with the url below:
+https://jihulab.com/esp-mirror/espressif/arduino-esp32.git
+Navigate to Tools &gt; Board &gt; Boards Manager..., type the keyword &quot;esp32&quot; in the search box, select the latest version of esp32, and install it.
+Step 4. Select your board and port
+Board
+Navigate to Tools &gt; Board &gt; ESP32 Arduino and select &quot;XIAO_ESP32C3&quot;. The list of board is a little long and you need to roll to the buttom to reach it.
+Port
+Navigate to Tools &gt; Port and select the serial port name of the connected XIAO ESP32C3. This is likely to be COM3 or higher (COM1 and COM2 are usually reserved for hardware serial ports).
+Run your first Blink program​
+Step 1. Copy the below code to Arduino IDE
+Make sure your D10 is connected to an LED as shown in the diagram above.
+// define led according to pin diagram in article
+const int led = D10; // there is no LED_BUILTIN available for the XIAO ESP32C3.
+void setup() {
+// initialize digital pin led as an output
+pinMode(led, OUTPUT);
+}
+void loop() {
+digitalWrite(led, HIGH); // turn the LED on
+delay(1000); // wait for a second
+digitalWrite(led, LOW); // turn the LED off
+delay(1000); // wait for a second
+}
+Step 2. Click the Upload button to upload the code to the board
+Once uploaded, you will see the connected LED blinking with a 1-second delay between each blink. This means the connection is successful and now you can explore more projects with XIAO ESP32C3!
+Battery Usage​
+The XIAO ESP32C3 is capable of using a 3.7V lithium battery as the power supply input. You can refer to the following diagram for the wiring method.
+caution
+Please be careful not to short-circuit the positive and negative terminals and burn the battery and equipment when soldering.
+Instructions on the use of batteries:
+Please use qualified batteries that meet the specifications.
+XIAO can be connected to your computer device via data cable while using the battery, rest assured that XIAO has a built-in circuit protection chip, which is safe.
+The XIAO ESP32C3 will not have any LED on when it is battery powered (unless you have written a specific program), please do not judge whether the XIAO ESP32C3 is working or not by the condition of the LED, please judge it reasonably by your program.
+Sorry, we currently have no way to help you check the remaining battery level through software (because there are no more chip pins available), you need to charge the battery regularly or use a multimeter to check the battery level.
+Check the battery voltage​
+Due to the limitation of the number of pins in the ESP32C3, engineers had no extra pins to allocate to the battery for voltage measurement in order to ensure that the XIAO ESP32C3 has the same number of GPIOs as the other XIAO series available.
+But if you prefer to use a separate pin for battery voltage measurement, you can refer to the genius operation of msfujino. We would also like to give a special thanks to msfujino for all the experience and efforts shared for the XIAO ESP32C3.
+The basic operating idea is: The battery voltage was divided by 1/2 with 200k and connected to the A0 port so that the voltage could be monitored.
+The datasheet says nominally 2500mV full scale AD conversion, but there is a large variation from chip to chip, actually ±10%. My chip was 2700mV full scale.
+Fortunately, the calibrated correction value for each chip is written in the fuse area, and by using the function analogReadMilliVolts(), I can read the corrected voltage value without doing anything special.
+The result of AD conversion and the voltage measured by the multimeter agree well with each other with an error of about 5 mV, which is not a problem in practical use.
+In addition, during communication in particular, spike-like errors occurred, which had to be averaged out 16 times to remove them.
+The following is the procedure to test the battery voltage.
+void setup() {
+Serial.begin(115200);
+pinMode(A0, INPUT); // ADC
+}
+void loop() {
+uint32_t Vbatt = 0;
+for(int i = 0; i &lt; 16; i++) {
+Vbatt = Vbatt + analogReadMilliVolts(A0); // ADC with correction
+}
+float Vbattf = 2 * Vbatt / 16 / 1000.0; // attenuation ratio 1/2, mV --&gt; V
+Serial.println(Vbattf, 3);
+delay(1000);
+}
+tip
+The above is from Seeed Studio forum user msfujino, originally posted at:
+https://forum.seeedstudio.com/t/battery-voltage-monitor-and-ad-conversion-for-xiao-esp32c/267535.
+We recommend that you have good hands-on skills and better soldering skills before attempting to measure battery voltage based on the above, and be cautious of dangerous actions such as shorting out batteries.
+Deep sleep mode and wake-up​
+The XIAO ESP32C3 is designed to support deep sleep mode and wake-up functions. For the use of these two functions, we provide the following usage examples.
+#define BUTTON_PIN_BITMASK 0x200000000 // 2^33 in hex
+RTC_DATA_ATTR int bootCount = 0;
+/*
+Method to print the reason by which ESP32
+has been awaken from sleep
+*/
+void print_wakeup_reason(){
+esp_sleep_wakeup_cause_t wakeup_reason;
+wakeup_reason = esp_sleep_get_wakeup_cause();
+switch(wakeup_reason)
+{
+case ESP_SLEEP_WAKEUP_EXT0 : Serial.println(&quot;Wakeup caused by external signal using RTC_IO&quot;); break;
+case ESP_SLEEP_WAKEUP_EXT1 : Serial.println(&quot;Wakeup caused by external signal using RTC_CNTL&quot;); break;
+case ESP_SLEEP_WAKEUP_TIMER : Serial.println(&quot;Wakeup caused by timer&quot;); break;
+case ESP_SLEEP_WAKEUP_TOUCHPAD : Serial.println(&quot;Wakeup caused by touchpad&quot;); break;
+case ESP_SLEEP_WAKEUP_ULP : Serial.println(&quot;Wakeup caused by ULP program&quot;); break;
+default : Serial.printf(&quot;Wakeup was not caused by deep sleep: %d\n&quot;,wakeup_reason); break;
+}
+}
+void setup(){
+Serial.begin(115200);
+delay(1000); //Take some time to open up the Serial Monitor
+//Increment boot number and print it every reboot
+++bootCount;
+Serial.println(&quot;Boot number: &quot; + String(bootCount));
+//Print the wakeup reason for ESP32
+print_wakeup_reason();
+esp_deep_sleep_enable_gpio_wakeup(BIT(D1), ESP_GPIO_WAKEUP_GPIO_LOW);
+//Go to sleep now
+Serial.println(&quot;Going to sleep now&quot;);
+esp_deep_sleep_start();
+Serial.println(&quot;This will never be printed&quot;);
+}
+void loop(){
+//This is not going to be called
+}
+If you are quick enough to turn on the serial monitor before the XIAO goes into deep sleep, then you can see the message output as shown below. This means that the XIAO is now &quot;asleep&quot;.
+tip
+After entering deep sleep mode, the XIAO&#x27;s port will disappear and you&#x27;ll need to wake it up to see its port number again!
+In the program, we are using a D1 low level to wake up. This means that we can connect a button to pin D1 and the XIAO will wake up when we press the button.
+caution
+The XIAO ESP32-C3 supports GPIO wake-up and timer wake-up, and the pins that support wake-up are D0~D3.
+Troubleshooting​
+Q1: My Arduino IDE is stuck when uploading code to the board​
+You can first try to reset the board by clicking the RESET BUTTON once while the board is connected to your PC. If that does not work, hold the BOOT BUTTON, connect the board to your PC while holding the BOOT button, and then release it to enter bootloader mode.
+Q2: My board is not showing up as a serial device on Arduino IDE​
+Follow the same answer as for Q1 above.
+Q3: I want to reflash the bootloader with factory firmware​
+You can simply connect the board to a PC via USB Type-C and reflash the bootloader with factory firmware by using ESP RF Test Tool.
+Step 1. Hold on the BOOT BUTTON and connect XIAO ESP32C3 to the PC to enter bootloader mode
+Step 2. After it is connected, release the BOOT BUTTON
+Step 3. Visit this page and download ESP RF Test Tool and Test Guide
+Step 4. Extract the .zip, navigate to ESP_RF_Test_EN\ESP_RF_Test_EN\EspRFTestTool_v2.8_Manual and open EspRFTestTool_v2.8_Manual.exe
+Step 5. Select ESP32C3 as the ChipType, your COM port, 115200 as the BaudRate and click open
+You will see the following output
+Step 6. Select Flash and click Select Bin
+Step 7. Download the factory firmware of XIAO ESP32C3 and select it.
+Step 8. Finally click Load Bin
+You will see the following output when flashing is successful
+MicroPython GitHub Repository​
+XIAO ESP32C3 MicroPython Repo
+Resources​
+Hardware Design
+📄[Datasheet] Espressif ESP32-C3 Datasheet
+📄[Schematic] XIAO ESP32-C3 Schematic
+🗃️[PCB Design Files]
+XIAO ESP32-C3 KiCad Project
+🗃️[PCB Design Libraries]
+XIAO Series KiCad Footprints
+XIAO Series KiCad SCH Symbols
+📄[Pinout Diagram] XIAO ESP32-C3 Pinout Sheet
+Mechanical
+📄[2D Dimensions] XIAO ESP32-C3 Dimension in DXF
+🗃️[2D Dimensions] XIAO ESP32-C3 Bottom Pad Data
+📄[3D Model] XIAO ESP32-C3 3D Model
+Software &amp; Tools
+🗃️[Factory Firmware] XIAO ESP32-C3 Factory Firmware
+🔗[MicroPython Library] XIAO ESP32-C3 MicroPython Library
+🔗[Platform IO] PlatformIO for Seeed Studio XIAO ESP32-C3
+Others
+🔗[Wiki] First Look at the Seeed Studio XIAO ESP32-C3
+A great intro to the XIAO ESP32C3, covering key features and basic usage.
+📄[Document] Report of XIAO ESP32-C3 Low Power Consumption
+Request Quote of Customization →
+Course Resources​
+📚 [Ebook] XIAO: Big Power, Small Board Mastering Arduino and TinyML
+Tech Support &amp; Product Discussion​
+Thank you for choosing our products! We are here to provide you with different support to ensure that your experience with our products is as smooth as possible. We offer several communication channels to cater to different preferences and needs.
+Edit this page
+Last updated on Aug 14, 2024 by Spencer
+Previous
+XIAO nRF54LM20A Sense with Arduino
+Next
+Pin Multiplexing
+Loading Comments...
+Introduction
+Specifications
+Features
+Hardware overview
+Front
+Back
+Pin Map
+Power Pins
+Strapping Pins
+Getting started
+Hardware Preparation
+Software Preparation
+Run your first Blink program
+Battery Usage
+Check the battery voltage
+Deep sleep mode and wake-up
+Troubleshooting
+Q1: My Arduino IDE is stuck when uploading code to the board
+Q2: My board is not showing up as a serial device on Arduino IDE
+Q3: I want to reflash the bootloader with factory firmware
+MicroPython GitHub Repository
+Resources
+Course Resources
+Tech Support &amp; Product Discussion
+Navigation
+Getting Started
+Sensor and Sensing
+Network
+Edge Computing
+Cloud
+Solutions
+Ecosystem
+Discord
+Project Hub
+Partners
+Distributors
+Quick Guide
+Bazaar
+How to get help
+FAQs
+Forum
+Technical Support
+Company
+About Seeed
+Join us
+Contact Us
+Press
+Copyright © 2026 Seeed Studio, Inc. Built with Docusaurus.</pre></html>

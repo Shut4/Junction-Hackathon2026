@@ -1,0 +1,14 @@
+{
+  "tasks": 20,
+  "tests": 24,
+  "parts": 17,
+  "sources": 31,
+  "decisions": 12,
+  "input_paths": 55,
+  "unique_input_contents": 50,
+  "stored_original_contents": 48,
+  "archives_covered_by_members": 3,
+  "notion_pages_snapshotted": 2,
+  "notion_new_objects_created": 0,
+  "package_manifest": "ZIPのサイズ・SHA256は移行出力フォルダーの検証結果.jsonを参照"
+}

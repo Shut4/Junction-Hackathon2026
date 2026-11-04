@@ -127,6 +127,7 @@ struct CameraScreen:View {
                 }.padding(.horizontal,24).padding(.bottom,8).accessibilityElement(children:.contain).accessibilityIdentifier("cameraControls")
             }
         }
+        .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .animation(.easeOut(duration:0.2),value:top?.priority)
         // Spoken direction cues for the arrow, only while this screen is shown.
         .task { store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
@@ -137,17 +138,16 @@ struct CameraScreen:View {
     /// Full-width coloured bar: the single most important thing in large type, the route step below it while navigating.
     /// Tapping it reads the surroundings aloud; VoiceOver reads it first, with the other items as its value.
     private func topBar(top:SceneItem?,items:[SceneItem],tint:Color)->some View {
-        let title=top.map { $0.text.trimmingCharacters(in:CharacterSet(charactersIn:"。")) } ?? (store.camera.running ? "障害物なし":store.camera.status)
+        let title=top.map { $0.text.trimmingCharacters(in:CharacterSet(charactersIn:"。")) } ?? localized(store.camera.running ? "障害物なし":store.camera.status)
         return VStack(alignment:.leading,spacing:6) {
             Text(title).font(.system(size:40,weight:.bold)).minimumScaleFactor(0.5).lineLimit(2)
-            if store.navigating { Text(store.nextInstruction).font(.title3.weight(.semibold)).lineLimit(2).opacity(0.95) }
         }
         .foregroundStyle(.white).frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,24).padding(.top,12).padding(.bottom,22)
         // The coloured shape runs up under the status bar, like the reference design.
         .background { UnevenRoundedRectangle(bottomLeadingRadius:22,bottomTrailingRadius:22).fill(tint).ignoresSafeArea(edges:.top) }
         .contentShape(Rectangle()).onTapGesture { store.speakSurroundingsNow() }
         .accessibilityElement(children:.ignore).accessibilityLabel(title)
-        .accessibilityValue([store.navigating ? store.nextInstruction:nil,items.count > 1 ? "ほかに、"+items.dropFirst().map(\.text).joined():nil].compactMap { $0 }.joined(separator:" "))
+        .accessibilityValue(items.count > 1 ? localized("ほかに、{0}",items.dropFirst().map(\.text).joined(separator:" ")):"")
         .accessibilityHint("ダブルタップで周囲を読み上げます").accessibilityAddTraits([.isHeader,.updatesFrequently,.isButton])
         .accessibilityAction { store.speakSurroundingsNow() }.accessibilitySortPriority(10).accessibilityIdentifier("sceneBar")
     }
@@ -155,7 +155,7 @@ struct CameraScreen:View {
         VStack(alignment:.leading,spacing:4) {
             SceneList(items:items,limit:6)
             if !store.camera.running || store.camera.modelStatus == "未導入" { Text(store.camera.status).font(.subheadline).accessibilityIdentifier("cameraStatus") }
-            Text(store.positionState).font(.subheadline);Text("モデル："+store.camera.modelStatus).font(.subheadline)
+            if !store.positionState.isEmpty { Text(localized(store.positionState)).font(.subheadline) };Text(localized("モデル：{0}",localized(store.camera.modelStatus))).font(.subheadline)
             Text("距離・歩ける範囲は2つのカメラの深度からの概算です。足元と周囲を同行者と確認してください。").font(.caption)
         }.frame(maxWidth:.infinity,alignment:.leading).padding(12).foregroundStyle(.white).background(.black.opacity(0.55),in:RoundedRectangle(cornerRadius:16))
     }

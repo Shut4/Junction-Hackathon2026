@@ -42,7 +42,7 @@ extension AppStore {
         }
     }
     func inspectDroppedPin(_ coordinate:Coordinate) {
-        inspected=InspectedPlace(name:localized("ドロップしたピン"),category:String(format:"%.5f, %.5f",coordinate.latitude,coordinate.longitude),coordinate:coordinate,droppedPin:true,loading:true)
+        inspected=InspectedPlace(name:localized("ドロップしたピン"),category:nil,coordinate:coordinate,droppedPin:true,loading:true)
         let id=inspected?.id
         debugLog(.map,.info,"Pin dropped")
         Task {
@@ -80,17 +80,13 @@ struct PlaceCard:View {
                 HStack(spacing:8) {
                     Button { store.useInspectedAsDestination(calculateRoute:true) } label: { Label("経路",systemImage:"arrow.triangle.turn.up.right.diamond.fill").font(.headline).padding(.horizontal,16).frame(minHeight:44) }
                         .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!inBounds).accessibilityIdentifier("placeRoute")
-                    Button { store.useInspectedAsDestination(calculateRoute:false) } label: { Label("目的地にする",systemImage:"mappin.and.ellipse").font(.headline).padding(.horizontal,12).frame(minHeight:44) }
-                        .buttonStyle(.bordered).buttonBorderShape(.capsule).accessibilityIdentifier("placeSetDestination")
                     if let phone=place.mapItem?.phoneNumber,let url=URL(string:"tel:"+phone.filter { $0.isNumber || $0 == "+" }) { Link(destination:url) { Label("電話",systemImage:"phone.fill").padding(.horizontal,12).frame(minHeight:44) }.buttonStyle(.bordered).buttonBorderShape(.capsule) }
                     if let url=place.mapItem?.url { Link(destination:url) { Label("Webサイト",systemImage:"globe").padding(.horizontal,12).frame(minHeight:44) }.buttonStyle(.bordered).buttonBorderShape(.capsule) }
                     ShareLink(item:shareText) { Label("共有",systemImage:"square.and.arrow.up").padding(.horizontal,12).frame(minHeight:44) }.buttonStyle(.bordered).buttonBorderShape(.capsule)
-                    if let item=place.mapItem { Button { item.openInMaps() } label: { Label("マップで開く",systemImage:"map").padding(.horizontal,12).frame(minHeight:44) }.buttonStyle(.bordered).buttonBorderShape(.capsule) }
                 }
             }
             if place.loading { ProgressView("詳細を取得中").font(.caption) }
             if let address=place.address { Label(address,systemImage:"mappin.circle").font(.subheadline) }
-            Text(localized(inBounds ? "「経路」は選択中の地域の保存済み道路網の接続点までです。施設の開設・受入状況と入口は未確認です。":"保存済み道路網の範囲外のため表示のみです。経路案内はできません。")).font(.caption).foregroundStyle(.secondary)
         }
         .padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))
@@ -100,7 +96,7 @@ struct PlaceCard:View {
     private var detailLine:String {
         let distance=store.location.sample.map { Int($0.coordinate.distance(to:place.coordinate).rounded()) }
         let d=distance.map { $0>=1000 ? localized("約{0} km",String(format:"%.1f",Double($0)/1000)):localized("約{0} m",$0) }
-        return [d.map { localized("現在地から{0}",$0) },localized(inBounds ? "経路案内の対応範囲内":"対応範囲外")].compactMap { $0 }.joined(separator:localized("・"))
+        return [d.map { localized("現在地から{0}",$0) },inBounds ? nil:localized("対応範囲外")].compactMap { $0 }.joined(separator:localized("・"))
     }
     private var shareText:String { "\(place.name)\n\(place.address ?? "")\nhttps://maps.apple.com/?ll=\(place.coordinate.latitude),\(place.coordinate.longitude)&q=\(place.name.addingPercentEncoding(withAllowedCharacters:.urlQueryAllowed) ?? "")" }
 }

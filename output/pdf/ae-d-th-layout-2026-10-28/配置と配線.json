@@ -1,0 +1,310 @@
+{
+  "coordinate_origin": "original AE-D-TH top-left, mm, x right y down",
+  "board": "AE-D-TH left strip A-G; 7 columns x 17 rows minus G1/G17 = 117 usable holes",
+  "u1": {
+    "bounds": [
+      0.22,
+      0.259,
+      18.0,
+      21.214
+    ],
+    "pins": {
+      "D0": "A1",
+      "D1": "A2",
+      "D2": "A3",
+      "D3": "A4",
+      "D4": "A5",
+      "D5": "A6",
+      "D6": "A7",
+      "GND": "G2",
+      "3V3": "G3",
+      "D10": "G4",
+      "D9": "G5",
+      "D8": "G6",
+      "D7": "G7"
+    }
+  },
+  "u2": {
+    "bounds": [
+      -1.05,
+      23.5,
+      16.73,
+      48.9
+    ],
+    "pins": {
+      "VIN": "A12",
+      "GND": "A13",
+      "SCL": "A14",
+      "SDA": "A15",
+      "IN": "A16",
+      "OUT-": "F12",
+      "OUT+": "F16"
+    }
+  },
+  "wires": [
+    {
+      "id": "W01",
+      "net": "3V3",
+      "src": "U1.3V3",
+      "a": "G3",
+      "dst": "U2.VIN",
+      "b": "A12",
+      "color": "赤",
+      "path": [
+        [
+          16.73,
+          8.26
+        ],
+        [
+          15.46,
+          8.26
+        ],
+        [
+          15.46,
+          23.0
+        ],
+        [
+          8,
+          23.0
+        ],
+        [
+          8,
+          31.12
+        ],
+        [
+          1.49,
+          31.12
+        ]
+      ],
+      "route_mm": 38.1,
+      "cut_mm": 55
+    },
+    {
+      "id": "W02",
+      "net": "GND",
+      "src": "U1.GND",
+      "a": "G2",
+      "dst": "U2.GND",
+      "b": "A13",
+      "color": "黒",
+      "path": [
+        [
+          16.73,
+          5.720000000000001
+        ],
+        [
+          12.92,
+          5.72
+        ],
+        [
+          12.92,
+          24.4
+        ],
+        [
+          6.57,
+          24.4
+        ],
+        [
+          6.57,
+          33.66
+        ],
+        [
+          1.49,
+          33.660000000000004
+        ]
+      ],
+      "route_mm": 43.18,
+      "cut_mm": 60
+    },
+    {
+      "id": "W03",
+      "net": "SDA",
+      "src": "U1.D4",
+      "a": "A5",
+      "dst": "U2.SDA",
+      "b": "A15",
+      "color": "青",
+      "path": [
+        [
+          1.49,
+          13.34
+        ],
+        [
+          0.55,
+          13.34
+        ],
+        [
+          0.55,
+          38.74
+        ],
+        [
+          1.49,
+          38.74
+        ]
+      ],
+      "route_mm": 27.28,
+      "cut_mm": 40
+    },
+    {
+      "id": "W04",
+      "net": "SCL",
+      "src": "U1.D5",
+      "a": "A6",
+      "dst": "U2.SCL",
+      "b": "A14",
+      "color": "黄",
+      "path": [
+        [
+          1.49,
+          15.879999999999999
+        ],
+        [
+          2.54,
+          15.88
+        ],
+        [
+          2.54,
+          36.2
+        ],
+        [
+          1.49,
+          36.2
+        ]
+      ],
+      "route_mm": 22.42,
+      "cut_mm": 35
+    },
+    {
+      "id": "W05",
+      "net": "BUTTON",
+      "src": "U1.D1",
+      "a": "A2",
+      "dst": "SW1.接点a",
+      "b": "外付け",
+      "color": "緑",
+      "route_mm": null,
+      "cut_mm": null
+    },
+    {
+      "id": "W06",
+      "net": "GND",
+      "src": "U1.GND（XIAO上面）",
+      "a": "G2上面",
+      "dst": "SW1.接点b",
+      "b": "外付け",
+      "color": "黒",
+      "route_mm": null,
+      "cut_mm": null
+    },
+    {
+      "id": "W07",
+      "net": "BAT+",
+      "src": "U1.BAT+底面",
+      "a": "底面印字",
+      "dst": "J1.電池+実測側",
+      "b": "PH 2P",
+      "color": "赤",
+      "route_mm": null,
+      "cut_mm": null
+    },
+    {
+      "id": "W08",
+      "net": "BAT-",
+      "src": "U1.BAT-底面",
+      "a": "底面印字",
+      "dst": "J1.電池-実測側",
+      "b": "PH 2P",
+      "color": "黒",
+      "route_mm": null,
+      "cut_mm": null
+    },
+    {
+      "id": "W09",
+      "net": "OUT+",
+      "src": "U2.OUT+",
+      "a": "F16",
+      "dst": "LRA①",
+      "b": "外付け",
+      "color": "紫系",
+      "path": [
+        [
+          14.19,
+          41.28
+        ],
+        [
+          14.19,
+          46.6
+        ]
+      ],
+      "route_mm": 5.32,
+      "cut_mm": null
+    },
+    {
+      "id": "W10",
+      "net": "OUT-",
+      "src": "U2.OUT-",
+      "a": "F12",
+      "dst": "LRA②",
+      "b": "外付け",
+      "color": "紫系・印付き",
+      "path": [
+        [
+          14.19,
+          31.12
+        ],
+        [
+          12.9,
+          31.12
+        ],
+        [
+          12.9,
+          46.6
+        ]
+      ],
+      "route_mm": 16.77,
+      "cut_mm": null
+    }
+  ],
+  "sources": [
+    [
+      "AE-D-TH寸法図・穴配列",
+      "https://akizukidenshi.com/goodsaffix/ae-d-th.pdf"
+    ],
+    [
+      "AE-D-TH商品仕様",
+      "https://akizukidenshi.com/catalog/g/g111960/"
+    ],
+    [
+      "XIAO公式寸法・端子資料",
+      "https://wiki.seeedstudio.com/XIAO_BLE/#resources"
+    ],
+    [
+      "XIAO公式フットプリントZIP",
+      "https://files.seeedstudio.com/wiki/XIAO-KiCad-Library/New_XIAO_Series_Footprints.zip"
+    ],
+    [
+      "DRV2605L公式STEMMA QT基板データ",
+      "https://github.com/adafruit/Adafruit-DRV2605-PCB"
+    ],
+    [
+      "DRV2605L公式端子説明",
+      "https://learn.adafruit.com/adafruit-drv2605-haptic-controller-breakout/pinouts"
+    ],
+    [
+      "PH 2mmコネクター",
+      "https://akizukidenshi.com/catalog/g/g112802/"
+    ],
+    [
+      "スイッチ端子図",
+      "https://akizukidenshi.com/goodsaffix/TVDP01-060CR.pdf"
+    ],
+    [
+      "LRA端子図の掲載ページ",
+      "https://akizukidenshi.com/catalog/g/g106838/"
+    ],
+    [
+      "AWG26配線材",
+      "https://akizukidenshi.com/catalog/g/g118293/"
+    ]
+  ]
+}

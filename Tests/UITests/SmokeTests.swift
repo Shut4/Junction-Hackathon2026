@@ -42,6 +42,25 @@ final class SmokeTests:XCTestCase {
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
+ @MainActor func testCaneStatusStaysInSettingsWithoutPersistentMapBadge() throws {
+  let app=launchMap()
+  XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+  XCTAssertFalse(app.otherElements["caneConnectionNotice"].exists)
+  app.buttons["設定"].firstMatch.tap()
+  let status=app.staticTexts["caneConnectionStatus"]
+  XCTAssertTrue(status.waitForExistence(timeout:5))
+  XCTAssertEqual(status.label,"未接続")
+  let scan=app.buttons["scanCane"];reach(scan,app:app)
+  XCTAssertTrue(scan.isHittable)
+  XCTAssertFalse(app.buttons["disconnectCane"].exists)
+  attach(app,"Cane-connection-settings-disconnected")
+  app.buttons["完了"].tap()
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+  app.buttons["全面カメラで案内"].tap()
+  XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+ }
  @MainActor func testTobataDestinationAndRoutePreview() throws {
   let app=launchMap(developer:true,networkID:"tobata-ground-osm")
   XCTAssertTrue(app.buttons["九工大前駅付近・実験接続点を目的地にする"].waitForExistence(timeout:10))
@@ -252,7 +271,16 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.otherElements["instructionBanner"].waitForExistence(timeout:10));XCTAssertTrue(app.otherElements["navigationMap"].exists)
   XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","徒歩目安")).firstMatch.waitForExistence(timeout:10))
   attach(app,"Map-navigation")
+  for removed in ["再読み上げ","経路一覧"] { XCTAssertFalse(app.buttons[removed].exists,removed) }
+  // Map navigation → camera guidance → back to the map.
   app.buttons["navSwitchCamera"].tap()
+  XCTAssertTrue(app.otherElements["arDirection"].waitForExistence(timeout:10))
+  app.buttons["switchToMapNavigation"].tap();XCTAssertTrue(app.otherElements["navigationMap"].waitForExistence(timeout:5))
+  // Camera guidance can also start from the route preview.
+  app.buttons["endNavigation"].tap();app.buttons["案内を終了"].tap()
+  app.buttons["通行不可を避ける経路を確認"].tap()
+  let startCamera=app.buttons["startCameraNavigation"];XCTAssertTrue(startCamera.waitForExistence(timeout:10))
+  startCamera.tap();app.buttons["確認して全面カメラで案内開始"].tap()
   XCTAssertTrue(app.otherElements["arDirection"].waitForExistence(timeout:10))
   XCTAssertTrue(app.buttons["switchToMapNavigation"].exists)
   attach(app,"Camera-navigation-AR-arrow")
@@ -294,9 +322,7 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.otherElements["placeCard"].waitForExistence(timeout:5),"search result opens the place card like Google Maps")
   XCTAssertFalse(app.buttons["placeRoute"].isEnabled,"outside the stored network the route button is disabled")
   attach(app,"Place-card-search-result")
-  app.buttons["placeSetDestination"].tap()
-  XCTAssertTrue(app.staticTexts["選択した目的地は経路案内の対応範囲外です"].waitForExistence(timeout:5))
-  XCTAssertFalse(app.buttons["通行不可を避ける経路を確認"].isEnabled)
+  XCTAssertFalse(app.buttons["placeSetDestination"].exists,"「目的地にする」 was removed; out-of-range places cannot become destinations")
  }
  @MainActor func testMapTapRoadSelectionIsDefault() throws {
   let app=launchMap();app.buttons["通行不可を登録"].tap()
@@ -345,9 +371,9 @@ final class SmokeTests:XCTestCase {
   map.coordinate(withNormalizedOffset:CGVector(dx:0.25,dy:0.38)).press(forDuration:1.0)
   XCTAssertTrue(app.otherElements["placeCard"].waitForExistence(timeout:5))
   add(XCTAttachment(string:app.staticTexts["placeName"].label))
-  for id in ["placeRoute","placeSetDestination","closePlace"] { XCTAssertTrue(app.buttons[id].exists,id) }
+  for id in ["placeRoute","closePlace"] { XCTAssertTrue(app.buttons[id].exists,id) }
   attach(app,"Place-card-dropped-pin")
-  app.buttons["placeSetDestination"].tap()
-  XCTAssertFalse(app.otherElements["placeCard"].exists);XCTAssertTrue(app.buttons["通行不可を避ける経路を確認"].waitForExistence(timeout:5))
+  app.buttons["placeRoute"].tap()
+  XCTAssertFalse(app.otherElements["placeCard"].exists)
  }
 }

@@ -1,0 +1,68 @@
+{
+  "drawing": "CV-001",
+  "revision": "A",
+  "tool": "Schemdraw 0.23 + ReportLab",
+  "date": "2026-10-21",
+  "pages": 3,
+  "nets": {
+    "VBAT": [
+      "BT1 protected + via J1",
+      "U2.BAT+",
+      "U1.5 VIN",
+      "C1.1",
+      "C3.1",
+      "SW1.RUN"
+    ],
+    "GND": [
+      "BT1 protected - via J1",
+      "U2.BAT-/GND",
+      "U1.2",
+      "C1.2",
+      "C2.2",
+      "C3.2",
+      "C4.2",
+      "Q1.1 S1",
+      "R2.2",
+      "Q1.4 S2",
+      "Q1.5 G2",
+      "SW1.MUTE"
+    ],
+    "VMOTOR": [
+      "U1.4 VOUT",
+      "M1.+",
+      "C2.1",
+      "C4.1",
+      "D2.K"
+    ],
+    "MOTOR_N": [
+      "M1.-",
+      "Q1.6 D1",
+      "D2.A"
+    ],
+    "GPIO_MOTOR": [
+      "U2.D1 P0.03",
+      "R1.1"
+    ],
+    "GATE": [
+      "R1.2",
+      "Q1.2 G1",
+      "R2.1"
+    ],
+    "MOTOR_ENABLE": [
+      "SW1.COM",
+      "U1.1 CONTROL"
+    ],
+    "NO_CONNECT": [
+      "U1.3",
+      "Q1.3 D2"
+    ],
+    "USB": [
+      "J2 external USB cable -> U2 USB-C, onboard charger"
+    ]
+  },
+  "validation": "pin mapping and netlist assertions; PDF text and page count checked",
+  "erc_run": false,
+  "simulation_run": false,
+  "hardware_tested": false,
+  "not_purchased": true
+}

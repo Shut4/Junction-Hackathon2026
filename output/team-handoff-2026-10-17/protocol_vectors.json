@@ -1,0 +1,151 @@
+{
+  "status": "specification fixtures only; no app or firmware test run",
+  "commands": [
+    {
+      "name": "clear",
+      "hex": "01 00 00 00 E8 03 FF FF 00 00",
+      "expect": "accept",
+      "decoded": {
+        "version": 1,
+        "state": 0,
+        "sequence": 0,
+        "ttl_ms": 1000,
+        "distance_mm": 65535,
+        "flags": 0,
+        "reserved": 0
+      }
+    },
+    {
+      "name": "caution",
+      "hex": "01 01 01 00 E8 03 FC 08 00 00",
+      "expect": "accept",
+      "decoded": {
+        "version": 1,
+        "state": 1,
+        "sequence": 1,
+        "ttl_ms": 1000,
+        "distance_mm": 2300,
+        "flags": 0,
+        "reserved": 0
+      }
+    },
+    {
+      "name": "danger",
+      "hex": "01 02 02 00 E8 03 DC 05 00 00",
+      "expect": "accept",
+      "decoded": {
+        "version": 1,
+        "state": 2,
+        "sequence": 2,
+        "ttl_ms": 1000,
+        "distance_mm": 1500,
+        "flags": 0,
+        "reserved": 0
+      }
+    },
+    {
+      "name": "unavailable",
+      "hex": "01 03 03 00 E8 03 FF FF 00 00",
+      "expect": "accept",
+      "decoded": {
+        "version": 1,
+        "state": 3,
+        "sequence": 3,
+        "ttl_ms": 1000,
+        "distance_mm": 65535,
+        "flags": 0,
+        "reserved": 0
+      }
+    },
+    {
+      "name": "manual_danger",
+      "hex": "01 02 04 00 E8 03 DC 05 02 00",
+      "expect": "accept",
+      "decoded": {
+        "version": 1,
+        "state": 2,
+        "sequence": 4,
+        "ttl_ms": 1000,
+        "distance_mm": 1500,
+        "flags": 2,
+        "reserved": 0
+      }
+    },
+    {
+      "name": "measured_floor_danger",
+      "hex": "01 02 05 00 E8 03 DC 05 01 00",
+      "expect": "accept",
+      "decoded": {
+        "version": 1,
+        "state": 2,
+        "sequence": 5,
+        "ttl_ms": 1000,
+        "distance_mm": 1500,
+        "flags": 1,
+        "reserved": 0
+      }
+    },
+    {
+      "name": "invalid_length",
+      "hex": "01 02 06 00 E8 03 FF FF 00",
+      "expect": "reject; do not change state or renew expiry"
+    },
+    {
+      "name": "invalid_version",
+      "hex": "02 02 06 00 E8 03 FF FF 00 00",
+      "expect": "reject; do not change state or renew expiry"
+    },
+    {
+      "name": "invalid_state",
+      "hex": "01 04 06 00 E8 03 FF FF 00 00",
+      "expect": "reject; do not change state or renew expiry"
+    },
+    {
+      "name": "invalid_ttl",
+      "hex": "01 02 06 00 00 00 FF FF 00 00",
+      "expect": "reject; do not change state or renew expiry"
+    },
+    {
+      "name": "invalid_flags",
+      "hex": "01 02 06 00 E8 03 FF FF 80 00",
+      "expect": "reject; do not change state or renew expiry"
+    },
+    {
+      "name": "invalid_reserved",
+      "hex": "01 02 06 00 E8 03 FF FF 00 01",
+      "expect": "reject; do not change state or renew expiry"
+    },
+    {
+      "name": "duplicate",
+      "previous_sequence": 7,
+      "hex": "01 02 07 00 E8 03 DC 05 00 00",
+      "expect": "duplicate; no expiry renewal"
+    },
+    {
+      "name": "old",
+      "previous_sequence": 7,
+      "hex": "01 02 06 00 E8 03 DC 05 00 00",
+      "expect": "old; no expiry renewal"
+    },
+    {
+      "name": "wrap",
+      "previous_sequence": 65535,
+      "hex": "01 02 00 00 E8 03 DC 05 00 00",
+      "expect": "accept"
+    }
+  ],
+  "status_examples": [
+    {
+      "name": "danger_gpio_high",
+      "hex": "01 02 00 01 02 00 40 E2 01 00",
+      "decoded": {
+        "version": 1,
+        "applied_state": 2,
+        "error_flags": 0,
+        "gpio_level": 1,
+        "last_sequence": 2,
+        "uptime_ms": 123456
+      }
+    }
+  ]
+}
