@@ -27,6 +27,8 @@
 	<string>4</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>XIAO搭載の白杖に障害物の危険度を送り、通信状態を受信します。</string>
 	<key>NSCameraUsageDescription</key>
 	<string>背面カメラから障害物候補を端末内で検出します。画像は保存・送信しません。</string>
 	<key>NSLocationWhenInUseUsageDescription</key>

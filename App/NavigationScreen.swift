@@ -31,6 +31,7 @@ struct NavigationModeScreen:View {
                 }.padding(.horizontal,12).padding(.vertical,6)
             }
         }
+        .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
         .confirmationDialog("案内・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }

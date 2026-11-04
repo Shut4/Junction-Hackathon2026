@@ -7,6 +7,7 @@ struct SettingsScreen:View {
     @AppStorage("tutorialStep") private var tutorialStep=0
     var body:some View { List {
         Section("使い方・権限") { Button("チュートリアルを確認") { tutorialStep=0;tutorialComplete=false;store.pause() };Button("iOSの権限設定を開く") { openAppSettings() };Text("位置情報とカメラの許可はアプリの利用に必要です。通知は任意で、許可しなくてもアプリ内音声は使えます。") }
+        CaneBluetoothSection(bluetooth:store.cane,showDiagnostics:store.developer)
         Section("カメラ案内") { Toggle("矢印の方向を音声で案内",isOn:$store.speakDirection).accessibilityIdentifier("toggleSpeakDirection");Text("カメラ案内中、進む方向（正面・左右・後ろ）が変わると読み上げます。方位は概算です。").font(.caption)
             Toggle("頭の高さの障害物を知らせる",isOn:$store.headLevelWarnings).accessibilityIdentifier("toggleHeadLevel");Text("カメラ案内中、白杖が届かない胸・頭の高さ（約1〜2m）で前方2m以内の物を、2つのカメラの深度から検出し、音声と振動で知らせます。暗い場所・ガラス・模様のない壁では検出できないことがあります。").font(.caption)
             Toggle("歩ける範囲・段差を知らせる",isOn:$store.walkableWarnings).accessibilityIdentifier("toggleWalkable");Text("正面がふさがっているときに左右どちらへ避けられるか、下り段差、歩ける幅の狭さ、左右の端への接近を、深度から判定して知らせます。").font(.caption)
@@ -24,6 +25,7 @@ struct SettingsScreen:View {
         if store.developer { Section { NavigationLink("DeveloperModeを開く") { DeveloperScreen() };Button("DeveloperModeを終了") { store.closeDeveloper() } } }
         Section { Button { store.tapVersion() } label: { Text("バージョン情報 0.4").font(.footnote).foregroundStyle(.secondary).frame(minHeight:44) }.accessibilityLabel(localized("バージョン情報 0.4")).accessibilityIdentifier("versionInfo").accessibilityHint(localized("3秒以内の間隔で7回操作するとアプリ内DeveloperModeを有効にします")) }
     }.navigationTitle("設定")
+    .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
     .confirmationDialog("選んだ報告を解除し、経路検索でこの区間を再び候補に含めます。同じ区間に他の報告があれば除外を継続します。",isPresented:Binding(get:{deleteReport != nil},set:{if !$0 {deleteReport=nil}}),titleVisibility:.visible) { Button("この報告を解除",role:.destructive) { if let r=deleteReport { store.remove(r.id) };deleteReport=nil };Button("取消",role:.cancel) { deleteReport=nil } }
     }
 }

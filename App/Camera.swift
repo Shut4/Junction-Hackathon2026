@@ -102,7 +102,9 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             }
         }
         let gravity=SIMD3(Float(g.x),Float(g.y),Float(g.z))
-        let result=HeadLevelGeometry.evaluate(points:points,gravity:gravity,cameraHeight:cameraHeight,config:headLevelConfig,walkable:walkableConfig)
+        guard points.count >= headLevelConfig.minPoints else { headLevel?(nil,"有効な深度が不足しています");return }
+        var result=HeadLevelGeometry.evaluate(points:points,gravity:gravity,cameraHeight:cameraHeight,config:headLevelConfig,walkable:walkableConfig)
+        result.capturedAt=now
         // The measured floor lets the video queue reject "steps" etc. that float above the ground.
         let snapshot=DepthGrid(values:grid,columns:columns,rows:rows,step:step,fx:fx,fy:fy,cx:cx,cy:cy,gravity:gravity,time:now,floor:result.floorMeasured ? result.floor:nil)
         latestDepth.withLock { $0=snapshot }
@@ -163,6 +165,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     /// Walkable ground from the latest depth frame (nil when depth is unavailable).
     @Published var walkable:WalkableProfile?
     var onDepth: ((HeadLevelResult,Double)->Void)?
+    var onDepthUnavailable: (()->Void)?
     private var sessionGeneration=0
     /// Field of view of the sensor's long side in degrees. The portrait aspect-fill preview shows that side as the full screen height.
     /// Uses the camera actually in the session (the dual wide virtual camera when depth is on) and its zoom.
@@ -182,8 +185,8 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             Task { @MainActor in
                 guard let self else { return }
                 self.depthStatus=status
-                guard self.running,let result else { return }
-                self.headLevel=result.hit;self.walkable=result.walkable;self.onDepth?(result,ProcessInfo.processInfo.systemUptime)
+                guard self.running,let result else { self.onDepthUnavailable?();return }
+                self.headLevel=result.hit;self.walkable=result.walkable;self.onDepth?(result,result.capturedAt)
             }
         }
     }

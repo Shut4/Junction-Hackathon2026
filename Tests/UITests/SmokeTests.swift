@@ -42,6 +42,25 @@ final class SmokeTests:XCTestCase {
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
+ @MainActor func testCaneStatusStaysInSettingsWithoutPersistentMapBadge() throws {
+  let app=launchMap()
+  XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+  XCTAssertFalse(app.otherElements["caneConnectionNotice"].exists)
+  app.buttons["設定"].firstMatch.tap()
+  let status=app.staticTexts["caneConnectionStatus"]
+  XCTAssertTrue(status.waitForExistence(timeout:5))
+  XCTAssertEqual(status.label,"未接続")
+  let scan=app.buttons["scanCane"];reach(scan,app:app)
+  XCTAssertTrue(scan.isHittable)
+  XCTAssertFalse(app.buttons["disconnectCane"].exists)
+  attach(app,"Cane-connection-settings-disconnected")
+  app.buttons["完了"].tap()
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+  app.buttons["全面カメラで案内"].tap()
+  XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+ }
  @MainActor func testTobataDestinationAndRoutePreview() throws {
   let app=launchMap(developer:true,networkID:"tobata-ground-osm")
   XCTAssertTrue(app.buttons["九工大前駅付近・実験接続点を目的地にする"].waitForExistence(timeout:10))

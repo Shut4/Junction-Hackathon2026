@@ -41,6 +41,7 @@ struct HomeScreen:View {
                 }.padding(.top,4)
             }
         }
+        .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .toolbar(.hidden,for:.navigationBar)
         .onChange(of:store.targetName) { _,_ in destinationPanelCollapsed=false }
         .onChange(of:searchFocused) { _,focused in if focused { searchOpen=true } }
@@ -185,8 +186,7 @@ struct HomeScreen:View {
                 if let error=store.storageError {
                     VStack(alignment:.leading,spacing:6) {
                         Label(localized(error),systemImage:"exclamationmark.triangle.fill").font(.subheadline.bold()).foregroundStyle(.red)
-                        if store.storageIncompatible { Text("道路データを更新したため、以前の報告を確認するまで経路案内を保留しています。").font(.caption) }
-                        Button(store.storageIncompatible ? "設定で報告の引き継ぎを確認":"設定で報告の状態を確認") { settings=true }.buttonStyle(.bordered).accessibilityIdentifier("openStorageSettings")
+                        Button("設定で報告の状態を確認") { settings=true }.buttonStyle(.bordered).accessibilityIdentifier("openStorageSettings")
                     }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.red.opacity(0.1),in:RoundedRectangle(cornerRadius:14))
                 }
                 Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader)

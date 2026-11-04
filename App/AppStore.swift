@@ -67,13 +67,21 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var speakDirection:Bool { didSet { UserDefaults.standard.set(speakDirection,forKey:"speakDirection");directionAnnouncer.reset() } }
     var directionAnnouncer=DirectionAnnouncer()
     /// Spoken and haptic warnings for chest/head-height obstacles from the camera depth (user setting).
-    @Published var headLevelWarnings:Bool { didSet { UserDefaults.standard.set(headLevelWarnings,forKey:"headLevelWarnings");headLevelAnnouncer.reset() } }
+    @Published var headLevelWarnings:Bool { didSet { UserDefaults.standard.set(headLevelWarnings,forKey:"headLevelWarnings");headLevelAnnouncer.reset();invalidateCaneDetection() } }
     var headLevelAnnouncer=HeadLevelAnnouncer()
     /// Hazard warning beeps and the navigation chime, switched separately (user settings). Hazard vibration stays on either way.
     @Published var hazardSounds:Bool { didSet { UserDefaults.standard.set(hazardSounds,forKey:"hazardSounds");EarconPlayer.shared.hazardEnabled=hazardSounds } }
     /// Seconds between repeated 「直進です。」 while the route is straight ahead (0 = off). DeveloperMode setting.
     @Published var straightInterval:Double { didSet { UserDefaults.standard.set(straightInterval,forKey:"dev.straightInterval") } }
     private var lastStraight = -Double.infinity
+    /// Last high/critical hazard warning; 「直進です。」 is held back for `hazardQuiet` seconds after it so "stop" and "go straight" never follow each other.
+    private var lastHazard = -Double.infinity
+    private let hazardQuiet = 5.0
+    private func warnHazard(_ priority:SpeechPriority) {
+        AlertFeedback.hazard(priority)
+        if priority >= .high { lastHazard=ProcessInfo.processInfo.systemUptime }
+    }
+    private var hazardActive:Bool { ProcessInfo.processInfo.systemUptime-lastHazard < hazardQuiet }
     /// DeveloperMode tuning of warning sounds and vibration, persisted like the other tuning values.
     @Published var feedbackTuning:FeedbackTuning { didSet { save(feedbackTuning,"dev.feedbackTuning");EarconPlayer.shared.tuning=feedbackTuning } }
     /// Navigation speech: words only (no sound effect, no vibration), so beeps and vibration always mean a hazard.
@@ -127,6 +135,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     let speech = SpeechController()
     let location = LocationController()
     let camera = CameraController()
+    let cane = CaneBluetooth()
+    var caneDetection = CaneDetectionState()
     var persistence: ReportStore
     var simulatedPersistence: ReportStore
     private var subscriptions = Set<AnyCancellable>()
@@ -153,6 +163,15 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var activeStore:ReportStore { simulated ? simulatedPersistence:persistence }
     init() {
         let defaults=UserDefaults.standard
+        // Update previously saved default distances once; retain other tuning and custom distances.
+        if defaults.integer(forKey:"dev.warningDistanceDefaultsRevision") < 1 {
+            for key in ["dev.headLevelConfig","dev.noticeTuning","dev.walkableTiming"] {
+                if let data=defaults.data(forKey:key),let migrated=WarningDistanceDefaults.migrated(data,forKey:key) {
+                    defaults.set(migrated,forKey:key)
+                }
+            }
+            defaults.set(1,forKey:"dev.warningDistanceDefaultsRevision")
+        }
         automaticNetworkSelection=defaults.object(forKey:"automaticNetworkSelection") as? Bool ?? true
         showBoxes=defaults.bool(forKey:"dev.showBoxes");showBoxLabels=defaults.object(forKey:"dev.showBoxLabels") as? Bool ?? true
         boxMinConfidence=defaults.object(forKey:"dev.boxMinConfidence") as? Double ?? 0.3;showARArrow=defaults.object(forKey:"dev.showARArrow") as? Bool ?? true
@@ -186,7 +205,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             debugLog(.storage,.success,"Road network loaded",["count":networks.count,"active":data.id,"loadMs":Int(Date().timeIntervalSince(started)*1000)])
         } catch { networkError=error.localizedDescription;debugLog(.storage,.error,"Road network failed",["error":error.localizedDescription]) }
         location.$sample.sink { [weak self] _ in Task { @MainActor in self?.updatePosition() } }.store(in:&subscriptions)
-        for publisher in [location.objectWillChange.eraseToAnyPublisher(),speech.objectWillChange.eraseToAnyPublisher(),camera.objectWillChange.eraseToAnyPublisher()] {
+        for publisher in [location.objectWillChange.eraseToAnyPublisher(),speech.objectWillChange.eraseToAnyPublisher(),camera.objectWillChange.eraseToAnyPublisher(),cane.objectWillChange.eraseToAnyPublisher()] {
             publisher.sink { [weak self] _ in self?.objectWillChange.send() }.store(in:&subscriptions)
         }
         Timer.publish(every:1,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.updatePosition() }.store(in:&subscriptions)
@@ -194,18 +213,33 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             guard let self else { return }
             speech.say(n.text,priority:n.priority,capturedAt:n.capturedAt)
             // Only hazards beep (and vibrate when high/critical); landmarks and surroundings are speech only.
-            if n.hazard { AlertFeedback.hazard(n.priority) }
+            if n.hazard { warnHazard(n.priority) }
         }
         camera.onMetric = { [weak self] event in self?.record(event) }
         EarconPlayer.shared.hazardEnabled=hazardSounds;EarconPlayer.shared.tuning=feedbackTuning
         camera.engine.setCameraHeight(arrowCameraHeight);camera.engine.setHeadLevelConfig(headLevelConfig);headLevelAnnouncer.timing=headLevelTiming
         noticeTuning.apply(to:&camera.filter);camera.filter.minimumTier=speakSurroundings ? .context:.landmark
         camera.engine.setWalkableConfig(walkableConfig);camera.engine.setDepthCheck(depthCheck);walkableAnnouncer=WalkableAnnouncer(config:walkableConfig,timing:walkableTiming)
+        cane.onConnectionNotice = { [weak self] text in self?.speech.say(text,priority:.normal,route:false,ttl:5) }
+        cane.source = { [weak self] in
+            guard let self else { return CaneCommand() }
+            return caneDetection.current(now:ProcessInfo.processInfo.systemUptime,
+                enabled:headLevelWarnings && camera.running && guidanceActive && guidanceMode == .camera)
+        }
+        camera.onDepthUnavailable = { [weak self] in self?.invalidateCaneDetection() }
+        camera.$running.dropFirst().sink { [weak self] running in
+            if !running { self?.invalidateCaneDetection() }
+        }.store(in:&subscriptions)
         camera.onDepth = { [weak self] result,now in
             guard let self else { return }
+            if headLevelWarnings && camera.running && guidanceActive && guidanceMode == .camera {
+                let state: CaneState = result.walkable == nil ? .unavailable : result.hit.map { $0.stage == .danger ? .danger:.caution } ?? .clear
+                caneDetection.update(state:state,distance:result.hit?.distance,floorMeasured:result.floorMeasured,capturedAt:now,now:ProcessInfo.processInfo.systemUptime)
+                cane.sendLatest()
+            } else { invalidateCaneDetection() }
             // Walkable-ground cues; the head-level warning below is more specific about the same obstacle.
             if walkableWarnings,let cue=walkableAnnouncer.update(result.walkable,headLevel:headLevelWarnings && result.hit != nil,now:now) {
-                speech.say(cue.text,priority:cue.priority,capturedAt:now);AlertFeedback.hazard(cue.priority)
+                speech.say(cue.text,priority:cue.priority,capturedAt:now);warnHazard(cue.priority)
                 debugLog(.camera,.info,"Walkable cue",["priority":"\(cue.priority)","text":cue.text])
             }
             let hit=result.hit
@@ -214,14 +248,32 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             if let hit,headLevelConfig.buzzerDistance > 0,hit.distance <= headLevelConfig.buzzerDistance { EarconPlayer.shared.play(.buzzer(seconds:0.25)) }
             guard let warning=headLevelAnnouncer.update(hit,now:now) else { return }
             let level:SpeechPriority=warning.stage == .danger ? .critical:.high
-            speech.say(warning.text,priority:level,capturedAt:now);AlertFeedback.hazard(level)
+            speech.say(warning.text,priority:level,capturedAt:now);warnHazard(level)
             debugLog(.camera,.info,"Head-level obstacle",["stage":warning.stage == .danger ? "danger":"caution","distanceM":hit.map { String(format:"%.2f",$0.distance) },"lateralM":hit.map { String(format:"%.2f",$0.lateral) },"heightM":hit.map { String(format:"%.2f",$0.height) },"points":hit?.count])
         }
         speech.onMetric = { [weak self] event in self?.record(event) }
     }
     func loadReports(from store:ReportStore,network:Network) {
         do { reports=try store.load(network:network);storageError=nil;storageIncompatible=false;debugLog(.storage,.success,"Reports loaded",["count":reports.count,"simulated":store === simulatedPersistence,"network":network.id]) }
-        catch { storageError=error.localizedDescription;storageIncompatible=(error as? CoreError) == .incompatibleReports;debugLog(.storage,.error,"Reports could not be loaded",["error":error.localizedDescription,"incompatible":storageIncompatible]) }
+        catch let error as CoreError where error == .incompatibleReports {
+            // Road data was updated: carry the reports over automatically instead of holding guidance.
+            autoMigrateReports(store:store,network:network)
+        }
+        catch { storageError=error.localizedDescription;storageIncompatible=false;debugLog(.storage,.error,"Reports could not be loaded",["error":error.localizedDescription]) }
+    }
+    /// After a road data update, keeps reports whose segment still exists and saves them for the new version.
+    /// The previous file is archived first (never deleted). Only if that fails does the manual screen in Settings appear.
+    private func autoMigrateReports(store:ReportStore,network:Network) {
+        do {
+            let preview=try store.migrationPreview(network:network)
+            let backup=try store.archive(label:"auto-migration")
+            try store.save(preview.kept,network:network)
+            reports=preview.kept;storageError=nil;storageIncompatible=false
+            debugLog(.storage,.success,"Reports migrated automatically after road data update",["kept":preview.kept.count,"dropped":preview.dropped.count,"backup":backup?.lastPathComponent,"network":network.id])
+        } catch {
+            storageError=nil;storageIncompatible=true
+            debugLog(.storage,.error,"Automatic report migration failed",["error":error.localizedDescription])
+        }
     }
     private func activate(_ data:Network,remember:Bool=true,focus:Bool=true) {
         if network?.id == data.id { return }
@@ -383,6 +435,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         // Hold reasons (e.g. poor heading accuracy) are not spoken: the arrow simply disappears.
         guard let text=directionAnnouncer.update(angle:angle,reason:"",now:ProcessInfo.processInfo.systemUptime),!text.isEmpty else { return }
         // Short lifetime: a queued cue that is already stale must not be spoken after the user has turned.
+        if text == DirectionBucket.ahead.phrase && hazardActive { return }
         sayNavigation(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":angle.map { Int($0.rounded()) },"text":text])
     }
     func updatePosition() {
@@ -438,9 +491,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let straight=bucket == nil || bucket == .ahead
         nextInstruction=straight ? DirectionBucket.ahead.phrase:bucket!.phrase
         let now=ProcessInfo.processInfo.systemUptime
-        if straight,straightInterval > 0,now-lastStraight >= straightInterval { sayNavigation(DirectionBucket.ahead.phrase,ttl:straightInterval) }
+        if straight,!hazardActive,straightInterval > 0,now-lastStraight >= straightInterval { sayNavigation(DirectionBucket.ahead.phrase,ttl:straightInterval) }
     }
     private func hold(_ text:String) { nextInstruction=text;if !text.isEmpty,lastSpoken != text { speech.invalidateRoute();speech.say(text);lastSpoken=text;debugLog(.navigation,.warning,"Guidance held",["reason":text]) } }
     func record(_ event:MetricEvent) { if metrics.count>=2000 { metrics.removeFirst();droppedMetrics += 1 };metrics.append(event) }
-    func pause() { debugLog(.lifecycle,.info,"Moved to background: guidance, camera and location stopped",["navigating":navigating]);stopNavigation();camera.stop();location.stop();simulationTask?.cancel();guidanceActive=false }
+    func invalidateCaneDetection() { caneDetection.reset();cane.invalidateDetection() }
+    func pause() { cane.disconnect();caneDetection.reset(); debugLog(.lifecycle,.info,"Moved to background: guidance, camera and location stopped",["navigating":navigating]);stopNavigation();camera.stop();location.stop();simulationTask?.cancel();guidanceActive=false }
 }
