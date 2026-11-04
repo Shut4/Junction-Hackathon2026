@@ -33,6 +33,23 @@ public enum Geometry {
         }
         return best
     }
+    /// The part of a polyline between two normalized positions, preserving intermediate vertices and direction.
+    public static func slice(_ shape:[Coordinate],from startFraction:Double,to endFraction:Double)->[Coordinate] {
+        guard shape.count>1 else { return shape }
+        let total=length(shape)
+        guard total>0,total.isFinite else { return [shape[0]] }
+        let start=min(1,max(0,startFraction)),end=min(1,max(0,endFraction))
+        if start>end { return Array(slice(shape,from:end,to:start).reversed()) }
+        let startDistance=start*total,endDistance=end*total
+        var result=[point(along:shape,at:startDistance).coordinate],walked=0.0
+        for (index,segment) in zip(shape,shape.dropFirst()).enumerated() {
+            walked += segment.0.distance(to:segment.1)
+            if index+1 < shape.count-1,walked>startDistance,walked<endDistance { result.append(shape[index+1]) }
+        }
+        let last=point(along:shape,at:endDistance).coordinate
+        if result.last != last { result.append(last) }
+        return result
+    }
 }
 public struct MatchCandidate: Identifiable, Sendable { public var id: String; public var distance: Double }
 public struct RoadSelectionResult: Sendable { public var edgeIDs: [String]; public var candidates: [MatchCandidate]; public var ambiguous: Bool; public var message: String }

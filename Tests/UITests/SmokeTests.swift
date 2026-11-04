@@ -20,7 +20,7 @@ final class SmokeTests:XCTestCase {
   guard let alert else { return }
   let labels=allow ? ["Appの使用中は許可","アプリの使用中は許可","Allow While Using App","許可","Allow","OK"]:["許可しない","Don't Allow","Don’t Allow"]
   for label in labels {
-   let button=alert.buttons[label]
+   let button=alert.buttons[label].firstMatch
    if button.exists { button.tap();return }
   }
   XCTFail("許可ダイアログの選択肢を見つけられません: \(alert.buttons.allElementsBoundByIndex.map { $0.label })")
@@ -35,10 +35,11 @@ final class SmokeTests:XCTestCase {
   }
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
- @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,networkID:String="kokura-ground-osm")->XCUIApplication {
+ @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm")->XCUIApplication {
   let app=XCUIApplication();app.launchArguments=["-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
+  if simulated { app.launchArguments += ["--simulate-position"] }
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
@@ -72,6 +73,18 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(matched.waitForExistence(timeout:15),"戸畑の模擬位置を道路に照合できること")
   app.buttons["通行不可を避ける経路を確認"].tap()
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10))
+ }
+ @MainActor func testShinzutsumiParkCoordinateReachesRoutePreview() throws {
+  let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
+
+  let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap();query.typeText("33.89800372649751,130.84239911645375")
+  let coordinateSearch=app.buttons["destinationSearchButton"];XCTAssertTrue(coordinateSearch.waitForExistence(timeout:5));coordinateSearch.tap()
+  let connection=app.buttons["destinationConnection.osm:166677343:1781302633:1781302616"]
+  XCTAssertTrue(connection.waitForExistence(timeout:10),"新堤公園から約23mの道路区間が案内終点候補になること")
+  connection.tap()
+  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","約23 m")).firstMatch.waitForExistence(timeout:5))
+  let routeButton=app.buttons["通行不可を避ける経路を確認"];XCTAssertTrue(routeButton.isEnabled);routeButton.tap()
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15),"新堤公園を目的地としてルート案内開始まで進めること")
  }
  @MainActor func testTobataRouteRecalculatesAfterClosureAndRemoval() throws {
   let app=launchMap(developer:true,networkID:"tobata-ground-osm")

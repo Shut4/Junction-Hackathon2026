@@ -4,7 +4,7 @@ import MapKit
 enum GuideMapMode { case explore,report,navigation }
 
 final class GuidePin: MKPointAnnotation {
-    enum Kind { case target,blocked,simulated,dropped }
+    enum Kind { case target,endpoint,blocked,simulated,dropped }
     var kind:Kind
     var segmentID:String?
     init(kind:Kind,segmentID:String? = nil) { self.kind=kind;self.segmentID=segmentID;super.init() }
@@ -47,7 +47,7 @@ struct GuideMap: UIViewRepresentable {
             let lines=network.edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
             for title in mode == .report ? ["selectableCasing","selectable"]:["walk"] { let multi=MKMultiPolyline(lines);multi.title=title;map.addOverlay(multi,level:.aboveRoads) }
         }
-        let dynamicKey="\(store.selected.sorted())|\(store.blocked.sorted())|\(store.routeVersion)|\(store.route != nil)|\(store.destinationID)|\(String(describing:store.destinationCoordinate))|\(store.inspected?.droppedPin == true ? String(describing:store.inspected?.coordinate):"")"
+        let dynamicKey="\(store.selected.sorted())|\(store.blocked.sorted())|\(store.routeVersion)|\(store.route != nil)|\(store.destinationID)|\(String(describing:store.destinationCoordinate))|\(String(describing:store.guideEndpointCoordinate))|\(store.inspected?.droppedPin == true ? String(describing:store.inspected?.coordinate):"")"
         if dynamicKey != c.dynamicKey {
             c.dynamicKey=dynamicKey;map.removeOverlays(c.dynamicOverlays);map.removeAnnotations(c.dynamicPins);c.dynamicOverlays=[];c.dynamicPins=[]
             if let route=store.route {
@@ -55,6 +55,7 @@ struct GuideMap: UIViewRepresentable {
                 var roads=route;if let first=roads.steps.first,first.isApproach { roads.steps.removeFirst();c.dynamicOverlays.append(add(first.shape,title:"approach",map:map)) }
                 let shape=RouteTracker.shape(of:roads);c.dynamicOverlays += [add(shape,title:"routeCasing",map:map),add(shape,title:"route",map:map)]
             }
+            if !store.destinationConnector.isEmpty { c.dynamicOverlays.append(add(store.destinationConnector,title:"destinationConnector",map:map)) }
             let blocked=network.edges.filter { store.blocked.contains($0.id) },selected=network.edges.filter { store.selected.contains($0.id) }
             for (edges,name) in [(blocked,"blocked"),(selected,"selected")] where !edges.isEmpty {
                 let lines=edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
@@ -62,6 +63,7 @@ struct GuideMap: UIViewRepresentable {
             }
             if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:localized("× 通行不可登録"),subtitle:localized("{0}・タップして削除",edge.name),segmentID:edge.id,map:map)) } }
             if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:localized("選択した目的地・受入状況未確認"),map:map)) }
+            if let endpoint=store.confirmedDestinationConnection?.coordinate { c.dynamicPins.append(pin(endpoint,kind:.endpoint,title:localized("道路上の案内終点"),subtitle:localized("ここまでが保存済み道路による案内です"),map:map)) }
             if let dropped=store.inspected,dropped.droppedPin { c.dynamicPins.append(pin(dropped.coordinate,kind:.dropped,title:dropped.name,subtitle:"ドロップしたピン",map:map)) }
         }
         if store.simulated,let sample=store.location.sample {
@@ -150,6 +152,7 @@ struct GuideMap: UIViewRepresentable {
             case "routeCasing": renderer.strokeColor = .white;renderer.lineWidth=11
             case "route": renderer.strokeColor = .systemBlue;renderer.lineWidth=7
             case "approach": renderer.strokeColor = .systemBlue;renderer.lineWidth=5;renderer.lineDashPattern=[2,10]
+            case "destinationConnector": renderer.strokeColor = .systemOrange;renderer.lineWidth=4;renderer.lineDashPattern=[3,8]
             default: renderer.strokeColor = .systemIndigo;renderer.lineWidth=2;renderer.lineDashPattern=[5,5]
             }
             renderer.lineCap = .round;renderer.lineJoin = .round
@@ -170,6 +173,7 @@ struct GuideMap: UIViewRepresentable {
             view.annotation=pin;view.canShowCallout=mode != .explore || pin.kind == .blocked
             switch pin.kind {
             case .target: view.markerTintColor = .systemRed;view.glyphImage=UIImage(systemName:"mappin");view.displayPriority = .required
+            case .endpoint: view.markerTintColor = .systemBlue;view.glyphImage=UIImage(systemName:"figure.walk.arrival");view.displayPriority = .required
             case .blocked: view.markerTintColor = .systemOrange;view.glyphImage=UIImage(systemName:"xmark");view.displayPriority = .defaultHigh
             case .simulated: view.markerTintColor = .systemPurple;view.glyphImage=UIImage(systemName:"location.fill");view.displayPriority = .required
             case .dropped: view.markerTintColor = .systemRed;view.glyphImage=UIImage(systemName:"mappin");view.displayPriority = .required

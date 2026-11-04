@@ -197,6 +197,11 @@
 "歩行区間" = "Walking segment";
 "道路データを読み込めません" = "Could not load road data.";
 "選択した目的地は経路案内の対応範囲外です" = "The selected destination is outside the route guidance area.";
+"この地域に利用できる道路データがありません。別の地域または保存済み目的地を選択してください" = "No usable road data is available in this area. Choose another area or a saved destination.";
+"道路上の案内終点を確認してください。選択地点までの入口・通路は未確認です" = "Confirm the endpoint on a saved road. The entrance or path to the selected place is unverified.";
+"道路上の案内終点まで案内します。選択地点までは約{0} mです。入口・通路は未確認です" = "Guidance ends on the saved road. The selected place is about {0} m away; its entrance and connecting path are unverified.";
+"道路上の案内終点" = "Guidance endpoint on road";
+"{0}上の案内終点" = "Guidance endpoint on {0}";
 "近くに保存済み道路の接続点がありません。別の目的地を選択してください" = "No saved road connection is nearby. Choose another destination.";
 "案内の終点を下の候補から確認してください。施設入口への接続は未確認です" = "Confirm a route endpoint from the options below. The connection to the entrance is unverified.";
 "道路接続点まで案内。選択地点まで約{0} m・入口未確認" = "Guidance to a road connection. About {0} m to the selected place; entrance unverified.";
@@ -322,6 +327,7 @@
 "ナビの地図。青い線が経路です。" = "Navigation map. The blue line is the route.";
 "対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。" = "Map of a supported area. Touch and hold to choose a destination. You can also use search or saved places.";
 "選択した目的地・受入状況未確認" = "Selected destination · availability unverified";
+"ここまでが保存済み道路による案内です" = "Guidance on saved roads ends here";
 "権限を確認中" = "Checking permissions";
 "{0}\n次の接続点まで約{1} m・{2}" = "{0}\nAbout {1} m to next connection · {2}";
 "道路" = "Road";
@@ -411,6 +417,7 @@
 "離れた区間が含まれています。連続する区間を選んでください。" = "Disconnected segments are included. Choose connected segments.";
 "現在位置に対応する道路がありません。位置情報と選択地域を確認してください。" = "No road matches your current location. Check location access and the selected area.";
 "現在位置の道路が通行不可に登録されています。経路案内を開始できません。" = "The road at your current location is reported blocked. Guidance cannot start.";
+"案内の終点に接続する道路が通行不可です。別の接続候補を選択してください。" = "The road at the guidance endpoint is reported blocked. Choose another connection option.";
 "現在位置または目的地が選択地域の対応範囲外です。地域をまたぐ経路には対応していません。" = "Your location or destination is outside the selected area. Routes across areas are unavailable.";
 "通行不可区間を除外した経路がありません。道路網の接続と通行不可の登録状況を確認してください。" = "No route remains after excluding blocked segments. Check road connections and reports.";
 "位置の精度が不足しています。空が見える場所で位置の更新を待っています。" = "Location accuracy is insufficient. Wait for an update where the sky is visible.";

@@ -34,7 +34,7 @@ struct HomeScreen:View {
                     if !searchOpen {
                         floatingButtons.padding(.horizontal,12)
                         if let place=store.inspected { PlaceCard(place:place).padding(.horizontal,12).padding(.bottom,4).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 } }
-                        else if store.currentDestination != nil || store.selectedTarget != nil {
+                        else if store.hasDestination || store.selectedTarget != nil {
                             destinationPanel(maxHeight:min(geometry.size.height*(textSize.isAccessibilitySize ? 0.72:0.58),max(220,geometry.size.height-300))).padding(.horizontal,12)
                         } else { bottomPanel(maxHeight:geometry.size.height*(expanded || textSize.isAccessibilitySize ? 0.62:0.42)).padding(.horizontal,12) }
                     }
@@ -191,10 +191,10 @@ struct HomeScreen:View {
                 }
                 Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader)
                 if !store.destinationMessage.isEmpty { Text(localized(store.destinationMessage)).font(.subheadline).foregroundStyle(.secondary) }
-                if !store.destinationConnections.isEmpty && store.customDestination==nil {
+                if !store.destinationConnections.isEmpty && store.confirmedDestinationConnection==nil {
                     Text("案内の終点を確認").font(.headline)
-                    ForEach(Array(store.destinationConnections.prefix(expanded ? 5:3))) { c in Button { store.confirmConnection(c.nodeID) } label: { Label(localized("{0}・選択地点から約{1} m",store.name(c.nodeID),Int(c.distance.rounded())),systemImage:"point.topleft.down.to.point.bottomright.curvepath").frame(maxWidth:.infinity,minHeight:44,alignment:.leading) }.buttonStyle(.bordered) }
-                    Text("道路接続点から入口までの経路は未確認です。近い候補が正しい入口とは限りません。").font(.caption)
+                    ForEach(Array(store.destinationConnections.prefix(expanded ? 5:3))) { c in Button { store.confirmConnection(c.edgeID) } label: { Label(localized("{0}・選択地点から約{1} m",store.connectionName(c),Int(c.distance.rounded())),systemImage:"point.topleft.down.to.point.bottomright.curvepath").frame(maxWidth:.infinity,minHeight:44,alignment:.leading) }.buttonStyle(.bordered).accessibilityIdentifier("destinationConnection."+c.edgeID) }
+                    Text("選択地点と道路上の案内終点の間は未確認です。近い道路が施設入口とは限りません。").font(.caption)
                 }
                 if let route=store.route {
                     RouteSummary(route:route)
@@ -203,11 +203,11 @@ struct HomeScreen:View {
                         Button { pendingMode = .camera } label: { Label("カメラ案内",systemImage:"camera.viewfinder").font(.headline).frame(maxWidth:.infinity,minHeight:50) }.buttonStyle(.borderedProminent).tint(.teal).accessibilityIdentifier("startCameraNavigation")
                     }
                 } else {
-                    PrimaryButton(title:"通行不可を避ける経路を確認",symbol:"arrow.triangle.turn.up.right.diamond") { store.calculate(usePosition:true) }.disabled(store.currentDestination==nil)
+                    PrimaryButton(title:"通行不可を避ける経路を確認",symbol:"arrow.triangle.turn.up.right.diamond") { store.calculate(usePosition:true) }.disabled(!store.hasDestination)
                 }
                 if let message=store.routeMessage { Text(localized(message)).font(.subheadline).accessibilityIdentifier("routeMessage") }
                 if !store.positionState.isEmpty { Text(localized(store.positionState)).font(.subheadline) }
-                if store.currentDestination != nil || store.selectedTarget != nil { Button("目的地の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
+                if store.hasDestination || store.selectedTarget != nil { Button("目的地の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
                 SourceFooter()
             }.padding(.horizontal,16).padding(.bottom,12).frame(maxWidth:.infinity,alignment:.leading)
     }
