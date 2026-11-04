@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE svg
+  PUBLIC '-//W3C//DTD SVG 1.0//EN'
+  'http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd'>
+<svg width="1190.5511811023623" height="841.8897637795277" preserveAspectRatio="xMinYMin meet" viewBox="0 0 1190 841" xmlns="http://www.w3.org/2000/svg" version="1.0" fill-rule="evenodd" xmlns:xlink="http://www.w3.org/1999/xlink">
+	<title>...</title>
+	<desc>...</desc>
+	<clipPath id="clip">
+		<rect x="0" y="0" width="1190.5511811023623" height="841.8897637795277"/>
+	</clipPath>
+	<g id="group" transform="scale(1,-1) translate(0,-841)" style="clip-path: url(#clip)">
+		<g transform="">
+			<text x="36" y="810.8897637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1621) scale(1,-1)">HeroesLeague / LRA専用 全配線・全端子指定</text>
+			<text x="36" y="780.8897637795277" style="font-family: NotoSansJP; font-size: 23px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1561) scale(1,-1)">J1・LiPo・S1：ピン番号と極性の確定</text>
+			<text x="36" y="757.8897637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1515) scale(1,-1)">B2B-PH-K-Sは2.0mmピッチ基板へ実装。J1-1＝S1.B2、J1-2＝S1.C2。ユーザー測定報告：1番＝+、2番＝-（ケースB）。</text>
+			<polyline points="36 746.8898, 1154.551 746.8898" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 1; fill: None; fill-rule: evenodd;"/>
+			<text x="36" y="22.0" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,44) scale(1,-1)">2026-10-28 / Rev F2 / ケースB確定   J1極性はユーザー測定報告によりケースB確定。実機試験・EDA ERCは未実施。</text>
+			<text x="1115.5511811023623" y="22.0" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,44) scale(1,-1)">3 / 5</text>
+			<rect x="36" y="459.8897637795277" width="340" height="266.0" rx="5" ry="5" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<rect x="394" y="459.8897637795277" width="370" height="266.0" rx="5" ry="5" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<rect x="782" y="459.8897637795277" width="373" height="266.0" rx="5" ry="5" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="50" y="701.8897637795277" style="font-family: NotoSansJP; font-size: 12px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1403) scale(1,-1)">J1正面：メーカー〈2P〉図と同じ向き</text>
+			<rect x="117" y="567.8897637795277" width="175" height="108.0" style="stroke: rgb(65%,57%,42%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,98%,94%); fill-rule: evenodd;"/>
+			<rect x="195" y="596.8897637795277" width="23" height="79.0" style="stroke: rgb(65%,57%,42%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<rect x="143" y="595.8897637795277" width="23" height="36.0" style="stroke: rgb(65%,57%,42%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<rect x="246" y="595.8897637795277" width="23" height="36.0" style="stroke: rgb(65%,57%,42%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<polyline points="162 567.8898, 162 526.8898" style="stroke: rgb(68%,58%,37%); stroke-linecap: butt; stroke-width: 6; fill: None; fill-rule: evenodd;"/>
+			<polyline points="247 567.8898, 247 526.8898" style="stroke: rgb(68%,58%,37%); stroke-linecap: butt; stroke-width: 6; fill: None; fill-rule: evenodd;"/>
+			<text x="152" y="505.8897637795277" style="font-family: NotoSansJP; font-size: 17px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1011) scale(1,-1)">2</text>
+			<text x="238" y="505.8897637795277" style="font-family: NotoSansJP; font-size: 17px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1011) scale(1,-1)">1</text>
+			<text x="50" y="476.8897637795277" style="font-family: NotoSansJP; font-size: 9.5px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,953) scale(1,-1)">中央の縦窓が見える面をこちら、脚を下。右が1番。</text>
+			<text x="408" y="701.8897637795277" style="font-family: NotoSansJP; font-size: 12px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1403) scale(1,-1)">S1部品面：切り欠きの壁を上にする</text>
+			<rect x="445" y="503.8897637795277" width="168" height="168.0" style="stroke: rgb(49%,63%,54%); stroke-linecap: butt; stroke-width: 1; fill: rgb(90%,94%,90%); fill-rule: evenodd;"/>
+			<circle cx="466" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="466" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="466" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="466" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="508" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="508" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="508" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="508" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="550" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="550" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="550" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="550" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="592" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="592" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="592" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="592" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="463" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">A</text>
+			<text x="505" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">B</text>
+			<text x="547" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">C</text>
+			<text x="589" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">D</text>
+			<text x="433" y="647.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1295) scale(1,-1)">1</text>
+			<text x="433" y="605.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1211) scale(1,-1)">2</text>
+			<text x="433" y="563.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1127) scale(1,-1)">3</text>
+			<text x="433" y="521.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1043) scale(1,-1)">4</text>
+			<rect x="467.05" y="550.0897637795276" width="123.90000000000003" height="94.5" style="stroke: rgb(65%,57%,42%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,98%,94%); fill-rule: evenodd;"/>
+			<rect x="518.5" y="631.9897637795276" width="21.0" height="12.600000000000023" style="stroke: rgb(65%,57%,42%); stroke-linecap: butt; stroke-width: 1; fill: rgb(90%,94%,90%); fill-rule: evenodd;"/>
+			<circle cx="508" cy="608.8897637795277" r="6" style="stroke: rgb(54%,45%,28%); stroke-linecap: butt; stroke-width: 1; fill: rgb(89%,77%,45%); fill-rule: evenodd;"/>
+			<text x="504" y="586.8897637795277" style="font-family: NotoSansJP; font-size: 12px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1173) scale(1,-1)">1</text>
+			<circle cx="550" cy="608.8897637795277" r="6" style="stroke: rgb(54%,45%,28%); stroke-linecap: butt; stroke-width: 1; fill: rgb(89%,77%,45%); fill-rule: evenodd;"/>
+			<text x="546" y="586.8897637795277" style="font-family: NotoSansJP; font-size: 12px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1173) scale(1,-1)">2</text>
+			<text x="635" y="658.8897637795277" style="font-family: NotoSansJP; font-size: 10.5px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1317) scale(1,-1)">1 → B2</text>
+			<text x="635" y="635.8897637795277" style="font-family: NotoSansJP; font-size: 10.5px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1271) scale(1,-1)">2 → C2</text>
+			<text x="635" y="612.8897637795277" style="font-family: NotoSansJP; font-size: 10.5px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1225) scale(1,-1)"></text>
+			<text x="635" y="589.8897637795277" style="font-family: NotoSansJP; font-size: 10.5px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1179) scale(1,-1)">2mmピッチ</text>
+			<text x="635" y="566.8897637795277" style="font-family: NotoSansJP; font-size: 10.5px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1133) scale(1,-1)">4列×4行の例</text>
+			<text x="635" y="543.8897637795277" style="font-family: NotoSansJP; font-size: 10.5px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1087) scale(1,-1)">外形約8mm角</text>
+			<text x="408" y="476.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,953) scale(1,-1)">B2/C2は本書で付けたローカル穴名。中央切り欠き面が上。</text>
+			<text x="796" y="701.8897637795277" style="font-family: NotoSansJP; font-size: 12px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1403) scale(1,-1)">S1はんだ面：上図を左右に裏返す</text>
+			<rect x="830" y="503.8897637795277" width="168" height="168.0" style="stroke: rgb(49%,63%,54%); stroke-linecap: butt; stroke-width: 1; fill: rgb(90%,94%,90%); fill-rule: evenodd;"/>
+			<circle cx="977" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="977" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="977" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="977" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="935" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="935" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="935" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="935" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="893" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="893" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="893" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="893" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="851" cy="650.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="851" cy="608.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="851" cy="566.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<circle cx="851" cy="524.8897637795277" r="3" style="stroke: rgb(56%,64%,56%); stroke-linecap: butt; stroke-width: 0.7; fill: rgb(100%,100%,100%); fill-rule: evenodd;"/>
+			<text x="848" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">D</text>
+			<text x="890" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">C</text>
+			<text x="932" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">B</text>
+			<text x="974" y="677.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1355) scale(1,-1)">A</text>
+			<text x="818" y="647.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1295) scale(1,-1)">1</text>
+			<text x="818" y="605.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1211) scale(1,-1)">2</text>
+			<text x="818" y="563.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1127) scale(1,-1)">3</text>
+			<text x="818" y="521.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1043) scale(1,-1)">4</text>
+			<circle cx="935" cy="608.8897637795277" r="6" style="stroke: rgb(49%,57%,62%); stroke-linecap: butt; stroke-width: 1; fill: rgb(79%,83%,86%); fill-rule: evenodd;"/>
+			<text x="917" y="580.8897637795277" style="font-family: NotoSansJP; font-size: 9.5px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1161) scale(1,-1)">1 / B2</text>
+			<circle cx="893" cy="608.8897637795277" r="6" style="stroke: rgb(49%,57%,62%); stroke-linecap: butt; stroke-width: 1; fill: rgb(79%,83%,86%); fill-rule: evenodd;"/>
+			<text x="875" y="580.8897637795277" style="font-family: NotoSansJP; font-size: 9.5px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,1161) scale(1,-1)">2 / C2</text>
+			<text x="1010" y="655.8897637795277" style="font-family: NotoSansJP; font-size: 11px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1311) scale(1,-1)">左が2番</text>
+			<text x="1010" y="630.8897637795277" style="font-family: NotoSansJP; font-size: 11px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1261) scale(1,-1)">右が1番</text>
+			<text x="1010" y="605.8897637795277" style="font-family: NotoSansJP; font-size: 11px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1211) scale(1,-1)"></text>
+			<text x="1010" y="580.8897637795277" style="font-family: NotoSansJP; font-size: 11px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1161) scale(1,-1)">裏返しても</text>
+			<text x="1010" y="555.8897637795277" style="font-family: NotoSansJP; font-size: 11px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,1111) scale(1,-1)">穴名は変えない</text>
+			<text x="796" y="476.8897637795277" style="font-family: NotoSansJP; font-size: 9px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,953) scale(1,-1)">はんだ面の脚へW07/W08を接合。J1本体は基板ごと保持。</text>
+			<text x="36" y="427.8897637795277" style="font-family: NotoSansJP; font-size: 16px;fill: rgb(63%,36%,12%); stroke:none;" transform="translate(0,855) scale(1,-1)">ケースB採用済み：J1-1＝+ ／ J1-2＝-（ユーザー測定報告）</text>
+			<rect x="36" y="380.8897637795277" width="45" height="29.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.6; fill: rgb(88%,92%,95%); fill-rule: evenodd;"/>
+			<text x="42" y="389.8897637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,779) scale(1,-1)">採用</text>
+			<rect x="81" y="380.8897637795277" width="353" height="29.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.6; fill: rgb(88%,92%,95%); fill-rule: evenodd;"/>
+			<text x="87" y="389.8897637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,779) scale(1,-1)">直流電圧の測定結果</text>
+			<rect x="434" y="380.8897637795277" width="360" height="29.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.6; fill: rgb(88%,92%,95%); fill-rule: evenodd;"/>
+			<text x="440" y="389.8897637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,779) scale(1,-1)">W07 赤線</text>
+			<rect x="794" y="380.8897637795277" width="361" height="29.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.6; fill: rgb(88%,92%,95%); fill-rule: evenodd;"/>
+			<text x="800" y="389.8897637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,779) scale(1,-1)">W08 黒線</text>
+			<rect x="36" y="339.8897637795277" width="45" height="41.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.5; fill: rgb(96%,97%,98%); fill-rule: evenodd;"/>
+			<text x="42" y="353.8297637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,707) scale(1,-1)">B</text>
+			<rect x="81" y="339.8897637795277" width="353" height="41.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.5; fill: rgb(96%,97%,98%); fill-rule: evenodd;"/>
+			<text x="87" y="353.8297637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,707) scale(1,-1)">赤J1-2 / 黒J1-1：-3.8V（ユーザー報告）</text>
+			<rect x="434" y="339.8897637795277" width="360" height="41.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.5; fill: rgb(96%,97%,98%); fill-rule: evenodd;"/>
+			<text x="440" y="353.8297637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,707) scale(1,-1)">J1-1 = S1.B2 → U1 BAT+</text>
+			<rect x="794" y="339.8897637795277" width="361" height="41.0" style="stroke: rgb(78%,84%,88%); stroke-linecap: butt; stroke-width: 0.5; fill: rgb(96%,97%,98%); fill-rule: evenodd;"/>
+			<text x="800" y="353.8297637795277" style="font-family: NotoSansJP; font-size: 10px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,707) scale(1,-1)">J1-2 = S1.C2 → U1 BAT-</text>
+			<rect x="36" y="55.8897637795277" width="1119" height="216.0" rx="5" ry="5" style="stroke: rgb(83%,73%,54%); stroke-linecap: butt; stroke-width: 1; fill: rgb(100%,96%,90%); fill-rule: evenodd;"/>
+			<text x="50" y="247.8897637795277" style="font-family: NotoSansJP; font-size: 14px;fill: rgb(9%,20%,28%); stroke:none;" transform="translate(0,495) scale(1,-1)">採用した測定結果と接合作業</text>
+			<text x="50" y="219.8897637795277" style="font-family: NotoSansJP; font-size: 10.2px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,439) scale(1,-1)">S1をXIAO・USB・他回路から切り離す。W07/W08をXIAOへ接続する前に、電池の付属PHRをJ1へ挿す。</text>
+			<text x="50" y="194.8897637795277" style="font-family: NotoSansJP; font-size: 10.2px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,389) scale(1,-1)">テスターは直流電圧モード。赤リードはV入力、黒はCOM。赤をJ1-2、黒をJ1-1へ当て、隣の端子を短絡させない。</text>
+			<text x="50" y="169.8897637795277" style="font-family: NotoSansJP; font-size: 10.2px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,339) scale(1,-1)">今回の電池はケースBを採用。別の電池・コネクターへ交換した場合は極性を再確認する。電流・導通・抵抗モードで電池を測らない。</text>
+			<text x="50" y="144.8897637795277" style="font-family: NotoSansJP; font-size: 10.2px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,289) scale(1,-1)">確認後は電池を外してW07/W08を接合する。電池本体、付属線、PHR内の圧着端子は切断・再はんだしない。</text>
+			<text x="50" y="119.8897637795277" style="font-family: NotoSansJP; font-size: 10.2px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,239) scale(1,-1)">記録：-3.8V（ユーザー報告）／ ケースB ／ J1-1：+ ／ J1-2：- ／ 受領日：2026-10-28 ／ 測定者：ユーザー</text>
+			<text x="50" y="94.8897637795277" style="font-family: NotoSansJP; font-size: 10.2px;fill: rgb(33%,42%,49%); stroke:none;" transform="translate(0,189) scale(1,-1)">S1は追加部品：2.0mmピッチ基板（例：秋月104022）を小片にする案。専用変換基板を使う場合は実物の番号/導通を改めて照合。</text>
+		</g>
+	</g>
+</svg>

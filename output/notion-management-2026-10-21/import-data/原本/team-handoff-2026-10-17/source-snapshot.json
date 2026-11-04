@@ -1,0 +1,36 @@
+{
+  "checked_at": "2026-10-17 JST",
+  "head": "f4d37d2bd6dbe98c5a592728ef11686e16c1c466",
+  "source_uncommitted_changes": " M App/AppStore.swift\n M App/CameraGuidance.swift\n M App/HomeScreen.swift\n M App/en.lproj/Localizable.strings\n M Core/Detection.swift\n M Core/Walkable.swift\n?? output/\n",
+  "built_or_tested_this_turn": false,
+  "sources": {
+    "App/Camera.swift": {
+      "sha256": "68b5f72fc545bcfbe0d97a20569021e954644dcae073ab041d68d41b63a5c323",
+      "lines": 240
+    },
+    "Core/HeadLevel.swift": {
+      "sha256": "b6718fb1dd183de9d1feed82317ee5d5c4c047838f996b82a72d09af80822a7e",
+      "lines": 211
+    },
+    "App/AppStore.swift": {
+      "sha256": "fd0ad49aa01eeb3c6180859d8cc7dc03b48c2c9780c0ec21696be5d65fbf8730",
+      "lines": 473
+    },
+    "App/Services.swift": {
+      "sha256": "f7c23bee2912525edca5c8450d60da28ccbe9e7736828e8af1672de540d7c077",
+      "lines": 189
+    },
+    "App/JunctionGuideApp.swift": {
+      "sha256": "682bf2f8e34160da66067a488cbed8e212fae9f6a504543f76b0fd3abb1b10d3",
+      "lines": 48
+    },
+    "App/Info.plist": {
+      "sha256": "7f5bb2bdad9e8d2a72049d69d63cacfc95515ab2c9e70d25d170e7ec6b025f4b",
+      "lines": 46
+    },
+    "JunctionGuide.xcodeproj/project.pbxproj": {
+      "sha256": "3e56385ef9fef1d176fbd5433461da0ec15eef54e31a10813b07b2667e3694c6",
+      "lines": 116
+    }
+  }
+}

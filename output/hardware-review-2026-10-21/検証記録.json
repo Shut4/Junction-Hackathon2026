@@ -1,0 +1,76 @@
+{
+  "date": "2026-10-21",
+  "revision": "rechargeable-small-internal-grip",
+  "parts": 18,
+  "total_jpy": 7818,
+  "not_purchased": true,
+  "cane_dimensions_unmeasured": true,
+  "circuit_unimplemented": true,
+  "stock_not_reserved": true,
+  "battery": "DTP502035(PHR) 3.7V 300mAh protected LiPo",
+  "battery_stock": "Marutsu 59, timestamp 2026-10-21 14:18",
+  "charging": "XIAO nRF52840 onboard charger; start at 50mA (P0.13 high impedance without pulls), verify charge termination and temperature. No automatic cell temperature sensing in current schematic.",
+  "battery_charge_limit_mA": 150,
+  "battery_discharge_limit_mA": 300,
+  "board": "XIAO nRF52840 non-Sense, stock100+, JPY1851",
+  "mechanics": "All cane-side parts inside replacement black grip, preserve shaft/elastic/anchors/strap and first joint. No external pod.",
+  "mechanical_envelope_mm": {
+    "grip_diameter": 38,
+    "grip_length": 130,
+    "assumed_shaft_diameter": 14,
+    "shaft_channel_diameter": 16,
+    "shaft_axis_offset": 8,
+    "battery_cavity_cross_section": [
+      22,
+      8
+    ],
+    "axial_zones": [
+      20,
+      10,
+      35,
+      55,
+      10
+    ]
+  },
+  "fit_and_comfort_verified": false,
+  "runtime_assumptions": {
+    "board_mA": 10,
+    "power_overhead_mA": 1,
+    "usable_capacity_fraction": 0.8,
+    "measured": false
+  },
+  "precedents": [
+    "https://blindmaps.org/prototypes/",
+    "https://github.com/tonywangs/shepherd",
+    "https://smartcane.saksham.org/?page_id=8"
+  ],
+  "shepherd_review": {
+    "fw_blob_sha": "50f8c4062640ff97e6bf819e3c0d8abd21737c45",
+    "fw_packet_bytes": 12,
+    "protocol_doc_packet_bytes": 1,
+    "haptic_task_lacks_freshness_gate": true
+  },
+  "files": [
+    "白杖振動デバイス_最新設計・購入候補.pdf",
+    "白杖振動デバイス_最新設計・購入候補.html"
+  ],
+  "pdf_pages": 6,
+  "pdf_render_review": "all six pages inspected",
+  "new_datasheets": {
+    "DTP502035-PHR.pdf": {
+      "url": "https://www.aska-elt.jp/wp-content/uploads/DTP502035-PHR.pdf",
+      "sha256": "28e39893977c372b556a9ab3c34ecd2628a2be164665eb9c677dc1df92a7ed9e",
+      "downloaded": "2026-10-21"
+    },
+    "XIAO-nRF52840-schematic.pdf": {
+      "url": "https://files.seeedstudio.com/wiki/XIAO-BLE/Seeed_Studio_XIAO_nRF52840_PDF.pdf",
+      "sha256": "1cec202595d8a1ad33ee3bfd3bed94f6c0229574ad55d29a804dd021ec605342",
+      "downloaded": "2026-10-21"
+    },
+    "PH.pdf": {
+      "url": "https://akizukidenshi.com/goodsaffix/PH.pdf",
+      "sha256": "14d7017c342a68f126a65919ffb1e0493a38d6ecd26b5f976727e9e93cbb3af1",
+      "downloaded": "2026-10-21"
+    }
+  }
+}

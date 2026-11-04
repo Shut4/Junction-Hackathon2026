@@ -1,0 +1,351 @@
+{
+  "user_battery_polarity_status": "case B confirmed by user measurement report; red on J1-2 and black on J1-1: -3.8 V",
+  "j1_pin1": "S1.B2",
+  "j1_pin2": "S1.C2",
+  "j1_front_view": "front rectangular-window face toward viewer, legs down: pin1 right, pin2 left",
+  "j1_top_view": "keyed/notched wall at top: pin1 left; mirror left/right for solder side",
+  "pin1_is_not_intrinsically_plus_or_minus": true,
+  "battery_cases": {
+    "A": {
+      "positive_pin": 2,
+      "negative_pin": 1,
+      "W07": [
+        "J1-2",
+        "S1.C2",
+        "U1.BAT+"
+      ],
+      "W08": [
+        "J1-1",
+        "S1.B2",
+        "U1.BAT-"
+      ]
+    },
+    "B": {
+      "positive_pin": 1,
+      "negative_pin": 2,
+      "W07": [
+        "J1-1",
+        "S1.B2",
+        "U1.BAT+"
+      ],
+      "W08": [
+        "J1-2",
+        "S1.C2",
+        "U1.BAT-"
+      ]
+    }
+  },
+  "selected_case": "B",
+  "reported_voltage_V": -3.8,
+  "measurement_source": "user report received 2026-10-28",
+  "user_reported_battery_polarity": {
+    "J1-1": "+",
+    "J1-2": "-"
+  },
+  "switch_pins": {
+    "1": "W05",
+    "3": "W06",
+    "2": "NC, internally common with 1",
+    "4": "NC, internally common with 3"
+  },
+  "terminal_reference_pins": {
+    "J2-1": "S2.B2, OUT+",
+    "J2-2": "S2.C2, OUT-"
+  },
+  "connector_fixation": "J1 soldered into additional 2mm-pitch S1, S1 secured mechanically; not floating on leads",
+  "physical_test_performed": false,
+  "eda_erc_performed": false,
+  "wires": [
+    [
+      "W01",
+      "赤",
+      "U1-12：3V3",
+      "S0.G3",
+      "U2 JP2-1：VIN",
+      "S0.A12",
+      "3V3",
+      "固定"
+    ],
+    [
+      "W02",
+      "黒",
+      "U1-13：GND",
+      "S0.G2 裏",
+      "U2 JP2-2：GND",
+      "S0.A13",
+      "GND",
+      "固定"
+    ],
+    [
+      "W03",
+      "青",
+      "U1-5：D4 / P0.04",
+      "S0.A5",
+      "U2 JP2-4：SDA",
+      "S0.A15",
+      "SDA",
+      "固定"
+    ],
+    [
+      "W04",
+      "黄",
+      "U1-6：D5 / P0.05",
+      "S0.A6",
+      "U2 JP2-3：SCL",
+      "S0.A14",
+      "SCL",
+      "固定"
+    ],
+    [
+      "W05",
+      "緑",
+      "U1-2：D1 / P0.03",
+      "S0.A2 裏",
+      "SW1-1",
+      "基板外",
+      "BUTTON",
+      "固定"
+    ],
+    [
+      "W06",
+      "黒",
+      "U1-13：GND",
+      "S0.G2 のXIAO上面",
+      "SW1-3",
+      "基板外",
+      "GND",
+      "固定"
+    ],
+    [
+      "W07",
+      "赤",
+      "J1-1：電池+",
+      "S1.B2",
+      "U1 BAT+（底面パッド）",
+      "S0の穴ではない",
+      "VBAT",
+      "ケースB採用済み"
+    ],
+    [
+      "W08",
+      "黒",
+      "J1-2：電池-",
+      "S1.C2",
+      "U1 BAT-（底面パッド）",
+      "S0の穴ではない",
+      "GND",
+      "ケースB採用済み"
+    ],
+    [
+      "W09",
+      "紫",
+      "U2 JP1-1：OUT+",
+      "S0.F16",
+      "J2-1 基板用の脚",
+      "S2.B2",
+      "OUT+",
+      "固定"
+    ],
+    [
+      "W10",
+      "紫・印付き",
+      "U2 JP3-1：OUT-",
+      "S0.F12",
+      "J2-2 基板用の脚",
+      "S2.C2",
+      "OUT-",
+      "固定"
+    ],
+    [
+      "W11",
+      "紫",
+      "J2-1 ねじ側",
+      "S2.B2と同一端子",
+      "M1 LD14-002 ①",
+      "振動子端子図を参照",
+      "OUT+",
+      "固定"
+    ],
+    [
+      "W12",
+      "紫・印付き",
+      "J2-2 ねじ側",
+      "S2.C2と同一端子",
+      "M1 LD14-002 ②",
+      "振動子端子図を参照",
+      "OUT-",
+      "固定"
+    ]
+  ],
+  "factory_wires": [
+    [
+      "C01",
+      "付属赤線",
+      "LiPo + → PHRの+接点",
+      "J1の同じ番号へ嵌合",
+      "既設。切断・再はんだ不要"
+    ],
+    [
+      "C02",
+      "付属黒線",
+      "LiPo - → PHRの-接点",
+      "J1の同じ番号へ嵌合",
+      "既設。切断・再はんだ不要"
+    ]
+  ],
+  "xiao_module_pin_map": [
+    [
+      1,
+      "D0",
+      "S0.A1",
+      "無配線"
+    ],
+    [
+      2,
+      "D1",
+      "S0.A2",
+      "W05 → SW1-1"
+    ],
+    [
+      3,
+      "D2",
+      "S0.A3",
+      "無配線"
+    ],
+    [
+      4,
+      "D3",
+      "S0.A4",
+      "無配線"
+    ],
+    [
+      5,
+      "D4",
+      "S0.A5",
+      "W03 → U2 JP2-4"
+    ],
+    [
+      6,
+      "D5",
+      "S0.A6",
+      "W04 → U2 JP2-3"
+    ],
+    [
+      7,
+      "D6",
+      "S0.A7",
+      "無配線"
+    ],
+    [
+      8,
+      "D7",
+      "S0.G7",
+      "無配線"
+    ],
+    [
+      9,
+      "D8",
+      "S0.G6",
+      "無配線"
+    ],
+    [
+      10,
+      "D9",
+      "S0.G5",
+      "無配線"
+    ],
+    [
+      11,
+      "D10",
+      "S0.G4",
+      "無配線"
+    ],
+    [
+      12,
+      "3V3",
+      "S0.G3",
+      "W01 → U2 JP2-1"
+    ],
+    [
+      13,
+      "GND",
+      "S0.G2",
+      "裏W02 / 上面W06"
+    ],
+    [
+      14,
+      "VBUS/5V",
+      "S0.G1なし",
+      "ピンヘッダーを付けない"
+    ],
+    [
+      "底面",
+      "BAT+",
+      "S0穴とは別",
+      "W07 ← J1の電池+ピン"
+    ],
+    [
+      "底面",
+      "BAT-",
+      "S0穴とは別",
+      "W08 ← J1の電池-ピン"
+    ]
+  ],
+  "driver_pin_map": [
+    [
+      "JP2-1",
+      "VIN / VCC",
+      "S0.A12",
+      "W01 ← U1-12 3V3"
+    ],
+    [
+      "JP2-2",
+      "GND",
+      "S0.A13",
+      "W02 ← U1-13 GND"
+    ],
+    [
+      "JP2-3",
+      "SCL",
+      "S0.A14",
+      "W04 ← U1-6 D5"
+    ],
+    [
+      "JP2-4",
+      "SDA",
+      "S0.A15",
+      "W03 ← U1-5 D4"
+    ],
+    [
+      "JP2-5",
+      "IN / TRIG",
+      "S0.A16",
+      "無配線"
+    ],
+    [
+      "JP1-1",
+      "OUT+",
+      "S0.F16",
+      "W09 → J2-1"
+    ],
+    [
+      "JP3-1",
+      "OUT-",
+      "S0.F12",
+      "W10 → J2-2"
+    ]
+  ],
+  "assertions": {
+    "12_unique_wires": true,
+    "both_battery_polarity_cases_covered": true,
+    "polarity_not_assumed": true,
+    "LRA_only": true,
+    "existing_S0_holes_reused": true,
+    "driver_JP_pins_match_vendor_source": true
+  },
+  "unverified": [
+    "S1/S2 fabrication and fit",
+    "connector revision and actual marks",
+    "live current/charge/LRA/thermal/radio behavior"
+  ]
+}

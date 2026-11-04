@@ -1,0 +1,72 @@
+{
+  "document_version": "0.1-draft",
+  "implementation_status": "not implemented; proposal for review",
+  "packet_version": 1,
+  "name": "CaneVibe-01",
+  "service_uuid": "77D6F146-E62C-4ED3-BAAA-6C1526D79D28",
+  "command_uuid": "BC6B696D-E8D3-4566-9730-EA6B057EE324",
+  "status_uuid": "D9B72442-A4CC-4E98-9352-CED78C12B22F",
+  "endianness": "little",
+  "command_length": 10,
+  "status_length": 10,
+  "state": {
+    "CLEAR": 0,
+    "CAUTION": 1,
+    "DANGER": 2,
+    "UNAVAILABLE": 3
+  },
+  "command_format": "<BBHHHBB",
+  "status_format": "<BBBBHI",
+  "command_fields": [
+    "version",
+    "state",
+    "sequence",
+    "ttl_ms",
+    "distance_mm",
+    "flags",
+    "reserved"
+  ],
+  "status_fields": [
+    "version",
+    "applied_state",
+    "error_flags",
+    "gpio_level",
+    "last_sequence",
+    "uptime_ms"
+  ],
+  "send_period_ms": 250,
+  "depth_max_age_ms": 600,
+  "ttl_ms": 1000,
+  "firmware_pin": {
+    "board_label": "D1",
+    "gpio": 3,
+    "driver_input": "IN1"
+  },
+  "driver_fixed_low": [
+    "IN2",
+    "MODE"
+  ],
+  "pattern_proposal_ms": {
+    "CLEAR": [
+      0
+    ],
+    "CAUTION": [
+      150,
+      850
+    ],
+    "DANGER": [
+      200,
+      150
+    ],
+    "UNAVAILABLE_transition_once": [
+      50,
+      100,
+      50,
+      100,
+      50,
+      100
+    ]
+  },
+  "unavailable_pattern_approval": "needs user evaluation; do not repeat on every heartbeat",
+  "status_is_physical_motor_feedback": false
+}

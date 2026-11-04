@@ -1,0 +1,13 @@
+﻿名前,項目ID,状態,担当区分,担当者,期日,既存ガイドの記載,詳細概要の記載,採用値・結論,決定条件,関連タスクID,決定日,ガイドURL,詳細概要URL
+危険距離の採用値,Q01,要決定,A/B,,,ガイド：2.0m以内が危険、2.0〜2.5mが注意,詳細概要4.2：0.8m未満が危険、0.8〜2.0mが注意,,実コード・利用者条件・遅延から採用値を決定し両資料を更新,A02/A03/B01,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+Command形式の採用版,Q02,要決定,B/C,,,ガイド：10バイト固定・seq/TTL付き,詳細概要5.4：最小1バイト、拡張4バイト例,,UUID・版・長さ・バイト順・不正データ処理を双方で固定,B01/C02,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+BLE送信周期,Q03,要決定,B/C,,,ガイド：250ms提案,詳細概要5.4/6.3：100ms仮設定,,深度取得周期と実測遅延・消費電流を踏まえ決定,B01/B04/C02,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+指示の有効期限,Q04,要決定,B/C,,,ガイド：1000ms TTL,詳細概要6.3：500ms,,更新周期と停止挙動を合わせて仕様・試験を統一,B01/C04,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+電源方式,Q05,要決定,C/D,,,ガイド：単3アルカリ2本＋TPS63802の5V＋1S4,詳細概要8：単3想定、9.1：3.7V LiPo図が併存,,搭載可能寸法・モーター電圧・給電経路を確認し採用方式を明記,D01/D02/D03,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+危険の振動パターン,Q06,要決定,C/D,,,ガイド：200ms ON＋150ms OFF,詳細概要8.2：200ms ON＋100ms OFF,,利用者が注意と区別できるパターンを測定して固定,C03/I01,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+検知不能・切断の振動,Q07,要決定,全員,,,ガイド：50ms ON＋100ms OFFを3回、遷移時一度のみの案,詳細概要8.2：100ms ONを3回、通信異常共通または別,,危険通知停止・繰り返し抑制・故障時の画面表示を含め決める,C03/C04/I01,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+円筒グリップ内部への収納,Q08,要実測,D,,,ガイド：内部空洞と径は未確認、仮ケースから開始,詳細概要：既存グリップ筒内部に組み込む想定／評価○,,実物採寸と仮組立で確認し、構想と適合実証を区別,D03/D04,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+検証iPhone・深度対応・保存設定,Q09,要実測,A,,,型番・iOS・取得形式・首掛け位置が未指定,,,実機で深度フレームと設定値を確認,A01/A02,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+電池持ちと低電圧時の挙動,Q10,要実測,C/D,,,平均29.3mAは仮定。8時間は目標、測定なし,,,測定点・電池側電流・電圧降下・実使用時間を記録,D05/T21,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+暗号化・Bondingと機器選択,Q11,要決定,B/C,,,手動選択の管理されたデモを想定。認証設計は未決定,,,公開利用の要否とアクセス制御を仕様化,B01/B02,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989
+担当者・期限・調達状況,Q12,要決定,全員,,,4担当の役割案のみ。氏名・締切・購入済み情報なし,,,実在の担当者と合意した期限・調達状況を入力,D01/I03,,https://app.notion.com/p/3fc4d79e327d805087b7dd678d29a143,https://app.notion.com/p/3fc4d79e327d80a38d89d78091341989

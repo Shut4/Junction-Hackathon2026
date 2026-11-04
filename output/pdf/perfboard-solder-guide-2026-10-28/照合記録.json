@@ -1,0 +1,18 @@
+{
+  "holes": 117,
+  "headers": 20,
+  "wire_rows": 12,
+  "orientation": "USB up in both views; x_back = 18 - x_front",
+  "assertions": {
+    "all_header_holes_exist": true,
+    "unique_header_holes": true,
+    "internal_path_endpoints_match": true,
+    "latest_12_wire_table_reused": true
+  },
+  "battery_reference": "Seeed official classic XIAO nRF52840 v1.0 bottom silk, footprint, and back pinout image; confirm physical revision and marks",
+  "bat_positions_in_inset": "USB up, BAT- above BAT+ on right inner area; not perfboard hole addresses",
+  "source_layout_sha256": "13edec3e3eb9c92c248f0e360b2518c74ef89b30ee7c500cd8c47f5a6be5ab0e",
+  "source_wire_table_sha256": "026ab544f48d1156c655638bb58ba08c770f84fc8910604064fb0b59b03291b9",
+  "physical_test_performed": false,
+  "eda_erc_performed": false
+}

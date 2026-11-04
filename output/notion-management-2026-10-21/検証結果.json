@@ -1,0 +1,30 @@
+{
+  "checked_on": "2026-10-21",
+  "input_paths": 55,
+  "original_files_hashes_match": true,
+  "zip_integrity": true,
+  "all_packages_under_5MiB": true,
+  "packages": [
+    {
+      "file": "Notion移行_01_管理データ.zip",
+      "bytes": 373281,
+      "sha256": "0391986faa927e6d9a13c25e3cb9821f06a422f5d405a785f3cbcf3eaca117e2"
+    },
+    {
+      "file": "Notion移行_02_原本仕様書.zip",
+      "bytes": 4643985,
+      "sha256": "46bf26e1effaf9b96fefd5402b3ab424dcd01ead6567a497ace40fdc77c46317"
+    },
+    {
+      "file": "Notion移行_03_原本仕様書.zip",
+      "bytes": 4645696,
+      "sha256": "fe272937891fb1b7bea72b1ff5eea37a28bb171c25ba90156ee5246bf54bc43c"
+    },
+    {
+      "file": "Notion移行_04_原本仕様書.zip",
+      "bytes": 3864288,
+      "sha256": "2b899e80159f53e5bfd3f25581f09a15dacbb765dcb7b45a5aed63ca5f2083d2"
+    }
+  ],
+  "notion_status": "blocked_by_free_block_limit; no new objects created"
+}

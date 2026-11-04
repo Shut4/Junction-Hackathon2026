@@ -1,0 +1,374 @@
+<!doctype html><html lang="ja"><meta charset="utf-8"><title>XIAO ESP32C3 BLE通信公式ガイド</title><style>body{font-family:sans-serif;max-width:1000px;margin:30px auto;line-height:1.6}pre{white-space:pre-wrap;word-break:break-word;font-family:inherit}</style><h1>XIAO ESP32C3 BLE通信公式ガイド</h1><p>取得日：2026-10-16 JST</p><p>出典：<a href="https://wiki.seeedstudio.com/XIAO_ESP32C3_Bluetooth_Usage/">https://wiki.seeedstudio.com/XIAO_ESP32C3_Bluetooth_Usage/</a></p><p>資料区分：GATT・BLE受信の実装用</p><p>以下は公開ページのテキスト保存です。原ページの図・動的コンテンツは上記リンクで確認してください。</p><hr><pre>Bluetooth Usage | Seeed Studio Wiki
+Skip to main content
+Collaborate with Seeed - Creator, Ranger, or Contributor, there is always a role ideal for you!
+Quick Links
+Sensor and Sensing
+Networking
+Edge Computing
+Cloud
+Explore with Topics
+TinyML
+SenseCraft Model Assistant
+Home Assistant
+Open Source
+Edge AI
+Wiki 矽递科技 (中文)
+Wiki SeeedStudio (日本語)
+Wiki SeeedStudio (Español)
+FAQs
+NVIDIA Jetson Series
+Seeed Studio XIAO Series
+reComputer R1000 Series
+reTerminal
+reRouter
+Odyssey
+Wio Terminal
+Discord
+Email
+Forum
+Have Suggestions?
+Get Involved
+Affiliate &amp; Creator
+Rangers
+Contributors
+Apply for Rangers
+Direct to Assignments
+More about Rangers
+More about Contributors
+Bazaar 🛍️
+AI Platform
+SenseCraft AI
+reComputer AI Lab
+Search
+Getting Started
+Weekly Wiki
+Sensing
+Grove
+SenseCAP
+SenseCAP Watcher
+mmWave Radar Sensor
+XIAO
+Exhibition for XIAO Series
+XIAO SAMD21 Series
+XIAO RA4M1
+XIAO MG24
+XIAO RP2040 Series
+XIAO RP2350
+XIAO nRF52840 Series
+XIAO nRF54L15 Series
+XIAO nRF54LM20A Series
+XIAO ESP32C3
+Getting Started with Seeed Studio XIAO ESP32C3
+Pin Multiplexing
+XIAO ESP32C3 With NuttX(RTOS)
+XIAO ESP32C3 with Zephyr(RTOS)
+Wireless Connection
+WiFi Usage
+Bluetooth Usage
+Programming Language
+Application
+XIAO ESP32C5
+XIAO ESP32C6
+XIAO ESP32S3 Series
+XIAO STM32C5
+XIAO Debug Mate
+Expansion Boards for XIAO
+XIAO + ESP-IDF + ESP-Matter
+ESP-NOW on XIAO ESP32 Series
+PCB Design for XIAO
+Kit with Courses
+FAQs for XIAO Series
+XIAO Gadgets
+ePaper Displays
+LCD Displays
+Wio Terminal
+reSpeaker
+Other Sensing Modules
+Other Microcontrollers
+Network
+Mesh Network
+LoRa Wio Series
+SenseCAP Gateway
+SenseCAP K1100
+SenseCAP LoRaWAN Starter Kit
+Raspberry Pi Solutions
+Rockchip Solutions
+Other Network Devices
+Edge Computing
+RK Devices
+Raspberry Pi Devices
+NVIDIA® Jetson™
+ESP Devices
+BeagleBone®
+ODYSSEY
+reCamera
+Other Edge Devices
+Robotics Page
+SenseCraft &amp; Cloud
+SenseCraft AI
+CodeCraft
+SenseCraft APP
+SenseCraft Data Platform
+SenseCraft Seeedash
+SenseCraft Robotics
+Solutions
+Vision &amp; Video AI
+Acoustic &amp; Audio AI
+Home &amp; Building Automation
+Environmental Sensing
+Indoor Positioning &amp; Tracking
+Off-Grid Communication
+Fusion
+PCB &amp; PCBA
+Technology Topics
+Home Assistant
+TinyML
+Open Source
+Edge AI
+Contributions
+Github Contributions Guide
+Scale up Your Creation with Seeed Studio Fusion
+Popular Platforms
+Arduino
+Raspberry Pi
+Micro:bit
+Discontinued Products
+Product List
+About Seeed
+License
+XIAO
+XIAO ESP32C3
+Wireless Connection
+Bluetooth Usage
+On this page
+Bluetooth Usage
+Seeed Studio XIAO ESP32C3 supports Bluetooth 5 (LE) connectivity. This wiki will introduce the basics of Bluetooth usage on this board.
+Hardware set up​
+Step 1. Connect the included WiFi/ Bluetooth antenna to the IPEX connector on the board
+Step 2. Connect XIAO ESP32C3 to your computer via a USB Type-C cable
+Scan Bluetooth devices​
+In this example, we are going to use XIAO ESP32C3 to scan available Bluetooth devices around it.
+Step 1. Copy and paste the code below into Arduino IDE
+#include &lt;BLEDevice.h&gt;
+#include &lt;BLEUtils.h&gt;
+#include &lt;BLEScan.h&gt;
+#include &lt;BLEAdvertisedDevice.h&gt;
+int scanTime = 5; //In seconds
+BLEScan* pBLEScan;
+class MyAdvertisedDeviceCallbacks: public BLEAdvertisedDeviceCallbacks {
+void onResult(BLEAdvertisedDevice advertisedDevice) {
+Serial.printf(&quot;Advertised Device: %s \n&quot;, advertisedDevice.toString().c_str());
+}
+};
+void setup() {
+Serial.begin(115200);
+Serial.println(&quot;Scanning...&quot;);
+BLEDevice::init(&quot;&quot;);
+pBLEScan = BLEDevice::getScan(); //create new scan
+pBLEScan-&gt;setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+pBLEScan-&gt;setActiveScan(true); //active scan uses more power, but get results faster
+pBLEScan-&gt;setInterval(100);
+pBLEScan-&gt;setWindow(99); // less or equal setInterval value
+}
+void loop() {
+// put your main code here, to run repeatedly:
+BLEScanResults foundDevices = pBLEScan-&gt;start(scanTime, false);
+Serial.print(&quot;Devices found: &quot;);
+Serial.println(foundDevices.getCount());
+Serial.println(&quot;Scan done!&quot;);
+pBLEScan-&gt;clearResults(); // delete results fromBLEScan buffer to release memory
+delay(2000);
+}
+tip
+If you have already upgrade your ESP32 development board to version 3.0.0 above, you need to change some code to compatible with it.
+BLEScanResults foundDevices = pBLEScan-&gt;start(scanTime, false); change to BLEScanResults* foundDevices = pBLEScan-&gt;start(scanTime, false);
+Serial.println(foundDevices.getCount()); change to Serial.println(foundDevices-&gt;getCount());
+Step 2. Upload the codes and open the Serial Monitor to start scanning for Bluetooth devices
+XIAO ESP32C3 as Bluetooth server​
+In this example, we are going to use XIAO ESP32C3 as a Bluetooth server. Here we will search for XIAO ESP32C3 board using a smartphone and send out strings to display on the serial monitor
+Step 1. Copy and paste the code below into Arduino IDE
+#include &lt;BLEDevice.h&gt;
+#include &lt;BLEUtils.h&gt;
+#include &lt;BLEServer.h&gt;
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
+#define SERVICE_UUID &quot;4fafc201-1fb5-459e-8fcc-c5c9c331914b&quot;
+#define CHARACTERISTIC_UUID &quot;beb5483e-36e1-4688-b7f5-ea07361b26a8&quot;
+class MyCallbacks: public BLECharacteristicCallbacks {
+void onWrite(BLECharacteristic *pCharacteristic) {
+std::string value = pCharacteristic-&gt;getValue();
+if (value.length() &gt; 0) {
+Serial.println(&quot;*********&quot;);
+Serial.print(&quot;New value: &quot;);
+for (int i = 0; i &lt; value.length(); i++)
+Serial.print(value[i]);
+Serial.println();
+Serial.println(&quot;*********&quot;);
+}
+}
+};
+void setup() {
+Serial.begin(115200);
+BLEDevice::init(&quot;MyESP32&quot;);
+BLEServer *pServer = BLEDevice::createServer();
+BLEService *pService = pServer-&gt;createService(SERVICE_UUID);
+BLECharacteristic *pCharacteristic = pService-&gt;createCharacteristic(
+CHARACTERISTIC_UUID,
+BLECharacteristic::PROPERTY_READ |
+BLECharacteristic::PROPERTY_WRITE
+);
+pCharacteristic-&gt;setCallbacks(new MyCallbacks());
+pCharacteristic-&gt;setValue(&quot;Hello World&quot;);
+pService-&gt;start();
+BLEAdvertising *pAdvertising = pServer-&gt;getAdvertising();
+pAdvertising-&gt;start();
+}
+void loop() {
+// put your main code here, to run repeatedly:
+delay(2000);
+}
+tip
+If you have already upgrade your ESP32 development board to version 3.0.0 above, you need to change some code to compatible with it.
+std::string value = pCharacteristic-&gt;getValue(); change to String value = pCharacteristic-&gt;getValue();
+Step 2. Upload the codes and open the Serial Monitor
+Step 3. Download and install LightBlue App on your smartphone
+LightBlue App (Android)
+LightBlue App (Apple)
+Step 4. Open Bluetooth on your phone, bring the phone close to XIAO ESP32C3, scan for devices and connect with MyESP32 device
+Step 5. Open the LightBlue app and click Bonded tab
+Step 6. Click CONNECT next to MyESP32
+Step 7. Click the section at the very bottom which says Readable, Writable
+Step 8. Under Data format drop-down menu, select UTF-8 String
+Step 9. Type &quot;Hello&quot; under WRITTEN VALUES and click WRITE
+You will see the text string &quot;Hello&quot; output on the serial monitor of Arduino IDE
+NimBLE-Arduino​
+Introduction​
+This library significantly reduces resource usage and improves performance for ESP32 BLE applications as compared with the bluedroid based library. The goal is to maintain, as much as reasonable, compatibility with the original library but but using the NimBLE stack. In addition, this library will be more actively developed and maintained to provide improved capabilities and stability over the original.
+For more information you can go to this author&#x27;s Github link.
+Step 1.Add Library​
+Step 2.Example​
+Code
+#include &lt;Arduino.h&gt;
+#include &lt;NimBLEDevice.h&gt;
+#include &lt;NimBLEAdvertisedDevice.h&gt;
+#include &quot;NimBLEEddystoneTLM.h&quot;
+#include &quot;NimBLEBeacon.h&quot;
+#define ENDIAN_CHANGE_U16(x) ((((x) &amp; 0xFF00) &gt;&gt; 8) + (((x) &amp; 0xFF) &lt;&lt; 8))
+int scanTime = 5 * 1000; // In milliseconds
+NimBLEScan* pBLEScan;
+class ScanCallbacks : public NimBLEScanCallbacks {
+void onResult(const NimBLEAdvertisedDevice* advertisedDevice) override {
+if (advertisedDevice-&gt;haveName()) {
+Serial.print(&quot;Device name: &quot;);
+Serial.println(advertisedDevice-&gt;getName().c_str());
+Serial.println(&quot;&quot;);
+}
+if (advertisedDevice-&gt;haveServiceUUID()) {
+NimBLEUUID devUUID = advertisedDevice-&gt;getServiceUUID();
+Serial.print(&quot;Found ServiceUUID: &quot;);
+Serial.println(devUUID.toString().c_str());
+Serial.println(&quot;&quot;);
+} else if (advertisedDevice-&gt;haveManufacturerData() == true) {
+std::string strManufacturerData = advertisedDevice-&gt;getManufacturerData();
+if (strManufacturerData.length() == 25 &amp;&amp; strManufacturerData[0] == 0x4C &amp;&amp; strManufacturerData[1] == 0x00) {
+Serial.println(&quot;Found an iBeacon!&quot;);
+NimBLEBeacon oBeacon = NimBLEBeacon();
+oBeacon.setData(reinterpret_cast&lt;const uint8_t*&gt;(strManufacturerData.data()), strManufacturerData.length());
+Serial.printf(&quot;iBeacon Frame\n&quot;);
+Serial.printf(&quot;ID: %04X Major: %d Minor: %d UUID: %s Power: %d\n&quot;,
+oBeacon.getManufacturerId(),
+ENDIAN_CHANGE_U16(oBeacon.getMajor()),
+ENDIAN_CHANGE_U16(oBeacon.getMinor()),
+oBeacon.getProximityUUID().toString().c_str(),
+oBeacon.getSignalPower());
+} else {
+Serial.println(&quot;Found another manufacturers beacon!&quot;);
+Serial.printf(&quot;strManufacturerData: %d &quot;, strManufacturerData.length());
+for (int i = 0; i &lt; strManufacturerData.length(); i++) {
+Serial.printf(&quot;[%X]&quot;, strManufacturerData[i]);
+}
+Serial.printf(&quot;\n&quot;);
+}
+return;
+}
+NimBLEUUID eddyUUID = (uint16_t)0xfeaa;
+if (advertisedDevice-&gt;getServiceUUID().equals(eddyUUID)) {
+std::string serviceData = advertisedDevice-&gt;getServiceData(eddyUUID);
+if (serviceData[0] == 0x20) {
+Serial.println(&quot;Found an EddystoneTLM beacon!&quot;);
+NimBLEEddystoneTLM foundEddyTLM = NimBLEEddystoneTLM();
+foundEddyTLM.setData(reinterpret_cast&lt;const uint8_t*&gt;(serviceData.data()), serviceData.length());
+Serial.printf(&quot;Reported battery voltage: %dmV\n&quot;, foundEddyTLM.getVolt());
+Serial.printf(&quot;Reported temperature from TLM class: %.2fC\n&quot;, (double)foundEddyTLM.getTemp());
+int temp = (int)serviceData[5] + (int)(serviceData[4] &lt;&lt; 8);
+float calcTemp = temp / 256.0f;
+Serial.printf(&quot;Reported temperature from data: %.2fC\n&quot;, calcTemp);
+Serial.printf(&quot;Reported advertise count: %d\n&quot;, foundEddyTLM.getCount());
+Serial.printf(&quot;Reported time since last reboot: %ds\n&quot;, foundEddyTLM.getTime());
+Serial.println(&quot;\n&quot;);
+Serial.print(foundEddyTLM.toString().c_str());
+Serial.println(&quot;\n&quot;);
+}
+}
+}
+} scanCallbacks;
+void setup() {
+Serial.begin(115200);
+Serial.println(&quot;Scanning...&quot;);
+NimBLEDevice::init(&quot;Beacon-scanner&quot;);
+pBLEScan = BLEDevice::getScan();
+pBLEScan-&gt;setScanCallbacks(&amp;scanCallbacks);
+pBLEScan-&gt;setActiveScan(true);
+pBLEScan-&gt;setInterval(100);
+pBLEScan-&gt;setWindow(100);
+}
+void loop() {
+NimBLEScanResults foundDevices = pBLEScan-&gt;getResults(scanTime, false);
+Serial.print(&quot;Devices found: &quot;);
+Serial.println(foundDevices.getCount());
+Serial.println(&quot;Scan done!&quot;);
+pBLEScan-&gt;clearResults(); // delete results scan buffer to release memory
+delay(2000);
+}
+Result
+Tech Support &amp; Product Discussion​
+Thank you for choosing our products! We are here to provide you with different support to ensure that your experience with our products is as smooth as possible. We offer several communication channels to cater to different preferences and needs.
+Edit this page
+Last updated on Jan 11, 2023 by shuxu hu
+Previous
+WiFi Usage
+Next
+XIAO ESP32C3 with CircuitPython
+Loading Comments...
+Hardware set up
+Scan Bluetooth devices
+XIAO ESP32C3 as Bluetooth server
+NimBLE-Arduino
+Introduction
+Step 1.Add Library
+Step 2.Example
+Tech Support &amp; Product Discussion
+Navigation
+Getting Started
+Sensor and Sensing
+Network
+Edge Computing
+Cloud
+Solutions
+Ecosystem
+Discord
+Project Hub
+Partners
+Distributors
+Quick Guide
+Bazaar
+How to get help
+FAQs
+Forum
+Technical Support
+Company
+About Seeed
+Join us
+Contact Us
+Press
+Copyright © 2026 Seeed Studio, Inc. Built with Docusaurus.</pre></html>
