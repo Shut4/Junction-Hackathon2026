@@ -302,6 +302,22 @@ final class SmokeTests:XCTestCase {
   app.buttons["endNavigation"].tap();app.buttons["案内を終了"].tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
  }
+ @MainActor func testStoppingCameraNavigationReturnsDirectlyToMap() throws {
+  let app=launchMap(developer:true,simulated:true)
+  let destination=app.buttons["京町・実験接続点を目的地にする"];XCTAssertTrue(destination.waitForExistence(timeout:10));destination.tap()
+  let matched=app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","道路候補を照合")).firstMatch
+  XCTAssertTrue(matched.waitForExistence(timeout:15),"simulated position must match a road")
+  app.buttons["通行不可を避ける経路を確認"].tap()
+  let startCamera=app.buttons["startCameraNavigation"];XCTAssertTrue(startCamera.waitForExistence(timeout:10));startCamera.tap()
+  app.buttons["確認して全面カメラで案内開始"].tap()
+  XCTAssertTrue(app.buttons["cameraMenu"].waitForExistence(timeout:10))
+  app.buttons["cameraMenu"].tap()
+  let stopGuidance=app.buttons["案内を停止"];XCTAssertTrue(stopGuidance.waitForExistence(timeout:5));stopGuidance.tap()
+  let confirmStop=app.buttons["停止"];XCTAssertTrue(confirmStop.waitForExistence(timeout:5));confirmStop.tap()
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.staticTexts["カメラ停止中"].exists)
+  XCTAssertFalse(app.staticTexts["カメラは画面を開くと自動で起動します。起動しない場合は地図へ戻り、もう一度カメラボタンを押してください"].exists)
+ }
  @MainActor func testDeveloperDebugLogScreen() throws {
   let app=launchMap(developer:true);XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
   openDeveloper(app);app.buttons["openDebugLog"].tap()
