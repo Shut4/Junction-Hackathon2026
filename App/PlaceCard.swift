@@ -53,12 +53,11 @@ extension AppStore {
             if let item=items?.first { inspected?.address=item.address?.fullAddress;inspected?.mapItem=item }
         }
     }
-    /// Choosing a place always goes through the existing road-connection confirmation.
-    func useInspectedAsDestination(calculateRoute:Bool) {
+    /// Choosing a place automatically selects a reachable road endpoint and calculates its route.
+    func useInspectedAsDestination() {
         guard let place=inspected else { return }
         inspected=nil
         chooseTarget(place.coordinate,name:place.droppedPin ? (place.address ?? localized("地図で選んだ目的地")):place.name)
-        if calculateRoute,let first=destinationConnections.first,destinationConnections.count==1 { confirmConnection(first.edgeID);calculate(usePosition:true) }
     }
 }
 struct PlaceCard:View {
@@ -78,7 +77,7 @@ struct PlaceCard:View {
             }
             ScrollView(.horizontal,showsIndicators:false) {
                 HStack(spacing:8) {
-                    Button { store.useInspectedAsDestination(calculateRoute:true) } label: { Label("経路",systemImage:"arrow.triangle.turn.up.right.diamond.fill").font(.headline).padding(.horizontal,16).frame(minHeight:44) }
+                    Button { store.useInspectedAsDestination() } label: { Label("経路",systemImage:"arrow.triangle.turn.up.right.diamond.fill").font(.headline).padding(.horizontal,16).frame(minHeight:44) }
                         .buttonStyle(.borderedProminent).buttonBorderShape(.capsule).disabled(!inBounds).accessibilityIdentifier("placeRoute")
                     if let phone=place.mapItem?.phoneNumber,let url=URL(string:"tel:"+phone.filter { $0.isNumber || $0 == "+" }) { Link(destination:url) { Label("電話",systemImage:"phone.fill").padding(.horizontal,12).frame(minHeight:44) }.buttonStyle(.bordered).buttonBorderShape(.capsule) }
                     if let url=place.mapItem?.url { Link(destination:url) { Label("Webサイト",systemImage:"globe").padding(.horizontal,12).frame(minHeight:44) }.buttonStyle(.bordered).buttonBorderShape(.capsule) }

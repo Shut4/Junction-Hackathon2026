@@ -43,6 +43,11 @@ final class SmokeTests:XCTestCase {
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
+ @MainActor func tapSavedDestination(_ label:String,app:XCUIApplication) {
+  let button=app.buttons[label],chips=app.scrollViews["savedChipsScroll"]
+  chips.swipeLeft()
+  XCTAssertTrue(button.waitForExistence(timeout:5),label);button.tap()
+ }
  @MainActor func testCaneStatusStaysInSettingsWithoutPersistentMapBadge() throws {
   let app=launchMap()
   XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
@@ -63,38 +68,31 @@ final class SmokeTests:XCTestCase {
   XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
  }
  @MainActor func testTobataDestinationAndRoutePreview() throws {
-  let app=launchMap(developer:true,networkID:"tobata-ground-osm")
+  let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
   XCTAssertTrue(app.buttons["九工大前駅付近・実験接続点を目的地にする"].waitForExistence(timeout:10))
-  openDeveloper(app);let simulation=app.switches["toggleSimulation"];reach(simulation,app:app);turnOn(simulation)
-  app.navigationBars.buttons.element(boundBy:0).tap();app.buttons["完了"].tap()
-  app.buttons["戸畑キャンパス正門付近・実験接続点を目的地にする"].tap()
+  tapSavedDestination("戸畑キャンパス正門付近・実験接続点を目的地にする",app:app)
   XCTAssertTrue(app.staticTexts["戸畑キャンパス正門付近・実験接続点"].waitForExistence(timeout:5))
   let matched=app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","道路候補を照合")).firstMatch
   XCTAssertTrue(matched.waitForExistence(timeout:15),"戸畑の模擬位置を道路に照合できること")
-  app.buttons["通行不可を避ける経路を確認"].tap()
-  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10))
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10),"目的地設定後に自動で経路確認へ進むこと")
  }
  @MainActor func testShinzutsumiParkCoordinateReachesRoutePreview() throws {
   let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
 
   let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap();query.typeText("33.89800372649751,130.84239911645375")
   let coordinateSearch=app.buttons["destinationSearchButton"];XCTAssertTrue(coordinateSearch.waitForExistence(timeout:5));coordinateSearch.tap()
-  let connection=app.buttons["destinationConnection.osm:166677343:1781302633:1781302616"]
-  XCTAssertTrue(connection.waitForExistence(timeout:10),"新堤公園から約23mの道路区間が案内終点候補になること")
-  connection.tap()
-  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","約23 m")).firstMatch.waitForExistence(timeout:5))
-  let routeButton=app.buttons["通行不可を避ける経路を確認"];XCTAssertTrue(routeButton.isEnabled);routeButton.tap()
+  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","選択地点までは約")).firstMatch.waitForExistence(timeout:5),"選択地点と自動選択した案内終点の差が表示されること")
+  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","入口・通路は未確認")).firstMatch.exists)
+  XCTAssertFalse(app.staticTexts["案内の終点を確認"].exists)
+  XCTAssertFalse(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","destinationConnection.")).firstMatch.exists)
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15),"新堤公園を目的地としてルート案内開始まで進めること")
  }
  @MainActor func testTobataRouteRecalculatesAfterClosureAndRemoval() throws {
-  let app=launchMap(developer:true,networkID:"tobata-ground-osm")
+  let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
   XCTAssertTrue(app.buttons["戸畑キャンパス正門付近・実験接続点を目的地にする"].waitForExistence(timeout:10))
-  openDeveloper(app);let simulation=app.switches["toggleSimulation"];reach(simulation,app:app);turnOn(simulation)
-  app.navigationBars.buttons.element(boundBy:0).tap();app.buttons["完了"].tap()
-  app.buttons["戸畑キャンパス正門付近・実験接続点を目的地にする"].tap()
+  tapSavedDestination("戸畑キャンパス正門付近・実験接続点を目的地にする",app:app)
   XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","道路候補を照合")).firstMatch.waitForExistence(timeout:15))
-  app.buttons["通行不可を避ける経路を確認"].tap()
-  XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録0区間")).firstMatch.waitForExistence(timeout:10))
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10))
 
   // This stable OSM edge is on the fixture route and has a verified alternate path in CoreTests.
   let closedEdge="osm:166677852:11702112551:1781302900"
@@ -103,11 +101,11 @@ final class SmokeTests:XCTestCase {
   let edge=app.buttons["edge."+closedEdge];XCTAssertTrue(edge.waitForExistence(timeout:5));edge.tap()
   let review=app.buttons["対象を確認して登録"];reach(review,app:app,count:12);review.tap();app.buttons["この範囲を登録"].tap()
   if app.alerts.firstMatch.waitForExistence(timeout:2) { app.alerts.buttons["閉じる"].tap() }
-  XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録1区間")).firstMatch.waitForExistence(timeout:10),"登録後の迂回経路が最新の除外件数を保持すること")
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10),"通行不可登録後も迂回経路を再計算できること")
 
   app.buttons["設定"].tap();let remove=app.buttons["removeReport."+closedEdge];reach(remove,app:app,count:20);XCTAssertTrue(remove.waitForExistence(timeout:5));remove.tap()
   let confirmations=app.buttons.matching(NSPredicate(format:"label == %@","この報告を解除"));confirmations.element(boundBy:max(0,confirmations.count-1)).tap();app.buttons["完了"].tap()
-  XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録0区間")).firstMatch.waitForExistence(timeout:10),"解除後も経路が最新状態で再計算されること")
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10),"通行不可解除後も経路が最新状態で再計算されること")
  }
  @MainActor func reach(_ button:XCUIElement,app:XCUIApplication,count:Int=10) {
   for _ in 0..<count where !button.isHittable { app.swipeUp() }
@@ -266,18 +264,16 @@ final class SmokeTests:XCTestCase {
   XCTAssertFalse(app.buttons["カメラと通知を開始"].exists);XCTAssertFalse(app.buttons["案内を再読み上げ"].exists)
  }
  @MainActor func testSimulatedMapAndCameraNavigationWithBoxes() throws {
-  let app=launchMap(developer:true)
+  let app=launchMap(developer:true,simulated:true)
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
   openDeveloper(app)
   let boxes=app.switches["toggleBoxes"];reach(boxes,app:app);XCTAssertTrue(boxes.exists);turnOn(boxes)
-  let simulation=app.switches["toggleSimulation"];reach(simulation,app:app);XCTAssertTrue(simulation.exists);turnOn(simulation)
   let pole=app.buttons["ポールの模擬継続検出（BBOXにも表示）"];reach(pole,app:app,count:15);pole.tap()
   app.navigationBars.buttons.element(boundBy:0).tap();app.buttons["完了"].tap()
   resolveStorage(app)
   app.buttons["京町・実験接続点を目的地にする"].tap()
   let matched=app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","道路候補を照合")).firstMatch
   XCTAssertTrue(matched.waitForExistence(timeout:15),"simulated position must match a road")
-  app.buttons["通行不可を避ける経路を確認"].tap()
   let startMap=app.buttons["startMapNavigation"];XCTAssertTrue(startMap.waitForExistence(timeout:10))
   attach(app,"Route-preview-with-two-guidance-modes")
   startMap.tap();app.buttons["確認してナビを開始"].tap()
@@ -379,7 +375,7 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.staticTexts["指定した座標"].waitForExistence(timeout:5))
  }
  @MainActor func testLongPressDropsPinWithPlaceCard() throws {
-  let app=launchMap();let map=app.otherElements["homeMap"];XCTAssertTrue(map.waitForExistence(timeout:10))
+  let app=launchMap(simulated:true);let map=app.otherElements["homeMap"];XCTAssertTrue(map.waitForExistence(timeout:10))
   // Above the bottom panel, below the chips. A POI under the finger would open its own card instead.
   map.coordinate(withNormalizedOffset:CGVector(dx:0.25,dy:0.38)).press(forDuration:1.0)
   XCTAssertTrue(app.otherElements["placeCard"].waitForExistence(timeout:5))
@@ -388,5 +384,8 @@ final class SmokeTests:XCTestCase {
   attach(app,"Place-card-dropped-pin")
   app.buttons["placeRoute"].tap()
   XCTAssertFalse(app.otherElements["placeCard"].exists)
+  XCTAssertFalse(app.staticTexts["案内の終点を確認"].exists)
+  XCTAssertFalse(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","destinationConnection.")).firstMatch.exists)
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15),"地図で選んだ目的地も自動で経路確認へ進むこと")
  }
 }

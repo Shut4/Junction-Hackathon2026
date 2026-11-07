@@ -95,6 +95,38 @@ final class CoreTests:XCTestCase {
         let reverseApproach=try XCTUnwrap(Router(network:oneWay).route(from:"a",to:connection,blocked:[]))
         XCTAssertEqual(reverseApproach.steps.map(\.id),["ad","dc","bc"],"a backward-only destination edge must be entered from its to-node")
     }
+    func testBatchedDestinationRoutingMatchesExhaustiveSearchAndSkipsClosures() throws {
+        let n=fixture(),router=Router(network:n)
+        let points=[Coordinate(33.883,130.8805),Coordinate(33.8835,130.881),Coordinate(33.884,130.8805)]
+        let connections=points.flatMap { DestinationConnection.candidates(for:$0,network:n,limit:1) }
+        let batched=try XCTUnwrap(router.bestRoute(from:"a",to:connections,blocked:[]))
+        let exhaustive=try XCTUnwrap(connections.compactMap { connection in router.route(from:"a",to:connection,blocked:[]).map { (connection,$0) } }.min {
+            $0.1.distance+$0.0.distance < $1.1.distance+$1.0.distance
+        })
+        XCTAssertEqual(batched.connection.edgeID,exhaustive.0.edgeID)
+        XCTAssertEqual(batched.route.distance,exhaustive.1.distance,accuracy:0.001)
+
+        let closed=try XCTUnwrap(connections.first?.edgeID)
+        let detour=try XCTUnwrap(router.bestRoute(from:"a",to:connections,blocked:[closed]))
+        XCTAssertNotEqual(detour.connection.edgeID,closed)
+        XCTAssertFalse(detour.route.steps.contains { $0.id==closed })
+        XCTAssertEqual(detour.route.excludedSegmentIDs,[closed])
+    }
+    func testBatchedPositionAndOffRoadRoutingKeepExactEndpointAndApproach() throws {
+        let n=fixture(),router=Router(network:n)
+        let start=Coordinate(33.883,130.88025),target=Coordinate(33.8835,130.881)
+        let connections=DestinationConnection.candidates(for:target,network:n,limit:3)
+        let matched=try router.bestRoute(from:start,on:"ab",to:connections,blocked:[]).get()
+        XCTAssertEqual(matched.route.destinationCoordinate,matched.connection.coordinate)
+        XCTAssertEqual(matched.route.distance,matched.route.steps.map(\.distance).reduce(0,+),accuracy:0.001)
+
+        let offRoad=Coordinate(33.8825,130.8805)
+        let approached=try router.bestOffRoadRoute(from:offRoad,to:connections,blocked:[]).get()
+        XCTAssertTrue(try XCTUnwrap(approached.route.steps.first).isApproach)
+        XCTAssertEqual(approached.route.steps.first?.shape.first,offRoad)
+        XCTAssertEqual(approached.route.destinationCoordinate,approached.connection.coordinate)
+        XCTAssertTrue(approached.route.blockedSegmentsInRoute.isEmpty)
+    }
     func testConnectedSelectionRejectsDisconnected() {
         let matcher=RoadMatcher(network:fixture())
         XCTAssertTrue(matcher.connected(["ab","bc"]))
