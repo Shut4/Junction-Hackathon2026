@@ -96,21 +96,28 @@ final class SmokeTests:XCTestCase {
   app.buttons["通行不可を避ける経路を確認"].tap()
   XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録0区間")).firstMatch.waitForExistence(timeout:10))
 
-  // This stable OSM edge is on the fixture route and has a verified alternate path in CoreTests.
-  let closedEdge="osm:166677852:11702112551:1781302900"
-  app.buttons["通行不可を登録"].tap();app.buttons["roadListAlternative"].tap()
-  let search=app.textFields["道路名・接続点・区間IDを検索"];reach(search,app:app,count:15);search.tap();search.typeText(closedEdge)
-  let edge=app.buttons["edge."+closedEdge];XCTAssertTrue(edge.waitForExistence(timeout:5));edge.tap()
-  let review=app.buttons["対象を確認して登録"];reach(review,app:app,count:12);review.tap();app.buttons["この範囲を登録"].tap()
+  app.buttons["通行不可を登録"].tap();selectRoadOnReportMap(app)
+  let review=app.buttons["対象を確認して登録"];XCTAssertTrue(review.isEnabled);review.tap();app.buttons["この範囲を登録"].tap()
   if app.alerts.firstMatch.waitForExistence(timeout:2) { app.alerts.buttons["閉じる"].tap() }
   XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録1区間")).firstMatch.waitForExistence(timeout:10),"登録後の迂回経路が最新の除外件数を保持すること")
 
-  app.buttons["設定"].tap();let remove=app.buttons["removeReport."+closedEdge];reach(remove,app:app,count:20);XCTAssertTrue(remove.waitForExistence(timeout:5));remove.tap()
+  app.buttons["設定"].tap();let remove=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","removeReport.")).firstMatch;reach(remove,app:app,count:20);XCTAssertTrue(remove.waitForExistence(timeout:5));remove.tap()
   let confirmations=app.buttons.matching(NSPredicate(format:"label == %@","この報告を解除"));confirmations.element(boundBy:max(0,confirmations.count-1)).tap();app.buttons["完了"].tap()
   XCTAssertTrue(app.descendants(matching:.any).matching(NSPredicate(format:"label CONTAINS %@","通行不可登録0区間")).firstMatch.waitForExistence(timeout:10),"解除後も経路が最新状態で再計算されること")
  }
  @MainActor func reach(_ button:XCUIElement,app:XCUIApplication,count:Int=10) {
   for _ in 0..<count where !button.isHittable { app.swipeUp() }
+ }
+ @MainActor func selectRoadOnReportMap(_ app:XCUIApplication) {
+  let map=app.otherElements["reportRoadMap"]
+  XCTAssertTrue(map.waitForExistence(timeout:5))
+  let selected=app.staticTexts["選択 1区間"]
+  let candidate=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","roadCandidate.")).firstMatch
+  for (dx,dy) in [(0.5,0.5),(0.45,0.55),(0.55,0.45),(0.4,0.6),(0.6,0.4),(0.5,0.65)] where !selected.exists {
+   map.coordinate(withNormalizedOffset:CGVector(dx:dx,dy:dy)).tap()
+   if candidate.waitForExistence(timeout:1) { candidate.tap() }
+  }
+  XCTAssertTrue(selected.waitForExistence(timeout:5))
  }
  @MainActor func attach(_ app:XCUIApplication,_ name:String) { let image=XCTAttachment(screenshot:app.screenshot());image.name=name;image.lifetime = .keepAlways;add(image) }
  /// Tests run on isolated data (--ui-testing), so this only triggers if that data is from an older road version.
@@ -236,15 +243,15 @@ final class SmokeTests:XCTestCase {
  }
  @MainActor func testReportSelectionConfirmationAndRestartPersistence() throws {
   let app=launchMap();resolveStorage(app);let register=app.buttons["通行不可を登録"];register.tap()
-  app.buttons["roadListAlternative"].tap()
-  let first=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","edge.")).firstMatch
-  XCTAssertTrue(first.waitForExistence(timeout:5));let identifier=first.identifier;first.tap()
-  let review=app.buttons["対象を確認して登録"];reach(review,app:app,count:18);review.tap()
+  XCTAssertTrue(app.staticTexts["道路が選択されていません"].waitForExistence(timeout:5))
+  XCTAssertFalse(app.buttons["対象を確認して登録"].isEnabled)
+  selectRoadOnReportMap(app)
+  let review=app.buttons["対象を確認して登録"];XCTAssertTrue(review.isEnabled);review.tap()
   XCTAssertTrue(app.staticTexts["区間全体を通行不可にします"].waitForExistence(timeout:5));app.buttons["この範囲を登録"].tap()
   if app.alerts.firstMatch.waitForExistence(timeout:3) { app.alerts.buttons["閉じる"].tap() }
-  app.terminate();app.launchArguments.removeAll { $0 == "--reset-test-data" };app.launch();register.tap()
-  app.buttons["roadListAlternative"].tap()
-  let saved=app.buttons[identifier];XCTAssertTrue(saved.waitForExistence(timeout:5));XCTAssertTrue(saved.label.contains("通行不可登録あり"));app.buttons["戻る"].tap()
+  app.terminate();app.launchArguments.removeAll { $0 == "--reset-test-data" };app.launch()
+  app.buttons["設定"].tap();let saved=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","removeReport.")).firstMatch
+  reach(saved,app:app,count:20);XCTAssertTrue(saved.waitForExistence(timeout:5));app.buttons["完了"].tap()
   attach(app,"Report-persisted-after-restart")
  }
  @MainActor func testMaximumTextCameraControlsRemainReachable() throws {
@@ -355,20 +362,15 @@ final class SmokeTests:XCTestCase {
  }
  @MainActor func testMapTapRoadSelectionIsDefault() throws {
   let app=launchMap();app.buttons["通行不可を登録"].tap()
-  XCTAssertTrue(app.staticTexts["地図の道路をタップして選択"].waitForExistence(timeout:5))
+  XCTAssertTrue(app.staticTexts["道路を選ぶ"].waitForExistence(timeout:5))
   XCTAssertTrue(app.buttons["戻る"].exists)
+  XCTAssertFalse(app.buttons["roadListAlternative"].exists)
+  XCTAssertFalse(app.staticTexts.matching(NSPredicate(format:"label CONTAINS %@","区間）")).firstMatch.exists)
   XCTAssertFalse(app.staticTexts["なぞって複数区間を選択"].exists)
   XCTAssertFalse(app.switches["なぞり選択モード"].exists)
   XCTAssertFalse(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","edge.")).firstMatch.exists)
-  let map=app.otherElements["reportRoadMap"]
-  XCTAssertTrue(map.waitForExistence(timeout:5))
-  let selected=app.staticTexts["選択 1区間"],candidate=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","roadCandidate.")).firstMatch
-  // The dense network makes most taps land on a road; try a few points in case one falls inside a block.
-  for (dx,dy) in [(0.5,0.5),(0.45,0.55),(0.55,0.45),(0.4,0.6),(0.6,0.4),(0.5,0.65)] where !selected.exists {
-   map.coordinate(withNormalizedOffset:CGVector(dx:dx,dy:dy)).tap()
-   if candidate.waitForExistence(timeout:2) { reach(candidate,app:app);candidate.tap() }
-  }
-  XCTAssertTrue(selected.waitForExistence(timeout:5))
+  selectRoadOnReportMap(app)
+  XCTAssertTrue(app.buttons["対象を確認して登録"].isEnabled)
   attach(app,"Report-map-selectable-roads")
  }
  @MainActor func testDirectInputCompletionAndClear() throws {

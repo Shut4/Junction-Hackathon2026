@@ -31,7 +31,11 @@ struct GuideMap: UIViewRepresentable {
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
         let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;map.addGestureRecognizer(tap)
         context.coordinator.mode=mode
-        map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。区間一覧でも選択できます。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。")
+        map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。道路をタップして選択します。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。")
+        if mode == .report {
+            map.accessibilityHint=localized("道路を選択すると、選択区間数と登録ボタンの状態が更新されます")
+            map.accessibilityTraits.insert(.allowsDirectInteraction)
+        }
         if mode == .navigation { context.coordinator.following=true }
         return map
     }
@@ -141,7 +145,8 @@ struct GuideMap: UIViewRepresentable {
                 case "selectable": r.strokeColor = .systemTeal;r.lineWidth=3.5
                 case "blockedCasing": r.strokeColor = .white;r.lineWidth=11
                 case "selectedCasing": r.strokeColor = .systemYellow;r.lineWidth=11
-                case "blocked","selected": r.strokeColor = .systemRed;r.lineWidth=6
+                case "blocked": r.strokeColor = .systemOrange;r.lineWidth=6;r.lineDashPattern=[5,5]
+                case "selected": r.strokeColor = .systemRed;r.lineWidth=6
                 default: r.strokeColor = UIColor.systemGray.withAlphaComponent(mode == .navigation ? 0.35:0.55);r.lineWidth=mode == .navigation ? 1:1.5
                 }
                 return r
