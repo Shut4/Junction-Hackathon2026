@@ -138,7 +138,9 @@ struct CameraScreen:View {
     /// Full-width coloured bar: the single most important thing in large type, the route step below it while navigating.
     /// Tapping it reads the surroundings aloud; VoiceOver reads it first, with the other items as its value.
     private func topBar(top:SceneItem?,items:[SceneItem],tint:Color)->some View {
-        let title=top.map { $0.text.trimmingCharacters(in:CharacterSet(charactersIn:"。")) } ?? localized(store.camera.running ? "障害物なし":store.camera.status)
+        let title = !store.camera.recognitionEnabled
+            ? localized("目的地未設定のため画像認識は停止中")
+            : top.map { $0.text.trimmingCharacters(in:CharacterSet(charactersIn:"。")) } ?? localized(store.camera.running ? "障害物なし":store.camera.status)
         return VStack(alignment:.leading,spacing:6) {
             Text(title).font(.system(size:40,weight:.bold)).minimumScaleFactor(0.5).lineLimit(2)
         }
@@ -149,7 +151,8 @@ struct CameraScreen:View {
         .accessibilityElement(children:.ignore).accessibilityLabel(title)
         .accessibilityValue(items.count > 1 ? localized("ほかに、{0}",items.dropFirst().map(\.text).joined(separator:" ")):"")
         .accessibilityHint("ダブルタップで周囲を読み上げます").accessibilityAddTraits([.isHeader,.updatesFrequently,.isButton])
-        .accessibilityAction { store.speakSurroundingsNow() }.accessibilitySortPriority(10).accessibilityIdentifier("sceneBar")
+        .accessibilityAction { store.speakSurroundingsNow() }.accessibilitySortPriority(10)
+        .accessibilityIdentifier(store.camera.recognitionEnabled ? "sceneBar":"cameraRecognitionDisabled")
     }
     private func detailsCard(_ items:[SceneItem])->some View {
         VStack(alignment:.leading,spacing:4) {

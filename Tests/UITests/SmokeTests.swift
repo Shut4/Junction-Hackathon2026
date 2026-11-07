@@ -253,6 +253,27 @@ final class SmokeTests:XCTestCase {
   attach(app,"Maximum-text-full-camera-controls");map.tap()
   XCTAssertTrue(app.buttons["設定"].waitForExistence(timeout:5))
  }
+ @MainActor func testCameraDoesNotRecognizeWithoutDestinationAtLaunchOrAfterClearing() throws {
+  let app=launchMap()
+  let camera=app.buttons["全面カメラで案内"]
+  let recognitionDisabled=app.descendants(matching:.any)["cameraRecognitionDisabled"]
+  XCTAssertTrue(camera.waitForExistence(timeout:10));camera.tap()
+  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5),"起動直後の目的地未設定状態では画像認識を開始しないこと")
+  app.buttons["cameraBack"].tap()
+
+  app.buttons["京町・実験接続点を目的地にする"].tap()
+  let clear=app.buttons["目的地の選択を解除"]
+  reach(clear,app:app);XCTAssertTrue(clear.isHittable);clear.tap()
+  camera.tap()
+  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5),"目的地を解除した後も画像認識を開始しないこと")
+ }
+ @MainActor func testCameraRecognitionRemainsEnabledWithDestination() throws {
+  let app=launchMap()
+  app.buttons["京町・実験接続点を目的地にする"].tap()
+  app.buttons["全面カメラで案内"].tap()
+  XCTAssertTrue(app.descendants(matching:.any)["sceneBar"].waitForExistence(timeout:5),"目的地設定済みでは従来どおり画像認識を有効にすること")
+  XCTAssertFalse(app.descendants(matching:.any)["cameraRecognitionDisabled"].exists)
+ }
  @MainActor func testDestinationSelectionAndFullCameraWithoutHomeTab() throws {
   let app=launchMap();XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:15));XCTAssertFalse(app.tabBars.firstMatch.exists)
   app.textFields["destinationQuery"].tap()
