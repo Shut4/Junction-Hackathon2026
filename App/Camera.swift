@@ -14,6 +14,9 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     let queue = DispatchQueue(label:"guide.camera")
     var result: (@Sendable ([Detection],Double,Double,Double,String?) -> Void)?
     private var request: VNCoreMLRequest?
+    /// Keeps preview capture separate from image/depth recognition. The camera can
+    /// remain visible while recognition is disabled until a destination is set.
+    private let recognitionEnabled=OSAllocatedUnfairLock<Bool>(initialState:false)
     private var configured=false
     private var lastFrame=0.0
     /// Chest/head-height obstacle check from the dual-camera depth stream (no LiDAR needed). Runs on its own queue.
@@ -33,7 +36,9 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     func setHeadLevelConfig(_ config:HeadLevelConfig) { depthQueue.async { [self] in headLevelConfig=config } }
     func setWalkableConfig(_ config:WalkableConfig) { depthQueue.async { [self] in walkableConfig=config } }
     func setDepthCheck(_ config:DepthCheck) { queue.async { [self] in depthCheck=config } }
-    func start() {
+    func start(recognitionEnabled enabled:Bool) {
+        recognitionEnabled.withLock { $0=enabled }
+        if !enabled { latestDepth.withLock { $0=nil } }
         queue.async { [self] in
             do {
                 if !configured {
@@ -48,15 +53,15 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
                     guard session.canAddOutput(output) else { throw CameraError.noCamera };session.addOutput(output);configured=true
                     configureDepth(device)
                 }
-                if request == nil, let url=Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") {
+                if enabled,request == nil, let url=Bundle.main.url(forResource:DetectionModel.name,withExtension:"mlmodelc") {
                     let model=try MLModel(contentsOf:url);request=VNCoreMLRequest(model:try VNCoreMLModel(for:model));request?.imageCropAndScaleOption = .scaleFit
                 }
-                if motion.isDeviceMotionAvailable && !motion.isDeviceMotionActive { motion.deviceMotionUpdateInterval=1/30;motion.startDeviceMotionUpdates() }
+                if enabled,motion.isDeviceMotionAvailable && !motion.isDeviceMotionActive { motion.deviceMotionUpdateInterval=1/30;motion.startDeviceMotionUpdates() }
                 session.startRunning()
             } catch { result?([],0,0,0,error.localizedDescription) }
         }
     }
-    func stop() { queue.async { [self] in session.stopRunning();motion.stopDeviceMotionUpdates() } }
+    func stop() { recognitionEnabled.withLock { $0=false };queue.async { [self] in session.stopRunning();motion.stopDeviceMotionUpdates() } }
     /// Picks a small 4:3 video format that also delivers depth, and adds a depth output. Leaves the VGA preset when unsupported.
     private func configureDepth(_ device:AVCaptureDevice) {
         let formats=device.formats.filter { !$0.supportedDepthDataFormats.isEmpty }.filter { let d=CMVideoFormatDescriptionGetDimensions($0.formatDescription);return d.width*3 == d.height*4 && d.width >= 640 }
@@ -73,6 +78,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
         headLevel?(nil,localized("深度 {0}×{1}・映像 {2}×{3}",d.width,d.height,v.width,v.height))
     }
     func depthDataOutput(_ output:AVCaptureDepthDataOutput,didOutput depthData:AVDepthData,timestamp:CMTime,connection:AVCaptureConnection) {
+        guard recognitionEnabled.withLock({ $0 }) else { return }
         let now=ProcessInfo.processInfo.systemUptime
         guard now-lastDepth >= 0.2 else { return };lastDepth=now
         guard let g=motion.deviceMotion?.gravity else { headLevel?(nil,"端末の傾きを取得できません");return }
@@ -111,6 +117,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
         headLevel?(result,localized("深度 {0}点・床{1} {2}m",points.count,localized(result.floorMeasured ? "推定":"仮定"),String(format:"%.2f",-result.floor)))
     }
     func captureOutput(_ output:AVCaptureOutput,didOutput sampleBuffer:CMSampleBuffer,from connection:AVCaptureConnection) {
+        guard recognitionEnabled.withLock({ $0 }) else { return }
         let now=ProcessInfo.processInfo.systemUptime
         guard now-lastFrame >= 0.15 else { return };lastFrame=now
         guard let request,let pixel=CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
@@ -139,6 +146,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
 @MainActor final class CameraController: ObservableObject {
     let engine=CaptureEngine()
     @Published var running=false
+    @Published private(set) var recognitionEnabled=false
     @Published var status="カメラ停止中"
     @Published var modelStatus="未導入"
     @Published var labels="検出候補なし"
@@ -185,31 +193,33 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             Task { @MainActor in
                 guard let self else { return }
                 self.depthStatus=status
-                guard self.running,let result else { self.onDepthUnavailable?();return }
+                guard self.running,self.recognitionEnabled,let result else { self.onDepthUnavailable?();return }
                 self.headLevel=result.hit;self.walkable=result.walkable;self.onDepth?(result,result.capturedAt)
             }
         }
     }
-    func start() {
+    func start(recognitionEnabled:Bool=true) {
         sessionGeneration += 1;let generation=sessionGeneration
+        self.recognitionEnabled=recognitionEnabled
+        status=recognitionEnabled ? (modelStatus == "未導入" ? "カメラ映像のみ・認識モデル未導入":"カメラ起動中"):"目的地未設定のため画像認識は停止中"
         Task {
             let granted:Bool
             if AVCaptureDevice.authorizationStatus(for:.video) == .notDetermined { granted=await AVCaptureDevice.requestAccess(for:.video) }
             else { granted=AVCaptureDevice.authorizationStatus(for:.video) == .authorized }
             guard generation==sessionGeneration else { return }
             guard granted else { status="カメラが許可されていません";debugLog(.permission,.warning,"Camera not authorized");return }
-            running=true;simulatedDetections=false;detections=[];lastCaptured=0;status=modelStatus == "未導入" ? "カメラ映像のみ・認識モデル未導入":"カメラ起動中";engine.start()
-            debugLog(.camera,.start,"Camera session started",["model":modelStatus,"confidence":String(format:"%.2f",filter.confidence)])
+            running=true;simulatedDetections=false;detections=[];lastCaptured=0;engine.start(recognitionEnabled:recognitionEnabled)
+            debugLog(.camera,.start,"Camera session started",["model":modelStatus,"confidence":String(format:"%.2f",filter.confidence),"recognition":recognitionEnabled])
         }
     }
     func stop() {
         if running { debugLog(.camera,.info,"Camera session stopped",["inferences":inferenceCount,"notices":notificationCount]) }
-        sessionGeneration += 1;running=false;engine.stop();filter.reset();status="カメラ停止中";labels="検出候補なし";detections=[];framesPerSecond=0;headLevel=nil;walkable=nil
+        sessionGeneration += 1;running=false;recognitionEnabled=false;engine.stop();filter.reset();status="カメラ停止中";labels="検出候補なし";detections=[];framesPerSecond=0;headLevel=nil;walkable=nil
     }
     /// DeveloperMode preview of the box overlay without camera frames. Never passed to the notice filter.
     func showSimulated(_ items:[Detection]) { guard !running else { return };simulatedDetections=true;detections=items }
     private func receive(_ detections:[Detection],captured:Double,start:Double,end:Double,error:String?) {
-        guard running else { return }
+        guard running,recognitionEnabled else { return }
         if let error=error ?? (injectError ? localized("模擬認識エラー"):nil) { status=localized("認識エラー：{0}",localized(error));debugLog(.model,.error,"Inference error",["error":error,"injected":injectError]);stopAfterError();return }
         if inferenceCount == 0 { debugLog(.model,.success,"First inference completed",["ms":Int((end-start)*1000),"objects":detections.count]) }
         if lastCaptured>0,captured>lastCaptured { let fps=1/(captured-lastCaptured);framesPerSecond=framesPerSecond == 0 ? fps:framesPerSecond*0.8+fps*0.2 };lastCaptured=captured
