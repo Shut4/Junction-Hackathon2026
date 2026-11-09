@@ -191,11 +191,6 @@ struct HomeScreen:View {
                 }
                 Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader)
                 if !store.destinationMessage.isEmpty { Text(localized(store.destinationMessage)).font(.subheadline).foregroundStyle(.secondary) }
-                if !store.destinationConnections.isEmpty && store.confirmedDestinationConnection==nil {
-                    Text("案内の終点を確認").font(.headline)
-                    ForEach(Array(store.destinationConnections.prefix(expanded ? 5:3))) { c in Button { store.confirmConnection(c.edgeID) } label: { Label(localized("{0}・選択地点から約{1} m",store.connectionName(c),Int(c.distance.rounded())),systemImage:"point.topleft.down.to.point.bottomright.curvepath").frame(maxWidth:.infinity,minHeight:44,alignment:.leading) }.buttonStyle(.bordered).accessibilityIdentifier("destinationConnection."+c.edgeID) }
-                    Text("選択地点と道路上の案内終点の間は未確認です。近い道路が施設入口とは限りません。").font(.caption)
-                }
                 if let route=store.route {
                     RouteSummary(route:route)
                     HStack(spacing:10) {

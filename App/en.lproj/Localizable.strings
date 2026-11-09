@@ -118,7 +118,7 @@
 "背面カメラの許可が必要です。障害物候補を端末内で検出して通知するために使います。許可しない場合は先へ進めません。画像は保存・送信しません。" = "Rear camera access is required to detect and alert you to possible obstacles on this device. You cannot continue without it. Images are not stored or sent.";
 "位置情報の許可は経路案内に必要です。iOS設定でこのアプリの位置情報を「使用中のみ許可」にして戻ってください。" = "Location access is required for route guidance. In iOS Settings, allow location access while using this app, then return.";
 "カメラの許可は障害物候補の検出と通知に必要です。iOS設定でこのアプリのカメラを許可して戻ってください。" = "Camera access is required to detect and announce possible obstacles. Allow camera access for this app in iOS Settings, then return.";
-"上部の検索欄に目的地を直接入力し、候補から選択します。地図の長押し・保存済み地点からも選べます。道路接続点と経路を確認して開始すると、カメラ全面表示へ切り替えられます。通行不可登録では地図の道路をタップして選択します。" = "Enter a destination in the search field at the top and choose a suggestion. You can also touch and hold the map or select a saved place. Confirm the road connection and route before starting guidance, then switch to the full-screen camera. To report a blocked road, tap a road on the map.";
+"上部の検索欄に目的地を直接入力し、候補から選択します。地図の長押し・保存済み地点からも選べます。道路上の案内終点は自動選択されるため、選択地点までの未確認区間と経路を確認して案内を開始します。通行不可登録では地図の道路をタップして選択します。" = "Enter a destination in the search field at the top and choose a suggestion. You can also touch and hold the map or select a saved place. The road endpoint is selected automatically, so review the route and the unverified gap to your chosen place before starting guidance. To report a blocked road, tap a road on the map.";
 "視覚障害者が指定した目的地へ向かうための実験用アプリです。この端末で登録した通行不可区間を避けて検索します。まずは同行者のいる管理された環境で使ってください。避難所の開設・受入状況と道路の安全性は確認していません。" = "This experimental app helps people with visual impairments travel to a chosen destination. It avoids blocked road segments reported on this device. First use it in a controlled setting with a companion. Shelter availability and road safety have not been verified.";
 "経路一覧" = "Route steps";
 "経路が未設定です。目的地を選び、経路を確認して開始してください" = "No route is set. Choose a destination and check the route before starting.";
@@ -381,6 +381,7 @@
 "カメラ起動中" = "Camera starting";
 "カメラが許可されていません" = "Camera access is not allowed";
 "カメラ映像のみ・認識モデル未導入" = "Camera preview only · detection model missing";
+"目的地未設定のため画像認識は停止中" = "Image recognition paused until a destination is set";
 "端末内で認識中" = "Detecting on device";
 "認識処理実行中" = "Detection running";
 "検出候補なし" = "No possible objects detected";
@@ -431,8 +432,10 @@
 "現在位置に対応する道路がありません。位置情報と選択地域を確認してください。" = "No road matches your current location. Check location access and the selected area.";
 "現在位置の道路が通行不可に登録されています。経路案内を開始できません。" = "The road at your current location is reported blocked. Guidance cannot start.";
 "案内の終点に接続する道路が通行不可です。別の接続候補を選択してください。" = "The road at the guidance endpoint is reported blocked. Choose another connection option.";
+"目的地付近の道路が通行不可です。目的地を選び直すか、通行不可の登録状況を確認してください。" = "A road near the destination is reported blocked. Choose another destination or review blocked-road reports.";
 "現在位置または目的地が選択地域の対応範囲外です。地域をまたぐ経路には対応していません。" = "Your location or destination is outside the selected area. Routes across areas are unavailable.";
 "通行不可区間を除外した経路がありません。道路網の接続と通行不可の登録状況を確認してください。" = "No route remains after excluding blocked segments. Check road connections and reports.";
+"目的地まで到達できる経路がありません。別の目的地を選ぶか、道路網の接続と通行不可の登録状況を確認してください。" = "No route can reach the destination. Choose another destination or check road connections and blocked-road reports.";
 "位置の精度が不足しています。空が見える場所で位置の更新を待っています。" = "Location accuracy is insufficient. Wait for an update where the sky is visible.";
 "位置情報が更新されていません。新しい位置を待っています。" = "Location has not updated. Waiting for a new fix.";
 "位置に対応する歩行区間がありません。" = "No walking segment matches this location.";
