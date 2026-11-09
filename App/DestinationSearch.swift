@@ -52,7 +52,7 @@ struct DestinationPickerScreen:View {
             Text(localized(search.status)).font(.subheadline)
             ForEach(Array(search.results.enumerated()),id:\.offset) { index,item in Button { let c=item.location.coordinate;store.chooseTarget(Coordinate(c.latitude,c.longitude),name:item.name ?? localized("選択した目的地"));dismiss() } label: { VStack(alignment:.leading) { Text(item.name ?? localized("名称なし")).font(.headline);Text(item.address?.fullAddress ?? "").font(.subheadline) } }.frame(minHeight:48).accessibilityIdentifier("destinationResult.\(index)") }
         }
-        Section("保存済み地点（通信なしでも選択可能）") { ForEach(store.destinations) { d in Button(localized(d.name)) { store.chooseSavedDestination(d);dismiss() }.frame(minHeight:48) } }
+        if !store.destinations.isEmpty { Section("保存済み地点（通信なしでも選択可能）") { ForEach(store.destinations) { d in Button(localized(d.name)) { store.chooseSavedDestination(d);dismiss() }.frame(minHeight:48) } } }
         Section("座標で選ぶ") {
             TextField("緯度（例：33.885）",text:$latitude).keyboardType(.numbersAndPunctuation)
             TextField("経度（例：130.880）",text:$longitude).keyboardType(.numbersAndPunctuation)

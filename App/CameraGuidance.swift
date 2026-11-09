@@ -62,7 +62,7 @@ struct DetectionOverlay:View {
 }
 
 /// Detected objects marked on the preview like the reference design: a ringed dot at the object with its name below.
-/// Visual only (VoiceOver gets the same information from the top bar).
+/// Visual only (VoiceOver gets the same information from the surroundings button).
 struct SceneMarkers:View {
     let detections:[Detection];let minConfidence:Double;var tiers:[String:SceneTier]=[:];var classConfidence:[String:Double]=[:]
     var body:some View {
@@ -107,7 +107,6 @@ struct CameraScreen:View {
             }
             if !store.camera.running && !(store.navigating && store.showARArrow) { stoppedHint }
             VStack(spacing:0) {
-                topBar(top:top,items:items,tint:tint)
                 if details { detailsCard(items).padding(.horizontal,12).padding(.top,8) }
                 Spacer(minLength:8)
                 if store.navigating && store.showARArrow { ARDirectionIndicator() }
@@ -115,6 +114,16 @@ struct CameraScreen:View {
                     roundButton(store.navigating ? "地図ナビに切り替え":"地図へ戻る",symbol:"map.fill",tint:tint,id:store.navigating ? "switchToMapNavigation":"cameraBack") {
                         if store.navigating { store.switchGuidance(to:.map) } else { store.closeGuidance() }
                     }
+                    Spacer()
+                    Button { store.speakSurroundingsNow() } label: {
+                        Image(systemName:"speaker.wave.2.fill").font(.title2).foregroundStyle(.white)
+                            .frame(width:60,height:60).background(.black.opacity(0.65),in:Circle())
+                    }
+                    .accessibilityLabel(surroundingsTitle(top:top))
+                    .accessibilityValue(items.count > 1 ? items.dropFirst().map(\.text).joined(separator:" "):"")
+                    .accessibilityHint("ダブルタップで周囲を読み上げます")
+                    .accessibilityAddTraits(.updatesFrequently)
+                    .accessibilityIdentifier("cameraSurroundings")
                     Spacer()
                     Menu {
                         Button("周囲を読み上げ",systemImage:"speaker.wave.2") { store.speakSurroundingsNow() }
@@ -135,24 +144,9 @@ struct CameraScreen:View {
         .sheet(isPresented:$settings) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .confirmationDialog("案内・カメラ・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
-    /// Full-width coloured bar: the single most important thing in large type, the route step below it while navigating.
-    /// Tapping it reads the surroundings aloud; VoiceOver reads it first, with the other items as its value.
-    private func topBar(top:SceneItem?,items:[SceneItem],tint:Color)->some View {
-        let title = !store.camera.recognitionEnabled
-            ? localized("目的地未設定のため画像認識は停止中")
-            : top.map { $0.text.trimmingCharacters(in:CharacterSet(charactersIn:"。")) } ?? localized(store.camera.running ? "障害物なし":store.camera.status)
-        return VStack(alignment:.leading,spacing:6) {
-            Text(title).font(.system(size:40,weight:.bold)).minimumScaleFactor(0.5).lineLimit(2)
-        }
-        .foregroundStyle(.white).frame(maxWidth:.infinity,alignment:.leading).padding(.horizontal,24).padding(.top,12).padding(.bottom,22)
-        // The coloured shape runs up under the status bar, like the reference design.
-        .background { UnevenRoundedRectangle(bottomLeadingRadius:22,bottomTrailingRadius:22).fill(tint).ignoresSafeArea(edges:.top) }
-        .contentShape(Rectangle()).onTapGesture { store.speakSurroundingsNow() }
-        .accessibilityElement(children:.ignore).accessibilityLabel(title)
-        .accessibilityValue(items.count > 1 ? localized("ほかに、{0}",items.dropFirst().map(\.text).joined(separator:" ")):"")
-        .accessibilityHint("ダブルタップで周囲を読み上げます").accessibilityAddTraits([.isHeader,.updatesFrequently,.isButton])
-        .accessibilityAction { store.speakSurroundingsNow() }.accessibilitySortPriority(10)
-        .accessibilityIdentifier(store.camera.recognitionEnabled ? "sceneBar":"cameraRecognitionDisabled")
+    private func surroundingsTitle(top:SceneItem?)->String {
+        if !store.camera.recognitionEnabled { return localized("目的地未設定のため画像認識は停止中") }
+        return top?.text ?? localized(store.camera.running ? "障害物なし":store.camera.status)
     }
     private func detailsCard(_ items:[SceneItem])->some View {
         VStack(alignment:.leading,spacing:4) {
@@ -170,7 +164,7 @@ struct CameraScreen:View {
     }
     private var stoppedHint:some View {
         VStack(spacing:8) {
-            // The reason itself is in the top bar.
+            // Status is also available from the surroundings button.
             Image(systemName:"video.slash").font(.largeTitle)
             Text("カメラは画面を開くと自動で起動します。起動しない場合は地図へ戻り、もう一度カメラボタンを押してください").font(.subheadline)
         }.foregroundStyle(.white).multilineTextAlignment(.center).padding(.horizontal,24).accessibilityHidden(true)

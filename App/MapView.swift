@@ -31,7 +31,7 @@ struct GuideMap: UIViewRepresentable {
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
         let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;tap.delegate=context.coordinator;map.addGestureRecognizer(tap)
         context.coordinator.mode=mode
-        map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。道路をタップして選択します。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。")
+        map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。道路をタップして選択します。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄からも選べます。")
         if mode == .report {
             map.accessibilityHint=localized("道路を選択すると、選択区間数と登録ボタンの状態が更新されます")
             map.accessibilityTraits.insert(.allowsDirectInteraction)
@@ -42,7 +42,8 @@ struct GuideMap: UIViewRepresentable {
     func updateUIView(_ map:MKMapView,context:Context) {
         let c=context.coordinator
         c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
-        if map.layoutMargins != insets { map.layoutMargins=insets }
+        let insetsChanged=map.layoutMargins != insets
+        if insetsChanged { map.layoutMargins=insets }
         guard let network=store.network else { return }
         // The static road-network layer is built once per mode; only small dynamic layers are replaced.
         let baseKey="\(mode)|\(network.id)|\(network.version)"
@@ -75,6 +76,11 @@ struct GuideMap: UIViewRepresentable {
             else { c.simulatedPin=pin(sample.coordinate,kind:.simulated,title:localized("模擬位置"),subtitle:localized("実位置ではありません"),map:map) }
         } else if let existing=c.simulatedPin { map.removeAnnotation(existing);c.simulatedPin=nil }
         if c.focusToken != store.mapFocusToken { c.focusToken=store.mapFocusToken;if let target=store.mapFocus { c.apply(target,map:map,insets:insets) } }
+        // The destination panel changes height after a route is calculated.
+        // Fit again with its measured height so neither endpoint is hidden behind it.
+        if insetsChanged,mode == .explore,case .route?=store.mapFocus {
+            c.apply(.route,map:map,insets:insets,animated:false)
+        }
         if mode == .navigation && c.following { c.follow(map:map) }
     }
     @discardableResult private func add(_ shape:[Coordinate],title:String,map:MKMapView)->MKPolyline { let line=MKPolyline(coordinates:shape.map(\.clLocation),count:shape.count);line.title=title;map.addOverlay(line,level:.aboveRoads);return line }
@@ -83,8 +89,10 @@ struct GuideMap: UIViewRepresentable {
         var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
         var mode:GuideMapMode = .explore;var focusToken=0;var simulatedPin:GuidePin?;var following=false;var lastFollowed:Date?
         init(store:AppStore) { self.store=store }
-        func apply(_ focus:MapFocus,map:MKMapView,insets:UIEdgeInsets) {
-            let padding=UIEdgeInsets(top:insets.top+40,left:40,bottom:insets.bottom+40,right:40)
+        func apply(_ focus:MapFocus,map:MKMapView,insets:UIEdgeInsets,animated:Bool=true) {
+            // MapKit already includes layoutMargins when fitting overlays.
+            // Only add breathing room here; panel insets must not be counted twice.
+            let padding=UIEdgeInsets(top:24,left:24,bottom:24,right:24)
             switch focus {
             case .user:
                 if mode == .navigation { following=true;lastFollowed=nil;follow(map:map);return }
@@ -93,8 +101,18 @@ struct GuideMap: UIViewRepresentable {
                 else if let s=store.location.sample { map.setCenter(s.coordinate.clLocation,animated:true) }
             case .route:
                 guard mode != .navigation,let route=store.route else { return }
-                let shape=RouteTracker.shape(of:route).map(\.clLocation)
-                map.setVisibleMapRect(MKPolyline(coordinates:shape,count:shape.count).boundingMapRect,edgePadding:padding,animated:true)
+                // Stop a previous current-location follow before fitting the full route.
+                map.setUserTrackingMode(.none,animated:false)
+                var coordinates=RouteTracker.shape(of:route)
+                coordinates += store.destinationConnector
+                if let target=store.destinationCoordinate { coordinates.append(target) }
+                guard !coordinates.isEmpty else { return }
+                let line=MKPolyline(coordinates:coordinates.map(\.clLocation),count:coordinates.count)
+                var rect=line.boundingMapRect
+                // Keep very short or straight routes from zooming in excessively.
+                let minimum=250 * MKMapPointsPerMeterAtLatitude(line.coordinate.latitude)
+                rect=rect.insetBy(dx:-max(0,(minimum-rect.width)/2),dy:-max(0,(minimum-rect.height)/2))
+                map.setVisibleMapRect(rect,edgePadding:padding,animated:animated)
             case .destination:
                 if let t=store.destinationCoordinate { map.setRegion(MKCoordinateRegion(center:t.clLocation,latitudinalMeters:700,longitudinalMeters:700),animated:true) }
             case .coordinate(let c):

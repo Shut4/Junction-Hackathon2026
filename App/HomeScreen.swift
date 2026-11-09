@@ -25,11 +25,11 @@ struct HomeScreen:View {
     var body:some View {
         GeometryReader { geometry in
             ZStack(alignment:.top) {
-                GuideMap(store:store,mode:.explore,onDestination:{ store.inspectDroppedPin($0) },onTap:{ searchFocused=false;if query.isEmpty { searchOpen=false };store.inspected=nil },insets:UIEdgeInsets(top:geometry.safeAreaInsets.top+(searchOpen ? 0:118),left:0,bottom:searchOpen ? 0:panelHeight+geometry.safeAreaInsets.bottom,right:0))
+                GuideMap(store:store,mode:.explore,onDestination:{ store.inspectDroppedPin($0) },onTap:{ searchFocused=false;if query.isEmpty { searchOpen=false };store.inspected=nil },insets:UIEdgeInsets(top:geometry.safeAreaInsets.top+(searchOpen ? 0:64),left:0,bottom:searchOpen ? 0:panelHeight+geometry.safeAreaInsets.bottom,right:searchOpen ? 0:84))
                     .ignoresSafeArea().accessibilityIdentifier("homeMap")
                 VStack(spacing:10) {
                     searchBar.padding(.horizontal,12)
-                    if searchOpen { searchResults.padding(.horizontal,12) } else { savedChips }
+                    if searchOpen { searchResults.padding(.horizontal,12) }
                     Spacer(minLength:0)
                     if !searchOpen {
                         floatingButtons.padding(.horizontal,12)
@@ -82,16 +82,6 @@ struct HomeScreen:View {
         }
         .padding(.leading,14).padding(.trailing,6).padding(.vertical,6)
         .background(Capsule().fill(Color(.systemBackground)).shadow(color:.black.opacity(0.18),radius:8,y:3))
-    }
-    private var savedChips:some View {
-        ScrollView(.horizontal,showsIndicators:false) {
-            HStack(spacing:8) {
-                ForEach(store.destinations) { d in
-                    Button { store.inspected=nil;store.chooseSavedDestination(d);query=localized(d.name) } label: { Label(localized(d.name).replacingOccurrences(of:localized("・実験接続点"),with:""),systemImage:"figure.walk").font(.subheadline.weight(.medium)).padding(.horizontal,14).padding(.vertical,9).background(Capsule().fill(store.destinationID == d.id ? Color.blue.opacity(0.18):Color(.systemBackground)).shadow(color:.black.opacity(0.12),radius:4,y:2)) }
-                        .buttonStyle(.plain).accessibilityLabel(localized("{0}を目的地にする",localized(d.name)))
-                }
-            }.padding(.horizontal,14).padding(.vertical,4)
-        }.frame(maxWidth:.infinity).accessibilityIdentifier("savedChipsScroll")
     }
     private var searchResults:some View {
         ScrollView { VStack(alignment:.leading,spacing:0) {
@@ -201,9 +191,8 @@ struct HomeScreen:View {
                     PrimaryButton(title:"通行不可を避ける経路を確認",symbol:"arrow.triangle.turn.up.right.diamond") { store.calculate(usePosition:true) }.disabled(!store.hasDestination)
                 }
                 if let message=store.routeMessage { Text(localized(message)).font(.subheadline).accessibilityIdentifier("routeMessage") }
-                if !store.positionState.isEmpty { Text(localized(store.positionState)).font(.subheadline) }
+                if store.offRoadDistance == nil && !store.positionState.isEmpty { Text(localized(store.positionState)).font(.subheadline) }
                 if store.hasDestination || store.selectedTarget != nil { Button("目的地の選択を解除",systemImage:"xmark.circle") { store.clearDestination();query="" }.frame(minHeight:44) }
-                SourceFooter()
             }.padding(.horizontal,16).padding(.bottom,12).frame(maxWidth:.infinity,alignment:.leading)
     }
     private var navigatingCard:some View {
