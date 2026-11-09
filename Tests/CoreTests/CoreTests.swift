@@ -396,8 +396,8 @@ final class CoreTests:XCTestCase {
         let route=try router.resolveOffRoadRoute(from:south,to:"c",blocked:[]).get()
         XCTAssertTrue(route.steps[0].isApproach);XCTAssertEqual(route.steps[0].shape.first,south);XCTAssertEqual(route.steps[1].id,"bc","shortest total, not merely the closest road")
         XCTAssertEqual(route.distance,route.steps.map(\.distance).reduce(0,+),accuracy:0.5)
-        let detour=try router.resolveOffRoadRoute(from:south,to:"c",blocked:["ab"]).get()
-        XCTAssertTrue(detour.steps[0].isApproach);XCTAssertFalse(detour.steps.contains { $0.id == "ab" })
+        // Every straight approach to the other side crosses the blocked bottom road.
+        XCTAssertEqual(router.resolveOffRoadRoute(from:south,to:"c",blocked:["ab"]).failureValue,.noRoute)
         XCTAssertEqual(router.resolveOffRoadRoute(from:Coordinate(34,131),to:"c",blocked:[]).failureValue,.outsideNetwork)
         XCTAssertEqual(router.resolveOffRoadRoute(from:south,to:"c",blocked:["ab","bc","ad","dc"]).failureValue,.noRoute)
         if case .outside=PositionGate.evaluate(LocationSample(coordinate:Coordinate(34,131),accuracy:5,timestamp:Date()),network:n) {} else { XCTFail("outside the region stays unsupported") }
