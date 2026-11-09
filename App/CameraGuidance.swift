@@ -137,7 +137,7 @@ struct CameraScreen:View {
         .sheet(isPresented:$report,onDismiss:{ cameraFocus = .menu }) { NavigationStack { ReportScreen() } }
         .sheet(isPresented:$settings,onDismiss:{ cameraFocus = .menu }) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .onChange(of:stop) { _,shown in if !shown { cameraFocus = .menu } }
-        .confirmationDialog("案内・カメラ・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
+        .alert("案内・カメラ・待機音声を停止します",isPresented:$stop) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     /// Full-width coloured bar: the single most important thing in large type, the route step below it while navigating.
     /// Tapping it reads the surroundings aloud; VoiceOver reads it first, with the other items as its value.
