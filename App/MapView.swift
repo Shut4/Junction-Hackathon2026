@@ -94,7 +94,6 @@ struct GuideMap: UIViewRepresentable {
                 var roads=route;if let first=roads.steps.first,first.isApproach { roads.steps.removeFirst();c.dynamicOverlays.append(add(first.shape,title:"approach",map:map)) }
                 let shape=RouteTracker.shape(of:roads);c.dynamicOverlays += [add(shape,title:"routeCasing",map:map),add(shape,title:"route",map:map)]
             }
-            if !store.destinationConnector.isEmpty { c.dynamicOverlays.append(add(store.destinationConnector,title:"destinationConnector",map:map)) }
             let blocked=network.edges.filter { store.blocked.contains($0.id) },selected=network.edges.filter { store.selected.contains($0.id) }
             for (edges,name) in [(blocked,"blocked"),(selected,"selected")] where !edges.isEmpty {
                 let lines=edges.map { MKPolyline(coordinates:$0.shape.map(\.clLocation),count:$0.shape.count) }
@@ -199,7 +198,6 @@ struct GuideMap: UIViewRepresentable {
             case "routeCasing": renderer.strokeColor = .white;renderer.lineWidth=11
             case "route": renderer.strokeColor = .systemBlue;renderer.lineWidth=7
             case "approach": renderer.strokeColor = .systemBlue;renderer.lineWidth=5;renderer.lineDashPattern=[2,10]
-            case "destinationConnector": renderer.strokeColor = .systemOrange;renderer.lineWidth=4;renderer.lineDashPattern=[3,8]
             default: renderer.strokeColor = .systemIndigo;renderer.lineWidth=2;renderer.lineDashPattern=[5,5]
             }
             renderer.lineCap = .round;renderer.lineJoin = .round

@@ -801,3 +801,8 @@
 "{0}、{1}" = "{0}, {1}";
 
 "目的地パネルを展開すると、経路と案内の操作を確認できます" = "Expand the destination panel to review the route and guidance controls";
+
+"目的地に最も近い道路上まで案内します。選択地点までは約{0} mです。この先の入口・通路は道路データがなく案内できません。" = "Guidance follows roads to the road closest to your destination. The selected place is about {0} m away. The remaining entrance or path is not in the road data and cannot be guided.";
+
+"目的地付近まで道路に沿って案内します。施設の入口は現地で確認してください。" = "Follow the road route to the destination area. Confirm the facility entrance on site.";
+"案内可能な道路上の終点です。目的地への入口・通路は案内できません。" = "This is the end of the mapped road route. Guidance to the destination entrance or path is unavailable.";
