@@ -857,3 +857,8 @@
 "経路なし" = "No route";
 "位置確認中" = "Locating";
 "経路が見つかりません。地図で経路を確認してください。" = "No route found. Check the route on the map.";
+
+"カメラ案内中、白杖が届かない胸・頭の高さ（約1〜2m）で前方1m以内の物を、2つのカメラの深度から検出し、振動で知らせます。暗い場所・ガラス・模様のない壁では検出できないことがあります。" = "During camera guidance, depth detects objects within 1 m at chest or head height (about 1–2 m above the ground) beyond the cane's reach and alerts you by vibration. Detection may fail in darkness, on glass, or on featureless walls.";
+"自動販売機・木・看板などの周辺情報も読み上げます。危険・注意は振動で通知し、自動では読み上げません。目印（点字ブロック・横断歩道・信号・ドアなど）よりナビ音声を優先します。VoiceOver使用中はVoiceOverの読み上げで伝えます。" = "Also describe surroundings such as vending machines, trees and signs. Hazards use vibration without automatic speech. Navigation takes priority over landmarks such as tactile paving, crosswalks, signals and doors. When VoiceOver is active, announcements use VoiceOver.";
+"振動・カメラ案内" = "Vibration and camera guidance";
+"振動を既定値に戻す" = "Reset vibration settings";

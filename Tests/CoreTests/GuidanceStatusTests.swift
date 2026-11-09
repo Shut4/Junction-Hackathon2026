@@ -2,38 +2,39 @@ import XCTest
 @testable import GuideCore
 
 final class GuidanceStatusTests:XCTestCase {
-    func testSpeechCategoriesAreAudiblyDistinct() {
-        var policy=GuidanceSpeechPolicy()
+    func testNavigationAndOptionalSurroundingsKeepTheirSpeechLabels() {
+        let policy=GuidanceSpeechPolicy()
         XCTAssertEqual(policy.message("左へ。",kind:.navigation,priority:.normal,now:0),"ナビ、左へ。")
-        XCTAssertEqual(policy.message("止まって。",kind:.hazard,priority:.critical,now:1),"危険、止まって。")
         XCTAssertEqual(policy.message("点字ブロック。",kind:.surroundings,priority:.normal,now:2),"周囲、点字ブロック。")
     }
-    func testUrgentHazardSuppressesNavigationForFiveSeconds() {
-        var policy=GuidanceSpeechPolicy()
-        XCTAssertNotNil(policy.message("止まって。",kind:.hazard,priority:.critical,now:10))
-        XCTAssertNil(policy.message("直進です。",kind:.navigation,priority:.normal,now:10.1))
-        XCTAssertNil(policy.message("左へ。",kind:.navigation,priority:.normal,now:14.9))
-        XCTAssertNotNil(policy.message("右へ。",kind:.navigation,priority:.normal,now:15))
+    func testAllHazardPrioritiesAreSilentBeforeEitherSpeechBackend() {
+        let policy=GuidanceSpeechPolicy()
+        for priority in SpeechPriority.allCases {
+            XCTAssertNil(policy.message("障害物。",kind:.hazard,priority:priority,now:0))
+        }
+        XCTAssertNil(policy.message("",kind:.navigation,priority:.normal,now:0))
     }
-    func testRepeatedCautionsAllowNavigationAndDoNotExtendStopWindow() {
-        var policy=GuidanceSpeechPolicy()
-        _=policy.message("止まって。",kind:.hazard,priority:.critical,now:0)
-        for now in [1.0,4.0,5.0,8.0,12.0] {
-            XCTAssertEqual(policy.message("ポール。",kind:.hazard,priority:.high,now:now),"注意、ポール。")
-            let navigation=policy.message("左へ。",kind:.navigation,priority:.normal,now:now)
-            if now < 5 { XCTAssertNil(navigation) } else { XCTAssertEqual(navigation,"ナビ、左へ。") }
+    func testRepeatedCriticalHazardsNeverSuppressNavigation() {
+        let policy=GuidanceSpeechPolicy()
+        for now in [0.0,0.1,1,2,4,5,8,12] {
+            XCTAssertNil(policy.message("止まって。",kind:.hazard,priority:.critical,now:now))
+            XCTAssertNil(policy.message("ポール。",kind:.hazard,priority:.high,now:now))
+            XCTAssertEqual(policy.message("左へ。",kind:.navigation,priority:.normal,now:now),"ナビ、左へ。")
         }
     }
-    func testOngoingImmediateDangerStillHoldsNavigation() {
-        var policy=GuidanceSpeechPolicy()
-        _=policy.message("止まって。",kind:.hazard,priority:.critical,now:0)
-        _=policy.message("止まって。",kind:.hazard,priority:.critical,now:4)
-        XCTAssertNil(policy.message("直進です。",kind:.navigation,priority:.normal,now:8))
-        XCTAssertNotNil(policy.message("左へ。",kind:.navigation,priority:.normal,now:9))
+    func testNavigationPrecedesQueuedLandmarkDescriptions() throws {
+        let policy=GuidanceSpeechPolicy(),now=Date()
+        var queue=SpeechQueue()
+        let landmark=try XCTUnwrap(policy.message("横断歩道。",kind:.surroundings,priority:.normal,now:0))
+        let navigation=try XCTUnwrap(policy.message("右へ。",kind:.navigation,priority:.normal,now:0))
+        queue.enqueue(landmark,priority:policy.priority(for:.surroundings,requested:.normal),now:now)
+        queue.enqueue(navigation,priority:policy.priority(for:.navigation,requested:.normal),route:true,now:now)
+        XCTAssertEqual(queue.next(now:now)?.text,"ナビ、右へ。")
+        XCTAssertEqual(queue.next(now:now)?.text,"周囲、横断歩道。")
     }
     func testUnreliableDirectionAnnouncesCheckingThenRecovers() {
         var announcer=DirectionAnnouncer()
-        var policy=GuidanceSpeechPolicy()
+        let policy=GuidanceSpeechPolicy()
         XCTAssertNil(announcer.update(angle:nil,reason:"方向を確認中です。",now:0))
         let checking=announcer.update(angle:nil,reason:"方向を確認中です。",now:3)
         XCTAssertEqual(policy.message(checking ?? "",kind:.navigation,priority:.normal,now:3),"ナビ、方向を確認中です。")
@@ -67,7 +68,7 @@ final class GuidanceStatusTests:XCTestCase {
         XCTAssertEqual(DirectionBucket.of(0).shortText,"直進")
         XCTAssertEqual(DirectionBucket.of(90).shortText,"右へ")
     }
-    func testHazardSummaryKeepsFullDescriptionForSpeech() throws {
+    func testHazardSummaryKeepsFullDescriptionForAccessibility() throws {
         let detection=Detection(label:"pole",confidence:0.95,box:Box(x:0.4,y:0.2,width:0.2,height:0.5),capturedAt:0,distance:0.8)
         let item=try XCTUnwrap(SceneSummary.items(detections:[detection],walkable:nil,headLevel:nil).first)
         XCTAssertEqual(item.priority,.high)
