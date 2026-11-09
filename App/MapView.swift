@@ -14,9 +14,31 @@ final class GuidePin: MKPointAnnotation {
 final class GuideMapContainer:UIView {
     let map:MKMapView
     var hidesMapElements=false
+    var onUserInteraction:(()->Void)?
     override var accessibilityElements:[Any]? {
         get { hidesMapElements ? []:[map] }
         set { }
+    }
+    // Expose the actual MapKit camera to UI regression tests without adding UI.
+    override var accessibilityValue:String? {
+        get {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing"),!hidesMapElements {
+                return String(map.camera.centerCoordinateDistance)
+            }
+            #endif
+            return super.accessibilityValue
+        }
+        set { super.accessibilityValue=newValue }
+    }
+    override func hitTest(_ point:CGPoint,with event:UIEvent?)->UIView? {
+        let hit=super.hitTest(point,with:event)
+        // Observe real touches before MapKit consumes its private recognizers.
+        // This leaves native pinch, double-tap and pan handling unchanged.
+        if hit != nil,event?.type == .touches {
+            onUserInteraction?()
+        }
+        return hit
     }
     init(map:MKMapView) {
         self.map=map
@@ -53,6 +75,7 @@ struct GuideMap: UIViewRepresentable {
         configureAccessibility(map)
         if mode == .navigation { context.coordinator.following=true }
         let container=GuideMapContainer(map:map)
+        container.onUserInteraction = { [weak coordinator=context.coordinator] in coordinator?.routeOverviewActive=false }
         container.hidesMapElements=AccessibilityLayout.voiceOver(voiceOver)
         return container
     }
@@ -77,8 +100,10 @@ struct GuideMap: UIViewRepresentable {
         configureAccessibility(map)
         let c=context.coordinator
         c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
-        let insetsChanged=map.layoutMargins != insets
-        if insetsChanged { map.layoutMargins=insets }
+        // MapKit may adjust its margins while zooming. Compare requested layout
+        // values, rather than treating those internal changes as panel changes.
+        let insetsChanged=c.requestedInsets != insets
+        if insetsChanged { c.requestedInsets=insets;map.layoutMargins=insets }
         guard let network=store.network else { return }
         // The static road-network layer is built once per mode; only small dynamic layers are replaced.
         let baseKey="\(mode)|\(network.id)|\(network.version)"
@@ -109,10 +134,15 @@ struct GuideMap: UIViewRepresentable {
             if let existing=c.simulatedPin { existing.coordinate=sample.coordinate.clLocation }
             else { c.simulatedPin=pin(sample.coordinate,kind:.simulated,title:localized("模擬位置"),subtitle:localized("実位置ではありません"),map:map) }
         } else if let existing=c.simulatedPin { map.removeAnnotation(existing);c.simulatedPin=nil }
-        if c.focusToken != store.mapFocusToken { c.focusToken=store.mapFocusToken;if let target=store.mapFocus { c.apply(target,map:map,insets:insets) } }
+        let focusChanged=c.focusToken != store.mapFocusToken
+        if focusChanged {
+            c.focusToken=store.mapFocusToken
+            c.routeOverviewActive=false
+            if let target=store.mapFocus { c.apply(target,map:map,insets:insets) }
+        }
         // The destination panel changes height after a route is calculated.
         // Fit again with its measured height so neither endpoint is hidden behind it.
-        if insetsChanged,mode == .explore,case .route?=store.mapFocus {
+        if insetsChanged,!focusChanged,c.routeOverviewActive,mode == .explore,case .route?=store.mapFocus {
             c.apply(.route,map:map,insets:insets,animated:false)
         }
         if mode == .navigation && c.following { c.follow(map:map) }
@@ -122,6 +152,8 @@ struct GuideMap: UIViewRepresentable {
     @MainActor final class Coordinator:NSObject,MKMapViewDelegate,UIGestureRecognizerDelegate {
         var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
         var mode:GuideMapMode = .explore;var focusToken=0;var simulatedPin:GuidePin?;var following=false;var lastFollowed:Date?
+        var requestedInsets:UIEdgeInsets?
+        var routeOverviewActive=false
         init(store:AppStore) { self.store=store }
         func apply(_ focus:MapFocus,map:MKMapView,insets:UIEdgeInsets,animated:Bool=true) {
             // MapKit already includes layoutMargins when fitting overlays.
@@ -135,6 +167,7 @@ struct GuideMap: UIViewRepresentable {
                 else if let s=store.location.sample { map.setCenter(s.coordinate.clLocation,animated:true) }
             case .route:
                 guard mode != .navigation,let route=store.route else { return }
+                routeOverviewActive=true
                 // Stop a previous current-location follow before fitting the full route.
                 map.setUserTrackingMode(.none,animated:false)
                 var coordinates=RouteTracker.shape(of:route)
