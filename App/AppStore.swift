@@ -30,7 +30,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     @Published var previewStart = ""
     @Published var routeMessage: String?
     private var requestedRouteUsesPosition: Bool?
-    private var waitingForRoutePosition = false
+    @Published private(set) var waitingForRoutePosition = false
+    @Published private(set) var routeSearchFailed = false
+    private var routeFailureFeedback=RouteFailureFeedbackPolicy()
+    #if DEBUG && targetEnvironment(simulator)
+    private var backgroundFailureFixturePrepared=false
+    #endif
     private var resumeAfterPosition = false
     @Published var route: WalkRoute?
     @Published var navigating = false
@@ -341,18 +346,25 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         stopNavigation();confirmedDestinationConnection=nil;selectedTarget=nil;destinationConnections=[];destinationID="";targetName=localized("目的地を選択してください");destinationMessage=""
     }
     // MARK: Routing and guidance
-    func calculate(usePosition:Bool) {
+    private func reportRouteFailure(_ message:String,origin:RouteSearchOrigin) {
+        routeSearchFailed=true;nextInstruction=message
+        let feedback=routeFailureFeedback.feedback(for:message,origin:origin)
+        if feedback.showAlert { notice=message }
+        if feedback.announce { speech.say(localized("経路が見つかりません。地図で経路を確認してください。"),priority:.normal,ttl:8,kind:.navigation) }
+    }
+    func calculate(usePosition:Bool,origin:RouteSearchOrigin = .userInitiated) {
         // Resolve region changes before capturing the network, destination and reports.
         let resume=navigating || (waitingForRoutePosition && resumeAfterPosition)
         waitingForRoutePosition=false
         navigating=false
         if usePosition { location.start();updatePosition() }
         route=nil;speech.invalidateRoute();routeVersion += 1
+        routeSearchFailed=false
         stepIndex=0;arrivalSamples=0;lastArrivalTimestamp=nil;lastSpoken="";lastStraight = -.infinity
         deviationSamples=0;lastDeviationTimestamp=nil;routeMessage=nil
         guard let network,hasDestination,storageError == nil else {
             requestedRouteUsesPosition=nil
-            routeMessage=localized("道路・報告・目的地の状態を確認してください");notice=routeMessage;return
+            routeMessage=localized("道路・報告・目的地の状態を確認してください");reportRouteFailure(routeMessage!,origin:origin);return
         }
         requestedRouteUsesPosition=usePosition
         // Build the closure snapshot from the persisted reports at the point of
@@ -365,7 +377,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             return router.allowsConnector(from:connection.coordinate,to:target,blocked:blockedForSearch)
         }
         if selectedTarget != nil && !destinationConnections.isEmpty && safeConnections.isEmpty {
-            routeMessage=localized(RouteFailure.blockedDestination.message);nextInstruction=routeMessage!;notice=routeMessage
+            routeMessage=localized(RouteFailure.blockedDestination.message);reportRouteFailure(routeMessage!,origin:origin)
             return
         }
         if blockedForSearch != blocked { blocked=blockedForSearch }
@@ -412,9 +424,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         }
         lastRouteMilliseconds=Date().timeIntervalSince(started)*1000
         if let route {
+            routeFailureFeedback.reset()
             debugLog(.route,.success,"Route found",["distanceM":Int(route.distance),"steps":route.steps.count,"routeVersion":routeVersion,"ms":Int(lastRouteMilliseconds ?? 0)],operation:operation);focus(.route)
         } else {
-            nextInstruction=routeMessage ?? localized(RouteFailure.noRoute.message);notice=nextInstruction
+            reportRouteFailure(routeMessage ?? localized(RouteFailure.noRoute.message),origin:origin)
             debugLog(.route,.error,"No route",["blocked":blockedForSearch.count,"ms":Int(lastRouteMilliseconds ?? 0)],operation:operation)
         }
         navigating=resume && route != nil
@@ -440,10 +453,33 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         updatePosition()
     }
     func openCamera() {
+        #if DEBUG && targetEnvironment(simulator)
+        prepareBackgroundRouteFailureFixture()
+        #endif
         guidanceMode = .camera;guidanceActive=true
         if !camera.running { camera.start(recognitionEnabled:hasDestination) }
         debugLog(.navigation,.info,"Full camera opened",["navigating":navigating,"hasDestination":hasDestination])
     }
+    #if DEBUG && targetEnvironment(simulator)
+    /// Isolated regression fixture: GPS becomes available while the camera is open,
+    /// but the two road segments have no connection. Never available on an iPhone.
+    private func prepareBackgroundRouteFailureFixture() {
+        let args=ProcessInfo.processInfo.arguments
+        guard !backgroundFailureFixturePrepared,args.contains("--ui-testing"),args.contains("--background-route-failure"),
+              var fixture=network,let first=fixture.edges.first,
+              let last=fixture.edges.last(where: { Set([$0.from,$0.to]).isDisjoint(with:[first.from,first.to]) }) else { return }
+        backgroundFailureFixturePrepared=true
+        fixture.edges=[first,last];fixture.destinations=[]
+        network=fixture;edgeIndex=Dictionary(uniqueKeysWithValues:fixture.edges.map { ($0.id,$0) })
+        reports=[];blocked=[];positionResolver.reset()
+        selectedTarget=Geometry.point(along:last.shape,at:Geometry.length(last.shape)/2).coordinate
+        destinationConnections=DestinationConnection.candidates(for:selectedTarget!,network:fixture)
+        targetName="自動再探索テスト"
+        if let candidate=destinationConnections.first { useConnection(candidate) }
+        requestedRouteUsesPosition=true;waitingForRoutePosition=true;resumeAfterPosition=false
+        location.useSimulation(Geometry.point(along:first.shape,at:Geometry.length(first.shape)/2).coordinate)
+    }
+    #endif
     func switchGuidance(to mode:GuidanceMode) {
         guidanceMode=mode
         if mode == .camera { if !camera.running { camera.start() } } else { camera.stop() }
@@ -453,12 +489,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func stopNavigation() {
         if navigating { debugLog(.navigation,.cancelled,"Guidance stopped",["stepIndex":stepIndex]) }
         requestedRouteUsesPosition=nil;waitingForRoutePosition=false;resumeAfterPosition=false;routeMessage=nil
+        routeSearchFailed=false;routeFailureFeedback.reset()
         navigating=false;route=nil;speech.stop();lastSpoken="";nextInstruction=localized("案内を停止しました");stepIndex=0;stopSimulatedWalk()
     }
     func reroute(blockage:Bool) {
-        reroutes += 1;debugLog(.route,.warning,"Reroute",["reason":blockage ? "blockage":"deviation","count":reroutes]);calculate(usePosition:true)
+        reroutes += 1;debugLog(.route,.warning,"Reroute",["reason":blockage ? "blockage":"deviation","count":reroutes]);calculate(usePosition:true,origin:.background)
         if route != nil { if blockage { speech.say(localized("通行不可のため経路を変更しました")) };updatePosition() }
-        else { navigating=false;speech.say(nextInstruction) }
     }
     var progress:RouteProgress? {
         guard let route,let sample=location.sample else { return nil }
@@ -497,7 +533,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let key=matchedEdge ?? (offRoadDistance == nil ? positionState:"offRoad")
         if key != lastPositionKey { lastPositionKey=key;debugLog(.location,matchedEdge == nil ? .warning:.success,matchedEdge == nil ? "Position held":"Position matched to road",["state":positionState,"edge":matchedEdge,"accuracy":Int(sample.accuracy),"simulated":sample.simulated]) }
         if waitingForRoutePosition {
-            if positionRoutable { calculate(usePosition:true) }
+            if positionRoutable { calculate(usePosition:true,origin:.background) }
             else { routeMessage=positionState+" "+localized("位置が更新され、道路を照合できたら自動で再検索します。") }
         }
         guard navigating else { return }

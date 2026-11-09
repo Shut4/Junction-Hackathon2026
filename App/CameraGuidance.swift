@@ -140,7 +140,11 @@ struct CameraScreen:View {
         .alert("案内・カメラ・待機音声を停止します",isPresented:$stop) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     private var navigationText:String {
-        guard store.navigating else { return localized(store.hasDestination ? "案内前":"未設定") }
+        guard store.navigating else {
+            if store.routeSearchFailed { return localized("経路なし") }
+            if store.waitingForRoutePosition { return localized("位置確認中") }
+            return localized(store.hasDestination ? "案内前":"未設定")
+        }
         guard let angle=store.cameraAngle else { return localized("確認中") }
         return DirectionBucket.of(angle).shortText
     }
@@ -169,7 +173,7 @@ struct CameraScreen:View {
         }.accessibilityElement(children:.contain).accessibilityIdentifier("cameraStatusHeader")
     }
     private var navigationStatus:some View {
-        statusCard(title:"ナビ",text:navigationText,symbol:navigationSymbol,color:Color(red:0.05,green:0.32,blue:0.65))
+        statusCard(title:"ナビ",text:navigationText,spoken:store.routeSearchFailed ? store.routeMessage:nil,symbol:navigationSymbol,color:Color(red:0.05,green:0.32,blue:0.65))
             .accessibilityIdentifier("cameraNavigationStatus").accessibilityFocused($cameraFocus,equals:.navigation)
     }
     private func hazardStatus(text:String,spoken:String?,color:Color)->some View {

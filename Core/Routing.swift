@@ -32,6 +32,21 @@ public enum RouteFailure: Error, Equatable, Sendable {
         }
     }
 }
+/// Background searches must not interrupt camera operation with a modal alert.
+public enum RouteSearchOrigin:Sendable { case userInitiated, background }
+public struct RouteFailureFeedbackPolicy:Sendable {
+    private var lastBackgroundFailure:String?
+    public init() {}
+    public mutating func reset() { lastBackgroundFailure=nil }
+    public mutating func feedback(for message:String,origin:RouteSearchOrigin)->(showAlert:Bool,announce:Bool) {
+        guard !message.isEmpty else { return (false,false) }
+        if origin == .userInitiated { return (true,false) }
+        let changed=lastBackgroundFailure != message
+        lastBackgroundFailure=message
+        return (false,changed)
+    }
+}
+
 public struct Router: Sendable {
     public var network: Network
     private let adjacency: [String: [Int]]
