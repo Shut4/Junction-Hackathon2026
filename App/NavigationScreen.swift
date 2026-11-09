@@ -39,7 +39,7 @@ struct NavigationModeScreen:View {
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .sheet(isPresented:$report,onDismiss:{ navigationFocus = .instruction }) { NavigationStack { ReportScreen() } }
         .onChange(of:stop) { _,shown in if !shown { navigationFocus = .end } }
-        .confirmationDialog("案内・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
+        .alert("案内・待機音声を停止します",isPresented:$stop) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     private var bottomBar:some View {
         VStack(spacing:12) {
