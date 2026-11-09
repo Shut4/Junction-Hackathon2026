@@ -17,20 +17,21 @@ public enum SpeechPriority: Int, Sendable, Comparable, CaseIterable {
 /// identify the source before speaking its instruction.
 public enum GuidanceSpeechKind:Sendable { case navigation,hazard,surroundings,system }
 public struct GuidanceSpeechPolicy:Sendable {
-    private var navigationResumeAt = -Double.infinity
     public init() {}
-    /// Immediate stop warnings hold navigation. Caution notices allow navigation
-    /// to continue and do not repeatedly extend its quiet window.
-    public mutating func message(_ text:String,kind:GuidanceSpeechKind,priority:SpeechPriority,now:Double)->String? {
+    /// Camera hazards are conveyed by haptics, never by automatic speech.
+    /// Filtering here covers both VoiceOver announcements and synthesized speech.
+    public func message(_ text:String,kind:GuidanceSpeechKind,priority:SpeechPriority,now:Double)->String? {
         guard !text.isEmpty else { return nil }
-        if kind == .hazard && priority == .critical { navigationResumeAt=now+5 }
-        if kind == .navigation && now<navigationResumeAt { return nil }
         switch kind {
         case .navigation:return coreLocalized("ナビ、{0}",text)
-        case .hazard:return coreLocalized(priority == .critical ? "危険、{0}":"注意、{0}",text)
+        case .hazard:return nil
         case .surroundings:return coreLocalized("周囲、{0}",text)
         case .system:return text
         }
+    }
+    /// Route instructions precede optional scene/landmark descriptions.
+    public func priority(for kind:GuidanceSpeechKind,requested:SpeechPriority)->SpeechPriority {
+        kind == .navigation ? max(.high,requested):requested
     }
 }
 

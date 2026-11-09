@@ -133,7 +133,7 @@ final class SmokeTests:XCTestCase {
   try app.performAccessibilityAudit(for:.sufficientElementDescription)
   XCTAssertFalse(app.buttons["cameraSurroundings"].exists)
   menu.tap();XCTAssertFalse(app.buttons["周囲を読み上げ"].exists);app.buttons["cameraSettings"].tap()
-  XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));app.buttons["完了"].tap()
+  XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));XCTAssertFalse(app.switches["toggleHazardSounds"].exists);app.buttons["完了"].tap()
   XCTAssertTrue(menu.waitForExistence(timeout:5));XCTAssertTrue(menu.isHittable)
   menu.tap();app.buttons["案内を停止"].tap();app.buttons["取消"].tap()
   XCTAssertTrue(menu.isHittable)
