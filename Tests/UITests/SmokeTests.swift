@@ -290,7 +290,7 @@ final class SmokeTests:XCTestCase {
  }
  @MainActor func testDestinationPanelRepeatedDragSettlesAndKeepsControlsUsable() throws {
   let app=launchMap(developer:true,simulated:true)
-  tapSavedDestination("小倉城付近・実験接続点を目的地にする",app:app)
+  chooseCoordinate("33.884623,130.8749618",app:app)
   let handle=app.buttons["destinationPanelHandle"]
   XCTAssertTrue(handle.waitForExistence(timeout:10))
   let expandedY=handle.frame.minY
