@@ -332,8 +332,7 @@
 "道路を選ぶ" = "Choose roads";
 "内容を確認" = "Review details";
 "地図上の道路をタップしてください。もう一度タップすると選択を解除できます。" = "Tap a road on the map. Tap it again to deselect it.";
-"選択中（黄色の縁）" = "Selected (yellow outline)";
-"登録済み（破線）" = "Already reported (dashed)";
+"登録済み" = "Already reported";
 "詳しい操作方法" = "Detailed instructions";
 "地図はドラッグで移動、ピンチで拡大できます。登録は道路区間全体が対象です。登録済みの道路をタップすると、削除の確認を表示します。" = "Drag to move the map and pinch to zoom. A report applies to the entire road segment. Tapping a reported road asks whether to remove its report.";
 "選択解除" = "Clear selection";
