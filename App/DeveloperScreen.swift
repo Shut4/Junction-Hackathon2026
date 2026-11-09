@@ -69,7 +69,7 @@ struct DeveloperScreen:View {
         }
         Section("歩ける範囲（深度）") {
             LabeledContent("判定",value:store.camera.walkable.map { w in [w.blockedAhead.map { String(format:"正面%.1fm障害物",$0) },w.dropAhead.map { String(format:"正面%.1fm段差",$0) },w.passSide.map { "\($0.japanese)へ回避可" },w.width.map { String(format:"幅%.2fm",$0) }].compactMap { $0 }.joined(separator:"・") } ?? "なし")
-            dialF("対象の最小前方距離 nearest",$store.walkableConfig.nearest,0.2...1.5,0.1,"m")
+            dialF("対象の最小前方距離 nearest",$store.walkableConfig.nearest,0.1...1.5,0.1,"m")
             dialF("対象の最大前方距離 farthest",$store.walkableConfig.farthest,1.5...4,0.1,"m")
             dialF("対象の左右幅（片側） halfWidth",$store.walkableConfig.halfWidth,0.8...2,0.1,"m")
             dialF("障害物とみなす高さ obstacleHeight",$store.walkableConfig.obstacleHeight,0.05...0.4,0.01,"m")
@@ -105,7 +105,7 @@ struct DeveloperScreen:View {
             Text("頭上の障害物").font(.subheadline.bold())
             tune("緊急：この距離以内 dangerDistance",\.dangerDistance,0.5...3.0,0.1,"m")
             tune("知らせ始める距離 maxDistance",\.maxDistance,0.5...4.0,0.1,"m")
-            Text("緊急＝強い振動・赤、高＝警告の振動・橙。危険・注意の音声と警告音は出しません。歩ける範囲は farthest より先は見ないため、blockedDistance・dropDistance は farthest 以下で効きます。深度で距離がわからない物体は「高」。").font(.caption)
+            Text("緊急＝強い振動・赤、高＝警告の振動・橙。危険・注意の音声と警告音は出しません。歩ける範囲は farthest より先は見ないため、blockedDistance・dropDistance は farthest 以下で効きます。深度で距離がわからない物体は危険度を決めず「距離確認中」と表示します。").font(.caption)
         }
         Section("誤検出の除外（深度・DepthCheck）") {
             Toggle("深度で誤検出を除外 enabled",isOn:$store.depthCheck.enabled)

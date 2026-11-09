@@ -228,7 +228,7 @@ final class CoreTests:XCTestCase {
         reports.removeAll { $0.id==second.id }
         XCTAssertTrue(Set(reports.map(\.segmentID)).isEmpty,"Removing the last report reopens the segment")
     }
-    func detection(_ label:String="pole",_ time:Double=0,_ x:Double=0.3) -> Detection { Detection(label:label,confidence:0.9,box:Box(x:x,y:0.3,width:0.2,height:0.4),capturedAt:time) }
+    func detection(_ label:String="pole",_ time:Double=0,_ x:Double=0.3) -> Detection { Detection(label:label,confidence:0.9,box:Box(x:x,y:0.3,width:0.2,height:0.4),capturedAt:time,distance:0.7) }
     func testPersistenceChatterAndReappearance() {
         var f=NoticeFilter()
         XCTAssertTrue(f.process([detection()],now:0).isEmpty)
@@ -467,7 +467,7 @@ final class CoreTests:XCTestCase {
         // Walls 0.35 m left and right: 0.6 m wide passage, both edges close.
         let narrow=WalkableGeometry.profile(walkGround(except:{ abs($0) > 0.3 })+walkBlock(-0.45 ... -0.35,at:1.5,up:-0.5)+walkBlock(0.35...0.45,at:1.5,up:-0.5),floor:-1.3)
         XCTAssertEqual(narrow.width ?? 0,0.6,accuracy:0.05)
-        XCTAssertEqual(Set(WalkableAnnouncer().cues(narrow).map(\.key)),["edge-left","edge-right","narrow"])
+        XCTAssertEqual(Set(WalkableAnnouncer().cues(narrow).map(\.key)),["narrow"])
     }
     func testWalkableAnnouncerPersistsAndRepeatsByPriority() {
         let p=WalkableGeometry.profile(walkGround(except:{ abs($0) < 0.3 })+walkBlock(-0.25...0.25,at:0.5,up:-0.8),floor:-1.3)
@@ -555,7 +555,7 @@ final class CoreTests:XCTestCase {
         var t=NoticeTuning();t.persistence=0;t.tiers=["pole":.off,"tree":.hazard]
         var f=NoticeFilter();t.apply(to:&f)
         let pole=Detection(label:"pole",confidence:0.9,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0)
-        let tree=Detection(label:"tree",confidence:0.9,box:Box(x:0.1,y:0.3,width:0.2,height:0.4),capturedAt:0)
+        let tree=Detection(label:"tree",confidence:0.9,box:Box(x:0.1,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:0.7)
         let notices=f.process([pole,tree],now:0)
         XCTAssertEqual(notices.map(\.label),["tree"],"pole silenced, tree promoted from context");XCTAssertEqual(notices.first?.priority,.high)
         XCTAssertEqual(SceneSummary.items(detections:[pole,tree],walkable:nil,headLevel:nil,tiers:t.tiers).map(\.text),["左前に木。"])
@@ -568,7 +568,7 @@ final class CoreTests:XCTestCase {
         XCTAssertEqual(NoticeFilter.hazardPriority(1.5,critical:2,announce:3),.critical)
         XCTAssertEqual(NoticeFilter.hazardPriority(2.5,critical:2,announce:3),.high)
         XCTAssertNil(NoticeFilter.hazardPriority(4,critical:2,announce:3),"beyond the announce distance: not read out")
-        XCTAssertEqual(NoticeFilter.hazardPriority(nil,critical:2,announce:3),.high,"unknown distance is still announced")
+        XCTAssertNil(NoticeFilter.hazardPriority(nil,critical:2,announce:3),"unknown distance cannot establish hazard severity")
         var t=NoticeTuning();t.persistence=0;var f=NoticeFilter();t.apply(to:&f)
         let farPole=Detection(label:"pole",confidence:0.9,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:4,lateral:0)
         XCTAssertTrue(f.process([farPole],now:0).isEmpty)

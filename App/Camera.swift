@@ -102,13 +102,13 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             let line=base.advanced(by:v*row).assumingMemoryBound(to:Float32.self)
             for u in stride(from:0,to:width,by:step) {
                 let z=line[u]
-                guard z.isFinite,z>0.2,z<5 else { continue }
+                guard DepthGrid.validDepth(z) else { continue }
                 grid[(v/step)*columns+u/step]=z
                 points.append(HeadLevelGeometry.devicePoint(u:Float(u),v:Float(v),depth:z,fx:fx,fy:fy,cx:cx,cy:cy))
             }
         }
         let gravity=SIMD3(Float(g.x),Float(g.y),Float(g.z))
-        guard points.count >= headLevelConfig.minPoints else { headLevel?(nil,"有効な深度が不足しています");return }
+        guard points.count >= headLevelConfig.minPoints else { latestDepth.withLock { $0=nil };headLevel?(nil,"有効な深度が不足しています");return }
         var result=HeadLevelGeometry.evaluate(points:points,gravity:gravity,cameraHeight:cameraHeight,config:headLevelConfig,walkable:walkableConfig)
         result.capturedAt=now
         // The measured floor lets the video queue reject "steps" etc. that float above the ground.
@@ -174,6 +174,7 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     @Published var walkable:WalkableProfile?
     var onDepth: ((HeadLevelResult,Double)->Void)?
     var onDepthUnavailable: (()->Void)?
+    private var lastDepthTime:Double?
     private var sessionGeneration=0
     /// Field of view of the sensor's long side in degrees. The portrait aspect-fill preview shows that side as the full screen height.
     /// Uses the camera actually in the session (the dual wide virtual camera when depth is on) and its zoom.
@@ -193,7 +194,10 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
             Task { @MainActor in
                 guard let self else { return }
                 self.depthStatus=status
-                guard self.running,self.recognitionEnabled,let result else { self.onDepthUnavailable?();return }
+                guard self.running,self.recognitionEnabled,let result else {
+                    self.lastDepthTime=nil;self.headLevel=nil;self.walkable=nil;self.onDepthUnavailable?();return
+                }
+                self.lastDepthTime=result.capturedAt
                 self.headLevel=result.hit;self.walkable=result.walkable;self.onDepth?(result,result.capturedAt)
             }
         }
@@ -237,6 +241,9 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
         labels=Array(Set(detections.prefix(5).map { localized(DetectionLabels.japanese[$0.label] ?? $0.label) })).sorted().joined(separator:localized("、"))
         if labels.isEmpty { labels="検出候補なし" }
         decisionTime=ProcessInfo.processInfo.systemUptime;decisionLatency=decisionTime-captured
+        if let time=lastDepthTime,decisionTime-time > 0.6 {
+            lastDepthTime=nil;headLevel=nil;walkable=nil;onDepthUnavailable?()
+        }
         onMetric?(MetricEvent(kind:"inference",frame:captured,inferenceStart:start,inferenceEnd:end,decision:decisionTime))
         let notices=filter.process(detections,now:decisionTime)
         notificationCount=filter.notices;suppressionCount=filter.suppressed

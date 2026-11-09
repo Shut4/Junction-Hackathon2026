@@ -6,7 +6,7 @@ public struct WalkSample: Sendable { public var forward: Float; public var later
     public init(forward: Float, lateral: Float, up: Float) { self.forward = forward; self.lateral = lateral; self.up = up }
 }
 public struct WalkableConfig: Sendable, Codable, Equatable {
-    public var nearest: Float = 0.5, farthest: Float = 3.0, halfWidth: Float = 1.5, strip: Float = 0.1
+    public var nearest: Float = 0.1, farthest: Float = 3.0, halfWidth: Float = 1.5, strip: Float = 0.1
     /// Above the floor by this much = obstacle (kerb-high and up); below by `dropHeight` = step down or kerb edge.
     public var obstacleHeight: Float = 0.15, obstacleTop: Float = 2.0, groundTolerance: Float = 0.08, dropHeight: Float = 0.12
     public var minPoints = 3
@@ -22,6 +22,7 @@ public struct SideEdge: Sendable, Equatable {
     public enum Kind: Sendable { case obstacle, drop }
     /// Lateral distance (m) from the walker's centre line to the nearest blocked strip on that side.
     public var distance: Float; public var kind: Kind
+    public var forwardDistance:Float
 }
 public struct WalkableProfile: Sendable, Equatable {
     /// Distance to something blocking the walker's own path, or to a step down in it.
@@ -42,6 +43,7 @@ public enum WalkableGeometry {
         var obstacle = [Int](repeating: 0, count: count), ground = obstacle, drop = obstacle
         var obstacleNear = [Float](repeating: .infinity, count: count), dropNear = obstacleNear
         for s in samples {
+            guard s.forward.isFinite,s.lateral.isFinite,s.up.isFinite,s.forward >= c.nearest,s.forward <= c.farthest,abs(s.lateral) <= c.halfWidth else { continue }
             let i = min(count - 1, max(0, Int((s.lateral + c.halfWidth) / c.strip)))
             let h = s.up - floor
             if h >= c.obstacleHeight && h <= c.obstacleTop { obstacle[i] += 1; obstacleNear[i] = min(obstacleNear[i], s.forward) }
@@ -59,7 +61,8 @@ public enum WalkableGeometry {
         func edge(_ side: WalkSide) -> SideEdge? {
             let order = (0..<count).filter { side == .left ? centre($0) < -c.corridorHalf : centre($0) > c.corridorHalf }.sorted { abs(centre($0)) < abs(centre($1)) }
             guard let i = order.first(where: { strips[$0] == .obstacle || strips[$0] == .drop }) else { return nil }
-            return SideEdge(distance: abs(centre(i)) - c.strip / 2, kind: strips[i] == .obstacle ? .obstacle : .drop)
+            return SideEdge(distance: abs(centre(i)) - c.strip / 2, kind: strips[i] == .obstacle ? .obstacle : .drop,
+                            forwardDistance: strips[i] == .obstacle ? obstacleNear[i]:dropNear[i])
         }
         // Passable side: the band just outside the path is clear and mostly seen as ground.
         func passable(_ side: WalkSide) -> Bool {
@@ -96,13 +99,14 @@ public struct WalkableAnnouncer: Sendable {
     /// more specific head-height warning covers the same obstacle.
     public func cues(_ p: WalkableProfile, headLevel: Bool = false) -> [(key: String, priority: SpeechPriority, text: String)] {
         var out: [(String, SpeechPriority, String)] = []
-        if let d = p.blockedAhead, d <= timing.blockedDistance, !headLevel {
+        if let d = p.blockedAhead, d <= timing.blockedDistance, (!headLevel || d <= timing.criticalDistance) {
             let way = p.passSide.map { coreLocalized("{0}へ。", coreLocalized($0.japanese)) } ?? coreLocalized(d <= timing.criticalDistance ? "止まってください。":"足元を確認してください。")
             out.append(("blocked", d <= timing.criticalDistance ? .critical : .high, coreLocalized("{0}{1}", coreLocalized("{0}に障害物。", place(d)), way)))
         }
         if let d = p.dropAhead, d <= timing.dropDistance { out.append(("drop", d <= timing.criticalDistance ? .critical : .high, coreLocalized("{0}に段差。", place(d)))) }
         for side in [WalkSide.left, .right] {
-            guard let e = p.edge(side), e.distance <= config.edgeNear else { continue }
+            guard let e = p.edge(side), e.distance <= config.edgeNear,
+                  e.forwardDistance <= (e.kind == .drop ? timing.dropDistance:timing.blockedDistance) else { continue }
             if e.kind == .drop { out.append(("edgeDrop-\(side.rawValue)", .high, coreLocalized("{0}に段差。{1}へ。", coreLocalized(side.japanese), coreLocalized(side.opposite.japanese)))) }
             else { out.append(("edge-\(side.rawValue)", .normal, coreLocalized("少し{0}へ。", coreLocalized(side.opposite.japanese)))) }
         }
@@ -125,7 +129,7 @@ public struct WalkableAnnouncer: Sendable {
 }
 
 /// One line of the on-screen "surroundings" list, most useful first.
-public struct SceneItem: Sendable, Equatable { public var priority: SpeechPriority; public var text: String; public var distance: Double?; public var brief:String = "" }
+public struct SceneItem: Sendable, Equatable { public var priority: SpeechPriority; public var text: String; public var distance: Double?; public var brief:String = ""; public var distanceUnavailable=false }
 public enum SceneSummary {
     /// Head-level warning, walkable cues and detected objects (one per class, the nearest), ordered by priority then distance.
     public static func items(detections: [Detection], walkable: WalkableProfile?, headLevel: HeadLevelHit?, minConfidence: Double = 0.5, limit: Int = 6,
@@ -143,13 +147,19 @@ public enum SceneSummary {
         }
         var nearest: [String: Detection] = [:]
         for d in detections where d.rejected == nil && d.confidence >= SceneCatalog.threshold(d.label, overrides: classConfidence, common: minConfidence) && (SceneCatalog.tier(d.label, overrides: tiers) ?? .off) != .off {
-            if let old = nearest[d.label], (old.distance ?? .infinity) <= (d.distance ?? .infinity) { continue }
+            if let old = nearest[d.label], (old.measuredDistance ?? .infinity) <= (d.measuredDistance ?? .infinity) { continue }
             nearest[d.label] = d
         }
         for d in nearest.values {
             let info = SceneClass(name: SceneCatalog.classes[d.label]!.name, tier: SceneCatalog.tier(d.label, overrides: tiers)!)
             let priority: SpeechPriority
-            if info.tier == .hazard { guard let p = NoticeFilter.hazardPriority(d.distance, critical: closeDistance, announce: announceDistance) else { continue }; priority = p } else { priority = info.tier.speech }
+            if info.tier == .hazard {
+                if d.measuredDistance == nil {
+                    items.append(SceneItem(priority:.normal,text:coreLocalized("距離を確認できません。"),distance:nil,brief:coreLocalized("距離確認中"),distanceUnavailable:true))
+                    continue
+                }
+                guard let p = NoticeFilter.hazardPriority(d.distance, critical: closeDistance, announce: announceDistance) else { continue }; priority = p
+            } else { priority = info.tier.speech }
             items.append(SceneItem(priority: priority, text: NoticeFilter.text(d, name: info.name, close: info.tier == .hazard ? closeDistance:1.0), distance: d.distance, brief:priority == .critical ? coreLocalized("止まって"):coreLocalized("{0}に注意",coreLocalized(info.name))))
         }
         return Array(items.enumerated().sorted { a, b in

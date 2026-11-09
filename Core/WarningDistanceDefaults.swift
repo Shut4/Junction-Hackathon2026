@@ -7,7 +7,9 @@ public enum WarningDistanceDefaults {
         switch key {
         case "dev.headLevelConfig":
             let d=HeadLevelConfig()
-            rules=["maxDistance":([2.5,2,1],Double(d.maxDistance)),"dangerDistance":([2,1,0.6],Double(d.dangerDistance)),"buzzerDistance":([1,0.5],Double(d.buzzerDistance))]
+            rules=["minDistance":([0.3],Double(d.minDistance)),"maxDistance":([2.5,2,1],Double(d.maxDistance)),"dangerDistance":([2,1,0.6],Double(d.dangerDistance)),"buzzerDistance":([1,0.5],Double(d.buzzerDistance))]
+        case "dev.walkableConfig":
+            rules=["nearest":([0.5],Double(WalkableConfig().nearest))]
         case "dev.noticeTuning":
             let d=NoticeTuning()
             rules=["criticalDistance":([2,1,0.6],d.criticalDistance),"announceDistance":([3,2,1],d.announceDistance)]

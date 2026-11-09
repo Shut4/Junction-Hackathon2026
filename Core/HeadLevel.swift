@@ -5,7 +5,7 @@ import simd
 /// Input is depth points in the device frame (portrait: x right, y up, rear camera looks along -z) plus gravity.
 public struct HeadLevelConfig: Sendable, Codable, Equatable {
     public var corridorHalfWidth: Float = 0.45
-    public var minDistance: Float = 0.3
+    public var minDistance: Float = 0.1
     public var maxDistance: Float = 0.8
     public var minHeight: Float = 1.0
     public var maxHeight: Float = 2.0
@@ -113,6 +113,8 @@ public struct HeadLevelAnnouncer: Sendable {
 
 /// A subsampled depth frame kept for placing object detections in metres (forward distance and left/right).
 public struct DepthGrid: Sendable {
+    /// Processing range only; accepting a measurement does not guarantee sensor accuracy at this distance.
+    public static func validDepth(_ z:Float)->Bool { z.isFinite && z >= 0.1 && z < 5 }
     /// Row-major depth (m) every `step` pixels of the `width`×`height` depth map; NaN where invalid.
     public var values: [Float]; public var columns: Int; public var rows: Int; public var step: Int
     public var fx: Float, fy: Float, cx: Float, cy: Float
@@ -134,7 +136,7 @@ public struct DepthGrid: Sendable {
                 if x >= inner.x && x <= inner.x + inner.width && y >= inner.y && y <= inner.y + inner.height { continue }
             }
             let z = values[v * columns + u]
-            if z.isFinite && z > 0.2 { out.append(z) }
+            if Self.validDepth(z) { out.append(z) }
         } }
         return out
     }
@@ -147,7 +149,8 @@ public struct DepthGrid: Sendable {
         guard inside.count >= 6 else { return nil }
         let near = HeadLevelGeometry.percentile(inside, 0.2)
         guard near <= c.maxRange else { return nil }
-        if !DepthCheck.flatLabels.contains(label) {
+        // A near surface filling the frame may be a real wall. Flatness alone must not reject it.
+        if near > Float(NoticeFilter.closeDistance), !DepthCheck.flatLabels.contains(label) {
             let pad = 0.3
             let ring = depths(in: Box(x: box.x - box.width * pad, y: box.y - box.height * pad, width: box.width * (1 + 2 * pad), height: box.height * (1 + 2 * pad)), excluding: box)
             if ring.count >= 6 {
@@ -155,14 +158,14 @@ public struct DepthGrid: Sendable {
                 if around - near < c.minContrast && spread < c.minContrast { return coreLocalized("平面（画面・写真の可能性）") }
             }
         }
-        if DepthCheck.groundLabels.contains(label), box.y > 0.02, let floor, let axes = HeadLevelGeometry.axes(gravity: gravity) {
+        if near > Float(NoticeFilter.closeDistance), DepthCheck.groundLabels.contains(label), box.y > 0.02, let floor, let axes = HeadLevelGeometry.axes(gravity: gravity) {
             // Bottom edge centre: where the object meets the ground.
             let u = Int((1 - box.y - box.height * 0.05) * Double(columns)), v = Int((1 - box.x - box.width / 2) * Double(rows))
             var zs: [Float] = []
             for dv in -1...1 { for du in -1...1 {
                 let uu = u + du, vv = v + dv
                 guard uu >= 0, uu < columns, vv >= 0, vv < rows else { continue }
-                let z = values[vv * columns + uu]; if z.isFinite && z > 0.2 { zs.append(z) }
+                let z = values[vv * columns + uu]; if Self.validDepth(z) { zs.append(z) }
             } }
             if zs.count >= 3 {
                 let p = HeadLevelGeometry.devicePoint(u: Float(u * step), v: Float(v * step), depth: zs.sorted()[zs.count / 2], fx: fx, fy: fy, cx: cx, cy: cy)
@@ -191,21 +194,16 @@ public struct DepthCheck: Sendable, Codable, Equatable {
 
 extension DepthGrid {
     /// Forward distance and lateral offset of a Vision box (normalised, upright portrait, origin bottom-left),
-    /// sampled a little above its bottom edge (where most objects meet the ground) with a 3×3 median.
+    /// Sample the interior surface rather than the bottom edge, which may contain background/ground at close range.
     public func locate(_ box: Box) -> (distance: Double, lateral: Double)? {
         guard let axes = HeadLevelGeometry.axes(gravity: gravity) else { return nil }
         // Upright portrait ↔ landscape buffer: columns run down the screen, rows run right to left.
-        let x = box.x + box.width / 2, y = box.y + box.height * 0.2
+        let x = box.x + box.width / 2, y = box.y + box.height / 2
         let gu = Int((1 - y) * Double(columns)), gv = Int((1 - x) * Double(rows))
-        var found: [Float] = []
-        for dv in -1...1 { for du in -1...1 {
-            let u = gu + du, v = gv + dv
-            guard u >= 0, u < columns, v >= 0, v < rows else { continue }
-            let z = values[v * columns + u]
-            if z.isFinite && z > 0.2 { found.append(z) }
-        } }
-        guard found.count >= 3 else { return nil }
-        let z = found.sorted()[found.count / 2]
+        let interior=Box(x:box.x+box.width*0.15,y:box.y+box.height*0.15,width:box.width*0.7,height:box.height*0.7)
+        let found=depths(in:interior)
+        guard found.count >= 6 else { return nil }
+        let z = HeadLevelGeometry.percentile(found,0.2)
         let p = HeadLevelGeometry.devicePoint(u: Float(gu * step), v: Float(gv * step), depth: z, fx: fx, fy: fy, cx: cx, cy: cy)
         return (Double(simd_dot(p, axes.forward)), Double(simd_dot(p, axes.right)))
     }
