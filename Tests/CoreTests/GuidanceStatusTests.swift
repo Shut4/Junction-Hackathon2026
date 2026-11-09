@@ -41,6 +41,27 @@ final class GuidanceStatusTests:XCTestCase {
         XCTAssertNil(announcer.update(angle:90,reason:"",now:7))
         XCTAssertEqual(announcer.update(angle:90,reason:"",now:9),"右へ。")
     }
+    func testBackgroundRouteFailuresDoNotInterruptAndRepeatedFailureSpeaksOnce() {
+        var policy=RouteFailureFeedbackPolicy()
+        let first=policy.feedback(for:RouteFailure.noRoute.message,origin:.background)
+        XCTAssertFalse(first.showAlert);XCTAssertTrue(first.announce)
+        for _ in 0..<10 {
+            let repeated=policy.feedback(for:RouteFailure.noRoute.message,origin:.background)
+            XCTAssertFalse(repeated.showAlert);XCTAssertFalse(repeated.announce)
+        }
+        let changed=policy.feedback(for:RouteFailure.blockedStart.message,origin:.background)
+        XCTAssertFalse(changed.showAlert);XCTAssertTrue(changed.announce)
+        policy.reset()
+        XCTAssertTrue(policy.feedback(for:RouteFailure.noRoute.message,origin:.background).announce)
+    }
+    func testExplicitRouteSearchStillExplainsFailure() {
+        var policy=RouteFailureFeedbackPolicy()
+        _=policy.feedback(for:RouteFailure.noRoute.message,origin:.background)
+        let explicit=policy.feedback(for:RouteFailure.noRoute.message,origin:.userInitiated)
+        XCTAssertTrue(explicit.showAlert);XCTAssertFalse(explicit.announce)
+        let empty=policy.feedback(for:"",origin:.background)
+        XCTAssertFalse(empty.showAlert);XCTAssertFalse(empty.announce)
+    }
     func testCompactDirectionMatchesSpeechDirection() {
         XCTAssertEqual(DirectionBucket.of(-90).shortText,"左へ")
         XCTAssertEqual(DirectionBucket.of(0).shortText,"直進")

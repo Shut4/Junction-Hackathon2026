@@ -853,3 +853,7 @@
 "方向を確認中です。" = "Checking direction.";
 
 "足元を確認してください。" = "Check your footing.";
+
+"経路なし" = "No route";
+"位置確認中" = "Locating";
+"経路が見つかりません。地図で経路を確認してください。" = "No route found. Check the route on the map.";
