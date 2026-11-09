@@ -172,10 +172,9 @@ struct ReportScreen:View {
             ScrollView {
                 VStack(alignment:.leading,spacing:16) {
                     Text("区間全体を通行不可にします").font(.title.bold())
-                    ForEach(store.edges.filter { store.selected.contains($0.id) }) { edge in
-                        Label(edge.name,systemImage:"checkmark.circle.fill")
-                            .accessibilityLabel(store.edgeDescription(edge))
-                    }
+                    Text(localized("通行不可にする道路：{0}区間",store.selected.count))
+                        .font(.headline)
+                        .accessibilityIdentifier("reportReviewSegmentCount")
                     Text(localized("種類：{0}",localized(hazard.rawValue)))
                     Text(observed,style:.date)
                     if !description.isEmpty { Text(description) }
