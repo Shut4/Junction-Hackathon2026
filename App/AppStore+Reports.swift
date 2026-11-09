@@ -19,9 +19,8 @@ extension AppStore {
         return nil
     }
     func confirmTappedRoad(_ id:String) {
-        guard let network,edge(id) != nil else { return }
+        guard edge(id) != nil else { return }
         let next=selected.symmetricDifference([id])
-        guard next.isEmpty || RoadMatcher(network:network).connected(next) else { selectionMessage=localized("離れた道路は同時に選択できません。選択を解除してから選び直してください。");return }
         selected=next;ambiguity=false;roadCandidates=[];selectionMessage=localized("選択 {0}区間。道路区間全体を登録・除外します。再タップで選択解除できます。",selected.count)
     }
     func confirmRoadCandidate(_ id:String) {
@@ -29,10 +28,9 @@ extension AppStore {
     }
     func register(hazard:Hazard,date:Date,text:String) -> Bool {
         guard let network,!selected.isEmpty,!ambiguity,storageError == nil else { notice=localized("対象・候補・保存状態を確認してください");return false }
-        guard RoadMatcher(network:network).connected(selected) else { notice=localized(CoreError.disconnectedSelection.localizedDescription);return false }
-        let additions=selected.sorted().map { Report(segmentID:$0,hazard:hazard,observedAt:date,explanation:text.isEmpty ? nil:String(text.prefix(120))) }
-        let all=reports+additions
         do {
+            let additions=try Report.batch(segmentIDs:selected,network:network,hazard:hazard,observedAt:date,explanation:text)
+            let all=reports+additions
             try activeStore.save(all,network:network)
             reports=all
             debugLog(.report,.success,"Blocked segments saved",["segments":additions.count,"hazard":hazard.rawValue,"total":all.count,"simulated":simulated])
