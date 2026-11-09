@@ -197,10 +197,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         simulatedPersistence=ReportStore(url:AppFiles.reportURL(networkID:"kokura-ground-osm",simulated:true))
         let started=Date()
         do {
-            let resources=["kokura-network","tobata-network"]
-            networks=try resources.map { name in
+            guard let catalog=Bundle.main.url(forResource:"regions",withExtension:"json") else { throw CoreError.invalidNetwork }
+            networks=try NetworkCatalog.load(manifest:Data(contentsOf:catalog)) { name in
                 guard let url=Bundle.main.url(forResource:name,withExtension:"json") else { throw CoreError.invalidNetwork }
-                let data=try JSONDecoder().decode(Network.self,from:Data(contentsOf:url));try data.validate();return data
+                return try Data(contentsOf:url)
             }
             let saved=defaults.string(forKey:"selectedNetworkID")
             guard let data=networks.first(where:{$0.id==saved}) ?? networks.first else { throw CoreError.invalidNetwork }
