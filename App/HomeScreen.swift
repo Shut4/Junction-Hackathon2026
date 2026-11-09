@@ -46,6 +46,7 @@ struct HomeScreen:View {
                 }.padding(.top,4).clipped()
             }
         }
+        .accessibilityHidden(store.guidanceActive || settings || report || destinations || pendingMode != nil || store.pendingReportRemoval != nil)
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .toolbar(.hidden,for:.navigationBar)
         .onChange(of:store.targetName) { _,_ in destinationPanelCollapsed=false;accessibilityFocus = .destination }

@@ -118,7 +118,7 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
   let menu=app.buttons["cameraMenu"];XCTAssertTrue(menu.isHittable)
   try app.performAccessibilityAudit(for:.sufficientElementDescription)
-  menu.tap();app.buttons["設定"].tap()
+  menu.tap();app.buttons["cameraSettings"].tap()
   XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));app.buttons["完了"].tap()
   XCTAssertTrue(menu.waitForExistence(timeout:5));XCTAssertTrue(menu.isHittable)
   menu.tap();app.buttons["案内を停止"].tap();app.buttons["取消"].tap()

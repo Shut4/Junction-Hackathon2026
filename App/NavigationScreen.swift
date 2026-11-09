@@ -34,6 +34,7 @@ struct NavigationModeScreen:View {
                 }.padding(.horizontal,12).padding(.vertical,6)
             }
         }
+        .accessibilityHidden(report || stop)
         .task { navigationFocus = .instruction }
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .sheet(isPresented:$report,onDismiss:{ navigationFocus = .instruction }) { NavigationStack { ReportScreen() } }
