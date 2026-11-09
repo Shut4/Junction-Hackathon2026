@@ -119,7 +119,6 @@ struct HomeScreen:View {
     }
     private var floatingButtons:some View {
         HStack(alignment:.bottom) {
-            if store.developer { Label(localized(store.simulated ? "DEV・模擬位置":"DEV"),systemImage:"hammer.fill").font(.caption.bold()).padding(8).background(Capsule().fill(Color.orange.opacity(0.9))).foregroundStyle(.white) }
             Spacer()
             VStack(spacing:12) {
                 circleButton("通行不可を登録",symbol:"exclamationmark.triangle.fill",tint:.orange) { report=true }.accessibilityFocused($accessibilityFocus,equals:.report)
