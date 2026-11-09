@@ -22,7 +22,7 @@ struct ReportScreen:View {
         return ""
     }
 
-    var body:some View {
+    var body:some View { ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment:.leading,spacing:20) {
                 stepTitle(number:1,title:"道路を選ぶ")
@@ -43,6 +43,7 @@ struct ReportScreen:View {
                     .background(.regularMaterial,in:RoundedRectangle(cornerRadius:12))
                     .padding(10)
                     .accessibilityElement(children:.combine)
+                    .allowsHitTesting(false)
                 }
 
                 DisclosureGroup("詳しい操作方法",isExpanded:$showInstructions) {
@@ -52,7 +53,7 @@ struct ReportScreen:View {
                 }
 
                 selectionStatus
-                if store.ambiguity { candidatePicker }
+                if store.ambiguity { candidatePicker.id("reportRoadCandidates") }
 
                 stepTitle(number:2,title:"内容を確認")
                 Picker("危険の種類",selection:$hazard) {
@@ -72,8 +73,13 @@ struct ReportScreen:View {
             .padding()
             .padding(.bottom,112)
         }
+        .onChange(of:store.selectionMessage) { _,message in
+            if UIAccessibility.isVoiceOverRunning { UIAccessibility.post(notification:.announcement,argument:message) }
+        }
         .navigationTitle("通行不可登録")
-        .safeAreaInset(edge:.bottom) { registrationBar }
+        .safeAreaInset(edge:.bottom) {
+            registrationBar { withAnimation { proxy.scrollTo("reportRoadCandidates",anchor:.center) } }
+        }
         .toolbar { ToolbarItem(placement:.cancellationAction) { Button("戻る") { store.clearSelection();dismiss() } } }
         .sheet(isPresented:$review) { reviewSheet }
         .confirmationDialog("この通行禁止区域を削除しますか？",isPresented:deleteDialogIsPresented,titleVisibility:.visible) {
@@ -85,7 +91,7 @@ struct ReportScreen:View {
         } message: {
             if let report=reportToDelete { Text(localized("{0}を経路検索の対象に戻します。",store.edge(report.segmentID)?.name ?? localized("選択した道路区間"))) }
         }
-    }
+    } }
 
     private var selectionStatus:some View {
         VStack(alignment:.leading,spacing:10) {
@@ -149,8 +155,17 @@ struct ReportScreen:View {
         .background(Color.orange.opacity(0.1),in:RoundedRectangle(cornerRadius:16))
     }
 
-    private var registrationBar:some View {
+    private func registrationBar(showCandidates:@escaping()->Void)->some View {
         VStack(alignment:.leading,spacing:8) {
+            Text(localized(store.selectionMessage))
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+                .accessibilityIdentifier("reportTapFeedback")
+            if store.ambiguity {
+                Button("道路候補を確認",action:showCandidates)
+                    .frame(minHeight:44)
+            }
             if !canReview {
                 Label(disabledReason,systemImage:"info.circle")
                     .font(.footnote)

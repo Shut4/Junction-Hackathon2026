@@ -29,7 +29,7 @@ struct GuideMap: UIViewRepresentable {
             map.setRegion(MKCoordinateRegion(center:CLLocationCoordinate2D(latitude:(b.south+b.north)/2,longitude:(b.west+b.east)/2),span:span),animated:false)
         }
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
-        let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;map.addGestureRecognizer(tap)
+        let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;tap.delegate=context.coordinator;map.addGestureRecognizer(tap)
         context.coordinator.mode=mode
         map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。道路をタップして選択します。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄と保存済み地点からも選べます。")
         if mode == .report {
@@ -79,7 +79,7 @@ struct GuideMap: UIViewRepresentable {
     }
     @discardableResult private func add(_ shape:[Coordinate],title:String,map:MKMapView)->MKPolyline { let line=MKPolyline(coordinates:shape.map(\.clLocation),count:shape.count);line.title=title;map.addOverlay(line,level:.aboveRoads);return line }
     @discardableResult private func pin(_ p:Coordinate,kind:GuidePin.Kind,title:String,subtitle:String,segmentID:String? = nil,map:MKMapView)->GuidePin { let pin=GuidePin(kind:kind,segmentID:segmentID);pin.coordinate=p.clLocation;pin.title=title;pin.subtitle=subtitle;map.addAnnotation(pin);return pin }
-    @MainActor final class Coordinator:NSObject,MKMapViewDelegate {
+    @MainActor final class Coordinator:NSObject,MKMapViewDelegate,UIGestureRecognizerDelegate {
         var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
         var mode:GuideMapMode = .explore;var focusToken=0;var simulatedPin:GuidePin?;var following=false;var lastFollowed:Date?
         init(store:AppStore) { self.store=store }
@@ -121,6 +121,12 @@ struct GuideMap: UIViewRepresentable {
             // A user drag pauses simulated following until the recentre button is used.
             if mapView.subviews.first?.gestureRecognizers?.contains(where:{ $0.state == .began || $0.state == .changed }) == true { following=false }
         }
+        // MapKit also uses a single-tap recognizer. Both may receive a road tap;
+        // pans, pinches and double-tap zoom retain their normal gesture arbitration.
+        func gestureRecognizer(_ gestureRecognizer:UIGestureRecognizer,shouldRecognizeSimultaneouslyWith otherGestureRecognizer:UIGestureRecognizer)->Bool {
+            guard mode == .report,let tap=otherGestureRecognizer as? UITapGestureRecognizer else { return false }
+            return tap.numberOfTapsRequired == 1 && tap.numberOfTouchesRequired == 1
+        }
         @objc func tapped(_ sender:UITapGestureRecognizer) {
             guard sender.state == .ended,let map=sender.view as? MKMapView else { return }
             guard mode == .report else {
@@ -128,10 +134,11 @@ struct GuideMap: UIViewRepresentable {
                 Task { @MainActor [weak self] in try? await Task.sleep(for:.milliseconds(250));if map.selectedAnnotations.isEmpty { self?.onTap?() } }
                 return
             }
-            // ~22pt touch tolerance, clamped to 6–30 m so short roads next to each other remain distinguishable.
+            // Keep the hit area at 22 screen points, including when zoomed out.
+            // Nearby roads remain candidates rather than silently ignoring a visible line.
             let touch=sender.location(in:map),c=map.convert(touch,toCoordinateFrom:map),side=map.convert(CGPoint(x:touch.x+22,y:touch.y),toCoordinateFrom:map)
             let coordinate=Coordinate(c.latitude,c.longitude)
-            if let report=store.tapRoad(coordinate,radius:max(6,min(30,coordinate.distance(to:Coordinate(side.latitude,side.longitude))))) { onBlockedReport?(report) }
+            if let report=store.tapRoad(coordinate,radius:max(6,coordinate.distance(to:Coordinate(side.latitude,side.longitude)))) { onBlockedReport?(report) }
         }
         @objc func chooseDestination(_ sender:UILongPressGestureRecognizer) {
             guard sender.state == .began,let map=sender.view as? MKMapView else { return }
