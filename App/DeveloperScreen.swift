@@ -56,7 +56,7 @@ struct DeveloperScreen:View {
             LabeledContent("深度",value:localized(store.camera.depthStatus))
             tune("進行方向の幅（片側） corridorHalfWidth",\.corridorHalfWidth,0.2...1.0,0.05,"m")
             tune("最小距離 minDistance",\.minDistance,0.1...1.0,0.05,"m")
-            tune("最大距離 maxDistance",\.maxDistance,1.0...4.0,0.1,"m")
+            tune("最大距離 maxDistance",\.maxDistance,0.5...4.0,0.1,"m")
             tune("高さの下限（床から） minHeight",\.minHeight,0.5...1.6,0.05,"m")
             tune("高さの上限（床から） maxHeight",\.maxHeight,1.4...2.5,0.05,"m")
             tune("危険とみなす距離 dangerDistance",\.dangerDistance,0.5...3.0,0.1,"m")
@@ -93,7 +93,7 @@ struct DeveloperScreen:View {
         Section("危険度の距離（緊急・高・通常）") {
             Text("物体（危険の分類）").font(.subheadline.bold())
             dial("緊急：この距離以内 criticalDistance",$store.noticeTuning.criticalDistance,0.5...5,0.1,"m")
-            dial("知らせ始める距離（遠い物は読まない） announceDistance",$store.noticeTuning.announceDistance,1...10,0.5,"m")
+            dial("知らせ始める距離（遠い物は読まない） announceDistance",$store.noticeTuning.announceDistance,0.5...10,0.1,"m")
             Text("人・車などは下の「ラベルごとの危険度」で「読まない」が既定です。").font(.caption)
             Text("歩ける範囲").font(.subheadline.bold())
             dialF("緊急：この距離以内 criticalDistance",$store.walkableTiming.criticalDistance,0.3...3,0.1,"m")
@@ -104,7 +104,7 @@ struct DeveloperScreen:View {
             dialF("通常：「道が狭い」とする幅 narrowWidth",$store.walkableConfig.narrowWidth,0.5...1.5,0.05,"m")
             Text("頭上の障害物").font(.subheadline.bold())
             tune("緊急：この距離以内 dangerDistance",\.dangerDistance,0.5...3.0,0.1,"m")
-            tune("知らせ始める距離 maxDistance",\.maxDistance,1.0...4.0,0.1,"m")
+            tune("知らせ始める距離 maxDistance",\.maxDistance,0.5...4.0,0.1,"m")
             Text("緊急＝強い振動・赤、高＝警告の振動・橙。危険・注意の音声と警告音は出しません。歩ける範囲は farthest より先は見ないため、blockedDistance・dropDistance は farthest 以下で効きます。深度で距離がわからない物体は「高」。").font(.caption)
         }
         Section("誤検出の除外（深度・DepthCheck）") {

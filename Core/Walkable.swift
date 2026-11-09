@@ -80,7 +80,7 @@ public enum WalkableGeometry {
 /// repeated per priority (critical 3 s, high 6 s, normal 12 s).
 /// DeveloperMode tuning of walkable cues: when they fire, when they become critical and how often they repeat.
 public struct WalkableTiming: Sendable, Codable, Equatable {
-    public var blockedDistance: Float = 1.0, criticalDistance: Float = 0.6, dropDistance: Float = 1.0
+    public var blockedDistance: Float = 0.8, criticalDistance: Float = 0.5, dropDistance: Float = 0.8
     public var persistence = 2
     public var repeatCritical = 3.0, repeatHigh = 6.0, repeatNormal = 12.0
     public init() {}
@@ -129,7 +129,7 @@ public struct SceneItem: Sendable, Equatable { public var priority: SpeechPriori
 public enum SceneSummary {
     /// Head-level warning, walkable cues and detected objects (one per class, the nearest), ordered by priority then distance.
     public static func items(detections: [Detection], walkable: WalkableProfile?, headLevel: HeadLevelHit?, minConfidence: Double = 0.5, limit: Int = 6,
-                             announcer: WalkableAnnouncer = WalkableAnnouncer(), closeDistance: Double = NoticeFilter.closeDistance, announceDistance: Double = 1.0, tiers: [String: SceneTier] = [:], classConfidence: [String: Double] = [:]) -> [SceneItem] {
+                             announcer: WalkableAnnouncer = WalkableAnnouncer(), closeDistance: Double = NoticeFilter.closeDistance, announceDistance: Double = 0.8, tiers: [String: SceneTier] = [:], classConfidence: [String: Double] = [:]) -> [SceneItem] {
         var items: [SceneItem] = []
         if let h = headLevel { items.append(SceneItem(priority: h.stage == .danger ? .critical : .high, text: HeadLevelAnnouncer.text(h), distance: Double(h.distance), brief:coreLocalized(h.stage == .danger ? "止まって":"頭上注意"))) }
         if let w = walkable {
