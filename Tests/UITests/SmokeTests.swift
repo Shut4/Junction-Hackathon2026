@@ -147,6 +147,37 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(matched.waitForExistence(timeout:15),"戸畑の模擬位置を道路に照合できること")
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10),"目的地設定後に自動で経路確認へ進むこと")
  }
+ @MainActor func testRoutePreviewKeepsManualZoomAcrossPanelChanges() throws {
+  let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
+  chooseCoordinate("33.8961473,130.8410268",app:app)
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
+  let map=app.otherElements["homeMap"]
+  func distance()->Double { Double(map.value as? String ?? "") ?? .nan }
+  let overview=distance();XCTAssertTrue(overview.isFinite)
+  let point=map.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.25))
+  point.doubleTap()
+  let zoomed=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in distance()<overview*0.8 },object:nil)
+  XCTAssertEqual(XCTWaiter.wait(for:[zoomed],timeout:5),.completed)
+  let doubleTapDistance=distance()
+  let handle=app.buttons["destinationPanelHandle"];handle.tap()
+  XCTAssertTrue(app.buttons["目的地パネルを展開"].waitForExistence(timeout:5))
+  map.pinch(withScale:1.5,velocity:1)
+  let pinched=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in distance()<doubleTapDistance*0.9 },object:nil)
+  XCTAssertEqual(XCTWaiter.wait(for:[pinched],timeout:5),.completed)
+  let zoomDistance=distance()
+  handle.tap()
+  XCTAssertTrue(app.buttons["目的地パネルを縮小"].waitForExistence(timeout:5))
+  // Detect any delayed refit, including updates from the simulated position.
+  let reverted=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in distance()>zoomDistance*1.1 },object:nil)
+  reverted.isInverted=true
+  XCTAssertEqual(XCTWaiter.wait(for:[reverted],timeout:2),.completed)
+  XCTAssertLessThan(distance(),overview*0.8)
+  attach(app,"Route-preview-manual-zoom-retained")
+  // A new explicit destination request must restore automatic overview fitting.
+  chooseCoordinate("33.89800372649751,130.84239911645375",app:app)
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
+  XCTAssertGreaterThan(distance(),zoomDistance*1.2,"新しい目的地では全体表示を再開する")
+ }
  @MainActor func testSoocanaRouteStaysOnRoadToNearestDestinationPoint() throws {
   let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
   let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap()
