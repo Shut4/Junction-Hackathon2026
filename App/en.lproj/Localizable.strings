@@ -774,6 +774,7 @@
 
 "通行不可にする道路：{0}区間" = "Road segments to block: {0}";
 
+"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄からも選べます。" = "Map of the supported area. Touch and hold to choose a destination, or use the search field.";
 "道路を一覧から選ぶ" = "Choose roads from a list";
 
 "現在地に近い道路を確認し、ダブルタップで区間ごとに選択・解除できます" = "Review nearby roads and double-tap to select or deselect each segment";
