@@ -771,3 +771,5 @@
 "XIAOから不正な状態データを受信しました" = "Invalid status data was received from XIAO.";
 "XIAOへの送信に失敗しました" = "Sending to XIAO failed.";
 "XIAOのサービスが変更されました。再接続してください" = "The XIAO service changed. Please reconnect.";
+
+"通行不可にする道路：{0}区間" = "Road segments to block: {0}";
