@@ -90,6 +90,8 @@ enum SceneBarStyle {
 
 struct CameraScreen:View {
     @EnvironmentObject var store:AppStore
+    private enum CameraFocus:Hashable { case surroundings,menu }
+    @AccessibilityFocusState private var cameraFocus:CameraFocus?
     @State private var report=false
     @State private var stop=false
     @State private var details=false
@@ -107,7 +109,7 @@ struct CameraScreen:View {
             }
             if !store.camera.running && !(store.navigating && store.showARArrow) { stoppedHint }
             VStack(spacing:0) {
-                topBar(top:top,items:items,tint:tint)
+                topBar(top:top,items:items,tint:tint).accessibilityFocused($cameraFocus,equals:.surroundings)
                 if details { detailsCard(items).padding(.horizontal,12).padding(.top,8) }
                 Spacer(minLength:8)
                 if store.navigating && store.showARArrow { ARDirectionIndicator() }
@@ -123,16 +125,17 @@ struct CameraScreen:View {
                         Button("設定",systemImage:"gearshape") { settings=true }
                         if store.navigating { Button("地図へ戻る",systemImage:"chevron.left") { store.closeGuidance() } }
                         Button("案内を停止",systemImage:"xmark.octagon",role:.destructive) { stop=true }
-                    } label: { roundLabel(symbol:"line.3.horizontal",tint:tint) }.accessibilityLabel("メニュー").accessibilityIdentifier("cameraMenu")
+                    } label: { roundLabel(symbol:"line.3.horizontal",tint:tint) }.accessibilityLabel("メニュー").accessibilityIdentifier("cameraMenu").accessibilityFocused($cameraFocus,equals:.menu)
                 }.padding(.horizontal,24).padding(.bottom,8).accessibilityElement(children:.contain).accessibilityIdentifier("cameraControls")
             }
         }
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .animation(.easeOut(duration:0.2),value:top?.priority)
         // Spoken direction cues for the arrow, only while this screen is shown.
-        .task { store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
-        .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
-        .sheet(isPresented:$settings) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
+        .task { cameraFocus = .surroundings;store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
+        .sheet(isPresented:$report,onDismiss:{ cameraFocus = .menu }) { NavigationStack { ReportScreen() } }
+        .sheet(isPresented:$settings,onDismiss:{ cameraFocus = .menu }) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
+        .onChange(of:stop) { _,shown in if !shown { cameraFocus = .menu } }
         .confirmationDialog("案内・カメラ・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     /// Full-width coloured bar: the single most important thing in large type, the route step below it while navigating.
