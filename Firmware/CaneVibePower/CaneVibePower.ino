@@ -375,4 +375,4 @@ void loop() {
   delay(2);
 }
 
-#endif // CANE_POWER_BUTTON_TEST
+#endif
