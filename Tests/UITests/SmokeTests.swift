@@ -35,13 +35,14 @@ final class SmokeTests:XCTestCase {
   }
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
- @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false,simulatedPole:Bool=false)->XCUIApplication {
+ @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false,simulatedPole:Bool=false,backgroundRouteFailure:Bool=false)->XCUIApplication {
   let app=XCUIApplication();app.launchArguments=["-AppleLanguages","(ja)","-AppleLocale","ja_JP","-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
   if voiceOverLayout { app.launchArguments += ["--voiceover-layout"] }
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
   if simulated { app.launchArguments += ["--simulate-position"] }
   if simulatedPole { app.launchArguments += ["--simulate-pole"] }
+  if backgroundRouteFailure { app.launchArguments += ["--background-route-failure"] }
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
@@ -138,6 +139,27 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(menu.isHittable)
   app.buttons["cameraBack"].tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+ }
+ @MainActor func testBackgroundRouteFailureDoesNotCoverCameraAndExplicitRetryStillExplains() throws {
+  let app=launchMap(backgroundRouteFailure:true)
+  app.buttons["全面カメラで案内"].tap()
+  let navigation=app.descendants(matching:.any)["cameraNavigationStatus"]
+  XCTAssertTrue(navigation.waitForExistence(timeout:10))
+  let failed=NSPredicate(format:"value CONTAINS %@","目的地まで到達できる経路がありません")
+  expectation(for:failed,evaluatedWith:navigation);waitForExpectations(timeout:10)
+  XCTAssertFalse(app.alerts.firstMatch.exists)
+  XCTAssertTrue(app.buttons["cameraMenu"].isHittable)
+  attach(app,"Camera-background-no-route-without-modal")
+  app.buttons["cameraBack"].tap()
+  let retry=app.buttons["通行不可を避ける経路を確認"]
+  reach(retry,app:app);XCTAssertTrue(retry.isHittable);retry.tap()
+  XCTAssertTrue(app.alerts["状態"].waitForExistence(timeout:5))
+  XCTAssertTrue(app.alerts.staticTexts["目的地まで到達できる経路がありません。別の目的地を選ぶか、道路網の接続と通行不可の登録状況を確認してください。"].exists)
+  app.alerts.buttons["閉じる"].tap()
+  let clear=app.buttons["目的地の選択を解除"];reach(clear,app:app);clear.tap()
+  app.buttons["全面カメラで案内"].tap()
+  XCTAssertTrue(navigation.waitForExistence(timeout:5));XCTAssertEqual(navigation.value as? String,"未設定")
+  XCTAssertFalse(app.alerts.firstMatch.exists)
  }
  @MainActor func testCameraHeaderSeparatesNavigationAndHazard() throws {
   let app=launchMap(developer:true,simulated:true,simulatedPole:true)
