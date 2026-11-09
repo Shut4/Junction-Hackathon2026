@@ -94,7 +94,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var walkableAnnouncer=WalkableAnnouncer()
     /// Head-level, walkable and object items for the camera screen, filtered by the user's settings.
     var sceneItems:[SceneItem] {
-        guard camera.running || camera.simulatedDetections else { return [] }
+        guard (camera.running && camera.recognitionEnabled) || camera.simulatedDetections else { return [] }
         return SceneSummary.items(detections:camera.detections,walkable:walkableWarnings ? camera.walkable:nil,headLevel:headLevelWarnings ? camera.headLevel:nil,
                                   announcer:walkableAnnouncer,closeDistance:noticeTuning.criticalDistance,announceDistance:noticeTuning.announceDistance,tiers:noticeTuning.tiers,classConfidence:noticeTuning.classConfidence)
     }
@@ -300,10 +300,6 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func edge(_ id:String)->WalkEdge? { edgeIndex[id] }
     func place(_ id:String)->Place? { placeIndex[id] }
     func name(_ node: String) -> String { node == "entry" ? localized("最寄りの道路"):place(node).map { localized($0.name) } ?? localized("現在位置") }
-    func connectionName(_ connection:DestinationConnection)->String {
-        guard let road=edge(connection.edgeID)?.name,!road.hasPrefix("名称未登録") else { return localized("道路上の案内終点") }
-        return localized("{0}上の案内終点",localized(road))
-    }
     /// Named roads only (nil for 「名称未登録…」 ways and the off-road approach), for short on-screen and spoken text.
     func roadName(_ step:RouteStep) -> String? { guard !step.isApproach,let name=edge(step.id)?.name,!name.hasPrefix("名称未登録") else { return nil };return name }
     func stepName(_ step:RouteStep) -> String { step.isApproach ? localized("最寄りの道路まで（道路データ外）"):edge(step.id)?.name ?? localized("歩行区間") }
@@ -314,20 +310,26 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         if location.sample == nil { selectNetwork(containing:coordinate) }
         stopNavigation();destinationID="";confirmedDestinationConnection=nil;selectedTarget=coordinate;targetName=name
         guard let network else { destinationMessage=localized("道路データを読み込めません");return }
-        destinationConnections=DestinationConnection.candidates(for:coordinate,network:network)
-        destinationMessage = localized(!network.bounds.contains(coordinate) ? "選択した目的地は経路案内の対応範囲外です" : destinationConnections.isEmpty ? "この地域に利用できる道路データがありません。別の地域または保存済み目的地を選択してください" : "道路上の案内終点を確認してください。選択地点までの入口・通路は未確認です")
-        debugLog(.search,.info,"Destination chosen",["inBounds":network.bounds.contains(coordinate),"connectionCandidates":destinationConnections.count])
-        focus(.destination)
+        guard network.bounds.contains(coordinate) else {
+            destinationConnections=[];destinationMessage=localized("選択した目的地は経路案内の対応範囲外です")
+            debugLog(.search,.warning,"Destination outside coverage");focus(.destination);return
+        }
+        destinationConnections=DestinationConnection.candidates(for:coordinate,network:network,limit:12)
+        guard let candidate=destinationConnections.first else {
+            destinationMessage=localized("この地域に利用できる道路データがありません。別の地域または保存済み目的地を選択してください")
+            debugLog(.search,.warning,"Destination has no road endpoint");focus(.destination);return
+        }
+        useConnection(candidate)
+        debugLog(.search,.info,"Destination chosen",["inBounds":network.bounds.contains(coordinate),"connectionCandidates":destinationConnections.count,"edge":candidate.edgeID,"distanceM":Int(candidate.distance.rounded())])
+        focus(.destination);calculate(usePosition:true)
     }
-    func confirmConnection(_ edgeID:String) {
-        guard let candidate=destinationConnections.first(where:{$0.edgeID==edgeID}),edge(edgeID) != nil else { return }
-        stopNavigation();destinationID="chosen-"+edgeID;confirmedDestinationConnection=candidate
+    private func useConnection(_ candidate:DestinationConnection) {
+        destinationID="chosen-"+candidate.edgeID;confirmedDestinationConnection=candidate
         destinationMessage=localized("道路上の案内終点まで案内します。選択地点までは約{0} mです。入口・通路は未確認です",Int(candidate.distance.rounded()))
-        debugLog(.search,.success,"Road endpoint confirmed",["edge":edgeID,"distanceM":Int(candidate.distance.rounded())])
     }
     func chooseSavedDestination(_ destination:Destination) {
         stopNavigation();confirmedDestinationConnection=nil;selectedTarget=nil;destinationConnections=[];destinationID=destination.id;targetName=localized(destination.name);destinationMessage=localized(destination.note)
-        debugLog(.search,.info,"Saved destination chosen",["id":destination.id]);focus(.destination)
+        debugLog(.search,.info,"Saved destination chosen",["id":destination.id]);focus(.destination);calculate(usePosition:true)
     }
     func clearDestination() {
         stopNavigation();confirmedDestinationConnection=nil;selectedTarget=nil;destinationConnections=[];destinationID="";targetName=localized("目的地を選択してください");destinationMessage=""
@@ -364,21 +366,24 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
                 return
             }
             let router=Router(network:network)
-            let result:Result<WalkRoute,RouteFailure>
-            if let connection=confirmedDestinationConnection {
-                result=matchedEdge.map { router.resolveRoute(from:sample.coordinate,on:$0,to:connection,blocked:blockedForSearch) } ?? router.resolveOffRoadRoute(from:sample.coordinate,to:connection,blocked:blockedForSearch)
+            if selectedTarget != nil {
+                let result=matchedEdge.map { router.bestRoute(from:sample.coordinate,on:$0,to:destinationConnections,blocked:blockedForSearch) } ?? router.bestOffRoadRoute(from:sample.coordinate,to:destinationConnections,blocked:blockedForSearch)
+                switch result {
+                case .success(let found): useConnection(found.connection);route=found.route
+                case .failure(let reason): routeMessage=localized(reason.message)
+                }
             } else if let destination=currentDestination {
-                result=matchedEdge.map { router.resolveRoute(from:sample.coordinate,on:$0,to:destination.nodeID,blocked:blockedForSearch) } ?? router.resolveOffRoadRoute(from:sample.coordinate,to:destination.nodeID,blocked:blockedForSearch)
-            } else { result = .failure(.noRoute) }
-            switch result {
-            case .success(let found): route=found
-            case .failure(let reason): routeMessage=localized(reason.message)
-            }
+                let result=matchedEdge.map { router.resolveRoute(from:sample.coordinate,on:$0,to:destination.nodeID,blocked:blockedForSearch) } ?? router.resolveOffRoadRoute(from:sample.coordinate,to:destination.nodeID,blocked:blockedForSearch)
+                switch result {
+                case .success(let found): route=found
+                case .failure(let reason): routeMessage=localized(reason.message)
+                }
+            } else { routeMessage=localized(RouteFailure.noRoute.message) }
         } else {
             let router=Router(network:network)
-            if let connection=confirmedDestinationConnection {
-                route=router.route(from:previewStart,to:connection,blocked:blockedForSearch)
-                if route == nil { routeMessage=localized(blockedForSearch.contains(connection.edgeID) ? RouteFailure.blockedDestination.message:RouteFailure.noRoute.message) }
+            if selectedTarget != nil {
+                if let found=router.bestRoute(from:previewStart,to:destinationConnections,blocked:blockedForSearch) { useConnection(found.connection);route=found.route }
+                else { routeMessage=localized(RouteFailure.noRoute.message) }
             } else if let destination=currentDestination {
                 route=router.route(from:previewStart,to:destination.nodeID,blocked:blockedForSearch)
                 if route == nil { routeMessage=localized(RouteFailure.noRoute.message) }
@@ -421,7 +426,11 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         debugLog(.navigation,.start,"Guidance started",["mode":mode.rawValue,"distanceM":Int(route?.distance ?? 0),"simulated":simulated])
         updatePosition()
     }
-    func openCamera() { guidanceMode = .camera;guidanceActive=true;if !camera.running { camera.start() };debugLog(.navigation,.info,"Full camera opened",["navigating":navigating]) }
+    func openCamera() {
+        guidanceMode = .camera;guidanceActive=true
+        if !camera.running { camera.start(recognitionEnabled:hasDestination) }
+        debugLog(.navigation,.info,"Full camera opened",["navigating":navigating,"hasDestination":hasDestination])
+    }
     func switchGuidance(to mode:GuidanceMode) {
         guidanceMode=mode
         if mode == .camera { if !camera.running { camera.start() } } else { camera.stop() }
