@@ -239,6 +239,33 @@ final class SmokeTests:XCTestCase {
   XCTAssertEqual(handle.label,"目的地パネルを縮小")
   XCTAssertTrue(app.buttons["通行不可を避ける経路を確認"].exists)
  }
+ @MainActor func testSeparatedRoadsCanBeSelectedDeselectedAndSavedTogether() throws {
+  let app=launchMap();app.buttons["通行不可を登録"].tap()
+  selectRoadOnReportMap(app)
+  let map=app.otherElements["reportRoadMap"]
+  let candidate=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","roadCandidate.")).firstMatch
+  var second:CGVector?
+  for point in [CGVector(dx:0.2,dy:0.8),CGVector(dx:0.8,dy:0.8),CGVector(dx:0.8,dy:0.2)] {
+   map.coordinate(withNormalizedOffset:point).tap()
+   if candidate.waitForExistence(timeout:1) { candidate.tap() }
+   if app.staticTexts["選択 2区間"].waitForExistence(timeout:1) { second=point;break }
+  }
+  let point=try XCTUnwrap(second,"離れた2つ目の道路も選択できること")
+  map.coordinate(withNormalizedOffset:point).tap()
+  if candidate.waitForExistence(timeout:1) { candidate.tap() }
+  XCTAssertTrue(app.staticTexts["選択 1区間"].waitForExistence(timeout:5))
+  map.coordinate(withNormalizedOffset:point).tap()
+  if candidate.waitForExistence(timeout:1) { candidate.tap() }
+  XCTAssertTrue(app.staticTexts["選択 2区間"].waitForExistence(timeout:5))
+  app.buttons["対象を確認して登録"].tap();app.buttons["この範囲を登録"].tap()
+  if app.alerts.firstMatch.waitForExistence(timeout:2) { app.alerts.buttons["閉じる"].tap() }
+  app.terminate();app.launchArguments.removeAll { $0 == "--reset-test-data" };app.launch()
+  app.buttons["設定"].tap()
+  let reports=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","removeReport."))
+  reach(reports.firstMatch,app:app,count:20)
+  XCTAssertTrue(reports.firstMatch.waitForExistence(timeout:5))
+  XCTAssertEqual(reports.count,2,"選択した全区間が再起動後も保存されること")
+ }
  @MainActor func testReportSelectionConfirmationAndRestartPersistence() throws {
   let app=launchMap();resolveStorage(app);let register=app.buttons["通行不可を登録"];register.tap()
   XCTAssertTrue(app.staticTexts["道路が選択されていません"].waitForExistence(timeout:5))
