@@ -848,3 +848,8 @@
 "危険、{0}" = "Danger: {0}";
 
 "周囲、{0}" = "Surroundings: {0}";
+
+"注意、{0}" = "Caution: {0}";
+"方向を確認中です。" = "Checking direction.";
+
+"足元を確認してください。" = "Check your footing.";

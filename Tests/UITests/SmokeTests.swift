@@ -130,7 +130,8 @@ final class SmokeTests:XCTestCase {
   attach(app,"Camera-separated-navigation-and-hazard")
   let menu=app.buttons["cameraMenu"];XCTAssertTrue(menu.isHittable)
   try app.performAccessibilityAudit(for:.sufficientElementDescription)
-  menu.tap();app.buttons["cameraSettings"].tap()
+  XCTAssertFalse(app.buttons["cameraSurroundings"].exists)
+  menu.tap();XCTAssertFalse(app.buttons["周囲を読み上げ"].exists);app.buttons["cameraSettings"].tap()
   XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));app.buttons["完了"].tap()
   XCTAssertTrue(menu.waitForExistence(timeout:5));XCTAssertTrue(menu.isHittable)
   menu.tap();app.buttons["案内を停止"].tap();app.buttons["取消"].tap()
@@ -449,23 +450,23 @@ final class SmokeTests:XCTestCase {
  @MainActor func testCameraDoesNotRecognizeWithoutDestinationAtLaunchOrAfterClearing() throws {
   let app=launchMap()
   let camera=app.buttons["全面カメラで案内"]
-  let recognitionDisabled=app.buttons["cameraSurroundings"]
+  let recognitionDisabled=app.descendants(matching:.any)["cameraHazardStatus"]
   XCTAssertTrue(camera.waitForExistence(timeout:10));camera.tap()
-  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.label,"目的地未設定のため画像認識は停止中","起動直後の目的地未設定状態では画像認識を開始しないこと")
+  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.value as? String,"認識停止","起動直後の目的地未設定状態では画像認識を開始しないこと")
   app.buttons["cameraBack"].tap()
 
   chooseCoordinate(app:app)
   let clear=app.buttons["目的地の選択を解除"]
   reach(clear,app:app);XCTAssertTrue(clear.isHittable);clear.tap()
   camera.tap()
-  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.label,"目的地未設定のため画像認識は停止中","目的地を解除した後も画像認識を開始しないこと")
+  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.value as? String,"認識停止","目的地を解除した後も画像認識を開始しないこと")
  }
  @MainActor func testCameraRecognitionRemainsEnabledWithDestination() throws {
   let app=launchMap()
   chooseCoordinate(app:app)
   app.buttons["全面カメラで案内"].tap()
-  XCTAssertTrue(app.buttons["cameraSurroundings"].waitForExistence(timeout:5))
-  XCTAssertNotEqual(app.buttons["cameraSurroundings"].label,"目的地未設定のため画像認識は停止中")
+  XCTAssertTrue(app.descendants(matching:.any)["cameraNavigationStatus"].waitForExistence(timeout:5))
+  XCTAssertEqual(app.descendants(matching:.any)["cameraNavigationStatus"].value as? String,"案内前")
   XCTAssertFalse(app.descendants(matching:.any)["sceneBar"].exists)
   attach(app,"Camera-without-warning-banner")
   XCTAssertFalse(app.descendants(matching:.any)["cameraRecognitionDisabled"].exists)

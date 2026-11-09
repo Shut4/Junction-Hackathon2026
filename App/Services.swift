@@ -13,7 +13,7 @@ import AVFoundation
     var onMetric:((MetricEvent)->Void)?
     override init() { super.init(); synth.delegate = self }
     /// With VoiceOver on, messages go through VoiceOver announcements (so two voices never overlap) with VoiceOver's
-    /// own priority: critical/high interrupt, normal queue, low is dropped while VoiceOver is busy.
+    /// own priority: critical interrupts, caution/normal queue, low is dropped while VoiceOver is busy.
     private var voiceOverLast:[String:Double]=[:]
     func invalidateRoute() {
         queue.invalidateRoute()
@@ -28,7 +28,7 @@ import AVFoundation
     func say(_ text: String, priority: SpeechPriority, route: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil, kind:GuidanceSpeechKind?=nil) {
         let category=kind ?? (route ? .navigation:priority >= .high ? .hazard:.system)
         guard let text=guidancePolicy.message(text,kind:category,priority:priority,now:ProcessInfo.processInfo.systemUptime) else { return }
-        if category == .hazard && priority >= .high { queue.invalidateRoute();pending=queue.count }
+        if category == .hazard && priority == .critical { queue.invalidateRoute();pending=queue.count }
         if UIAccessibility.isVoiceOverRunning {
             // Switching to VoiceOver also stops any queued synthesizer speech.
             if active != nil || queue.count>0 { queue.stop();pending=0;synth.stopSpeaking(at:.immediate) }
@@ -37,15 +37,15 @@ import AVFoundation
         guard active?.text != text else { return }
         guard queue.enqueue(text,priority:priority,route:route,capturedAt:capturedAt,ttl:ttl) else { debugLog(.speech,.debug,"Speech duplicate suppressed",["characters":text.count]);return };pending=queue.count
         // More urgent hazards cut off whatever is being said; equal priority waits its turn.
-        if let current=active,priority >= .high,priority > current.priority { synth.stopSpeaking(at:.immediate) }
+        if let current=active,priority == .critical,priority > current.priority { synth.stopSpeaking(at:.immediate) }
         if active == nil { playNext() }
     }
     private func announce(_ text:String,priority:SpeechPriority) {
         let now=ProcessInfo.processInfo.systemUptime
         guard now-voiceOverLast[text,default: -.infinity] >= 2 else { return };voiceOverLast[text]=now
         if voiceOverLast.count > 50 { voiceOverLast=voiceOverLast.filter { now-$0.value < 10 } }
-        let level:UIAccessibilityPriority = priority >= .high ? .high:priority == .normal ? .default:.low
-        UIAccessibility.post(notification:.announcement,argument:NSAttributedString(string:text,attributes:[.accessibilitySpeechAnnouncementPriority:level,.accessibilitySpeechQueueAnnouncement:priority < .high]))
+        let level:UIAccessibilityPriority = priority == .critical ? .high:priority >= .normal ? .default:.low
+        UIAccessibility.post(notification:.announcement,argument:NSAttributedString(string:text,attributes:[.accessibilitySpeechAnnouncementPriority:level,.accessibilitySpeechQueueAnnouncement:priority != .critical]))
         status="VoiceOverで読み上げ";debugLog(.speech,.info,"VoiceOver announcement",["priority":"\(priority)","characters":text.count])
     }
     private func playNext() {

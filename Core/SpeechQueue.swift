@@ -19,15 +19,15 @@ public enum GuidanceSpeechKind:Sendable { case navigation,hazard,surroundings,sy
 public struct GuidanceSpeechPolicy:Sendable {
     private var navigationResumeAt = -Double.infinity
     public init() {}
-    /// Urgent hazards hold new navigation cues and invalidate queued route speech
-    /// at the controller boundary. A landmark never enters this hazard window.
+    /// Immediate stop warnings hold navigation. Caution notices allow navigation
+    /// to continue and do not repeatedly extend its quiet window.
     public mutating func message(_ text:String,kind:GuidanceSpeechKind,priority:SpeechPriority,now:Double)->String? {
         guard !text.isEmpty else { return nil }
-        if kind == .hazard && priority >= .high { navigationResumeAt=now+5 }
+        if kind == .hazard && priority == .critical { navigationResumeAt=now+5 }
         if kind == .navigation && now<navigationResumeAt { return nil }
         switch kind {
         case .navigation:return coreLocalized("ナビ、{0}",text)
-        case .hazard:return coreLocalized("危険、{0}",text)
+        case .hazard:return coreLocalized(priority == .critical ? "危険、{0}":"注意、{0}",text)
         case .surroundings:return coreLocalized("周囲、{0}",text)
         case .system:return text
         }
