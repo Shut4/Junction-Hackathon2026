@@ -74,12 +74,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Seconds between repeated 「直進です。」 while the route is straight ahead (0 = off). DeveloperMode setting.
     @Published var straightInterval:Double { didSet { UserDefaults.standard.set(straightInterval,forKey:"dev.straightInterval") } }
     private var lastStraight = -Double.infinity
-    /// Last high/critical hazard warning; 「直進です。」 is held back for `hazardQuiet` seconds after it so "stop" and "go straight" never follow each other.
+    /// Last critical hazard warning; 「直進です。」 is held back for `hazardQuiet` seconds after it so "stop" and "go straight" never follow each other.
     private var lastHazard = -Double.infinity
     private let hazardQuiet = 5.0
     private func warnHazard(_ priority:SpeechPriority) {
         AlertFeedback.hazard(priority)
-        if priority >= .high { lastHazard=ProcessInfo.processInfo.systemUptime }
+        if priority == .critical { lastHazard=ProcessInfo.processInfo.systemUptime }
     }
     private var hazardActive:Bool { ProcessInfo.processInfo.systemUptime-lastHazard < hazardQuiet }
     /// DeveloperMode tuning of warning sounds and vibration, persisted like the other tuning values.
@@ -97,11 +97,6 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         guard (camera.running && camera.recognitionEnabled) || camera.simulatedDetections else { return [] }
         return SceneSummary.items(detections:camera.detections,walkable:walkableWarnings ? camera.walkable:nil,headLevel:headLevelWarnings ? camera.headLevel:nil,
                                   announcer:walkableAnnouncer,closeDistance:noticeTuning.criticalDistance,announceDistance:noticeTuning.announceDistance,tiers:noticeTuning.tiers,classConfidence:noticeTuning.classConfidence)
-    }
-    /// On demand: the three most useful items now, highest first.
-    func speakSurroundingsNow() {
-        let top=sceneItems.prefix(3).map(\.text)
-        speech.say(top.isEmpty ? "周囲の検出はありません。":"周囲。"+top.joined(),priority:.normal,ttl:8)
     }
     /// Also speak low-priority surroundings (vending machines, trees...). Hazards and landmarks are always spoken.
     @Published var speakSurroundings:Bool { didSet { UserDefaults.standard.set(speakSurroundings,forKey:"speakSurroundings");camera.filter.minimumTier=speakSurroundings ? .context:.landmark } }
@@ -479,12 +474,12 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     /// Called periodically while the camera guidance is shown; speaks direction changes via `DirectionAnnouncer`.
     func announceDirection() {
-        guard speakDirection,navigating,showARArrow else { directionAnnouncer.reset();return }
+        guard speakDirection,navigating else { directionAnnouncer.reset();return }
         let angle=cameraAngle
-        // Hold reasons (e.g. poor heading accuracy) are not spoken: the arrow simply disappears.
-        guard let text=directionAnnouncer.update(angle:angle,reason:"",now:ProcessInfo.processInfo.systemUptime),!text.isEmpty else { return }
+        // Retry the current cue once the immediate stop warning has cleared.
+        guard !hazardActive else { directionAnnouncer.reset();return }
+        guard let text=directionAnnouncer.update(angle:angle,reason:localized("方向を確認中です。"),now:ProcessInfo.processInfo.systemUptime),!text.isEmpty else { return }
         // Short lifetime: a queued cue that is already stale must not be spoken after the user has turned.
-        if text == DirectionBucket.ahead.phrase && hazardActive { return }
         sayNavigation(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":angle.map { Int($0.rounded()) },"text":text])
     }
     func updatePosition() {

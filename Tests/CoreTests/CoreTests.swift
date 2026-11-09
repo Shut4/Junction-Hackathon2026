@@ -414,11 +414,11 @@ final class CoreTests:XCTestCase {
         let floor=(0..<60).map { SIMD3<Float>(Float($0%5)*0.1-0.2,-1.3,-1-Float($0)/30) }
         let clear=HeadLevelGeometry.evaluate(points:floor,gravity:upright,cameraHeight:1.3)
         XCTAssertNil(clear.hit);XCTAssertTrue(clear.floorMeasured);XCTAssertEqual(clear.floor,-1.3,accuracy:0.05)
-        // A sign board 1.5 m ahead (between the 1 m danger and 2 m announce distances) at 1.4–1.8 m above the floor.
-        let board=(0..<20).map { SIMD3<Float>(Float($0%4)*0.1-0.15,0.1+Float($0)/50,-1.5) }
+        // A sign board 0.8 m ahead (between the 0.6 m danger and 1 m announce distances) at 1.4–1.8 m above the floor.
+        let board=(0..<20).map { SIMD3<Float>(Float($0%4)*0.1-0.15,0.1+Float($0)/50,-0.8) }
         let hit=try? XCTUnwrap(HeadLevelGeometry.evaluate(points:floor+board,gravity:upright,cameraHeight:1.3).hit)
-        XCTAssertEqual(hit?.stage,.caution);XCTAssertEqual(hit?.distance ?? 0,1.5,accuracy:0.01)
-        let near=board.map { SIMD3<Float>($0.x,$0.y,-0.8) }
+        XCTAssertEqual(hit?.stage,.caution);XCTAssertEqual(hit?.distance ?? 0,0.8,accuracy:0.01)
+        let near=board.map { SIMD3<Float>($0.x,$0.y,-0.5) }
         XCTAssertEqual(HeadLevelGeometry.evaluate(points:floor+near,gravity:upright,cameraHeight:1.3).hit?.stage,.danger)
         // Outside the corridor (1 m to the right) or knee height: no warning.
         XCTAssertNil(HeadLevelGeometry.evaluate(points:floor+board.map { SIMD3<Float>($0.x+1,$0.y,$0.z) },gravity:upright,cameraHeight:1.3).hit)
@@ -428,13 +428,13 @@ final class CoreTests:XCTestCase {
         // Phone tilted 30° down: the same world point appears rotated in the device frame.
         let t=Float.pi/6,g=SIMD3<Float>(0,-cos(t),-sin(t))
         let rotate={ (w:SIMD3<Float>) in SIMD3<Float>(w.x,w.y*cos(t)-w.z*sin(t),w.y*sin(t)+w.z*cos(t)) }
-        let board=(0..<20).map { rotate(SIMD3<Float>(0,0.3,-1.5-Float($0)/100)) }
+        let board=(0..<20).map { rotate(SIMD3<Float>(0,0.3,-0.8-Float($0)/100)) }
         let hit=HeadLevelGeometry.evaluate(points:board,gravity:g,cameraHeight:1.3).hit
-        XCTAssertEqual(hit?.distance ?? 0,1.5,accuracy:0.05);XCTAssertEqual(hit?.height ?? 0,1.6,accuracy:0.05)
+        XCTAssertEqual(hit?.distance ?? 0,0.8,accuracy:0.05);XCTAssertEqual(hit?.height ?? 0,1.6,accuracy:0.05)
     }
     func testHeadLevelAnnouncerNeedsPersistenceAndEscalates() {
         var a=HeadLevelAnnouncer()
-        let caution=HeadLevelHit(distance:1.8,lateral:0,height:1.5,count:20,stage:.caution),danger=HeadLevelHit(distance:0.8,lateral:0.3,height:1.5,count:20,stage:.danger)
+        let caution=HeadLevelHit(distance:0.8,lateral:0,height:1.5,count:20,stage:.caution),danger=HeadLevelHit(distance:0.5,lateral:0.3,height:1.5,count:20,stage:.danger)
         XCTAssertNil(a.update(caution,now:0))
         XCTAssertEqual(a.update(caution,now:0.2)?.text,"前方に障害物。")
         XCTAssertNil(a.update(caution,now:1))
@@ -450,10 +450,10 @@ final class CoreTests:XCTestCase {
         stride(from:lateral.lowerBound,through:lateral.upperBound,by:0.1).flatMap { l in (0..<4).map { _ in WalkSample(forward:forward,lateral:l,up:up) } }
     }
     func testWalkableFindsBlockedPathAndPassableSide() {
-        // Obstacle in the path 1.5 m ahead (beyond the 1 m critical distance, 0.5 m tall) and a wall 0.55 m to the right; the left is open.
-        let samples=walkGround(except:{ $0 > -0.3 && $0 < 0.8 })+walkBlock(-0.25...0.25,at:1.5,up:-0.8)+walkBlock(0.55...0.75,at:1.2,up:-0.3)
+        // Obstacle in the path 0.8 m ahead (beyond the 0.6 m critical distance, 0.5 m tall) and a wall 0.55 m to the right; the left is open.
+        let samples=walkGround(except:{ $0 > -0.3 && $0 < 0.8 })+walkBlock(-0.25...0.25,at:0.8,up:-0.8)+walkBlock(0.55...0.75,at:1.2,up:-0.3)
         let p=WalkableGeometry.profile(samples,floor:-1.3)
-        XCTAssertEqual(p.blockedAhead ?? 0,1.5,accuracy:0.01);XCTAssertEqual(p.passSide,.left);XCTAssertEqual(p.right?.kind,.obstacle)
+        XCTAssertEqual(p.blockedAhead ?? 0,0.8,accuracy:0.01);XCTAssertEqual(p.passSide,.left);XCTAssertEqual(p.right?.kind,.obstacle)
         XCTAssertNil(p.left);XCTAssertTrue(p.groundSeen)
         let cues=WalkableAnnouncer().cues(p)
         XCTAssertEqual(cues.first?.text,"前方に障害物。左へ。");XCTAssertEqual(cues.first?.priority,.high)
@@ -461,8 +461,8 @@ final class CoreTests:XCTestCase {
     }
     func testWalkableDropsNarrowPassageAndClearPath() {
         XCTAssertNil(WalkableGeometry.profile(walkGround(),floor:-1.3).blockedAhead)
-        let kerb=WalkableGeometry.profile(walkGround(except:{ abs($0) < 0.3 })+walkBlock(-0.25...0.25,at:2,up:-1.5),floor:-1.3)
-        XCTAssertEqual(kerb.dropAhead ?? 0,2,accuracy:0.01);XCTAssertNil(kerb.blockedAhead)
+        let kerb=WalkableGeometry.profile(walkGround(except:{ abs($0) < 0.3 })+walkBlock(-0.25...0.25,at:0.8,up:-1.5),floor:-1.3)
+        XCTAssertEqual(kerb.dropAhead ?? 0,0.8,accuracy:0.01);XCTAssertNil(kerb.blockedAhead)
         XCTAssertEqual(WalkableAnnouncer().cues(kerb).first?.text,"前方に段差。")
         // Walls 0.35 m left and right: 0.6 m wide passage, both edges close.
         let narrow=WalkableGeometry.profile(walkGround(except:{ abs($0) > 0.3 })+walkBlock(-0.45 ... -0.35,at:1.5,up:-0.5)+walkBlock(0.35...0.45,at:1.5,up:-0.5),floor:-1.3)
@@ -470,7 +470,7 @@ final class CoreTests:XCTestCase {
         XCTAssertEqual(Set(WalkableAnnouncer().cues(narrow).map(\.key)),["edge-left","edge-right","narrow"])
     }
     func testWalkableAnnouncerPersistsAndRepeatsByPriority() {
-        let p=WalkableGeometry.profile(walkGround(except:{ abs($0) < 0.3 })+walkBlock(-0.25...0.25,at:0.8,up:-0.8),floor:-1.3)
+        let p=WalkableGeometry.profile(walkGround(except:{ abs($0) < 0.3 })+walkBlock(-0.25...0.25,at:0.5,up:-0.8),floor:-1.3)
         var a=WalkableAnnouncer()
         XCTAssertNil(a.update(p,now:0));XCTAssertEqual(a.update(p,now:0.2)?.priority,.critical)
         XCTAssertNil(a.update(p,now:2));XCTAssertNotNil(a.update(p,now:3.3))
@@ -482,7 +482,7 @@ final class CoreTests:XCTestCase {
         var f=NoticeFilter()
         let block=Detection(label:"braille_block",confidence:0.9,box:Box(x:0.05,y:0.1,width:0.2,height:0.2),capturedAt:0)
         let tree=Detection(label:"tree",confidence:0.9,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0)
-        let step=Detection(label:"steps",confidence:0.9,box:Box(x:0.4,y:0.1,width:0.2,height:0.2),capturedAt:0,distance:0.9,lateral:0)
+        let step=Detection(label:"steps",confidence:0.9,box:Box(x:0.4,y:0.1,width:0.2,height:0.2),capturedAt:0,distance:0.5,lateral:0)
         _=f.process([block,tree,step],now:0)
         let later=[block,tree,step].map { var d=$0;d.capturedAt=0.7;return d }
         let notices=f.process(later,now:0.7)
@@ -516,7 +516,7 @@ final class CoreTests:XCTestCase {
             Detection(label:"vending_machine",confidence:0.9,box:Box(x:0.7,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:1,lateral:1),
             Detection(label:"braille_block",confidence:0.9,box:Box(x:0.05,y:0.1,width:0.2,height:0.2),capturedAt:0),
             Detection(label:"pole",confidence:0.9,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:3,lateral:0),
-            Detection(label:"pole",confidence:0.9,box:Box(x:0.1,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:1.2,lateral:-0.8),
+            Detection(label:"pole",confidence:0.9,box:Box(x:0.1,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:0.8,lateral:-0.8),
             Detection(label:"tree",confidence:0.3,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0)],walkable:nil,headLevel:nil)
         XCTAssertEqual(items.map(\.text),["左前にポール。","左前に点字ブロック。","すぐ右に自動販売機。"],"nearest pole only; low-confidence tree dropped")
         XCTAssertEqual(items.map(\.priority),[.high,.normal,.low])
@@ -572,11 +572,11 @@ final class CoreTests:XCTestCase {
         var t=NoticeTuning();t.persistence=0;var f=NoticeFilter();t.apply(to:&f)
         let farPole=Detection(label:"pole",confidence:0.9,box:Box(x:0.4,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:4,lateral:0)
         XCTAssertTrue(f.process([farPole],now:0).isEmpty)
-        var nearPole=farPole;nearPole.distance=0.8;XCTAssertEqual(f.process([nearPole],now:0).first?.priority,.critical)
+        var nearPole=farPole;nearPole.distance=0.5;XCTAssertEqual(f.process([nearPole],now:0).first?.priority,.critical)
         let block=Detection(label:"braille_block",confidence:0.9,box:Box(x:0.1,y:0.1,width:0.2,height:0.2),capturedAt:0)
         XCTAssertEqual(f.process([block],now:0).first?.hazard,false,"landmarks never beep")
         // People and vehicles are landmarks by default (spoken, no warning sound); a label can be moved per DeveloperMode.
-        let car=Detection(label:"car",confidence:0.9,box:Box(x:0.6,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:1.5,lateral:0.5)
+        let car=Detection(label:"car",confidence:0.9,box:Box(x:0.6,y:0.3,width:0.2,height:0.4),capturedAt:0,distance:0.8,lateral:0.5)
         var g=NoticeFilter();t.apply(to:&g);let landmark=g.process([car],now:0).first
         XCTAssertEqual(landmark?.priority,.normal);XCTAssertEqual(landmark?.hazard,false)
         t.tiers=["car":.hazard];var h=NoticeFilter();t.apply(to:&h);XCTAssertEqual(h.process([car],now:0).first?.priority,.high)
@@ -602,7 +602,7 @@ final class CoreTests:XCTestCase {
         XCTAssertNil(grid { _,_ in 8 }.implausibility(box,label:"pole",config:c),"too far to judge")
         // Rejected detections and per-class thresholds are honoured by the notice filter.
         var t=NoticeTuning();t.persistence=0;t.classConfidence=["pole":0.95];var f=NoticeFilter();t.apply(to:&f)
-        let pole=Detection(label:"pole",confidence:0.9,box:box,capturedAt:0,distance:1.5,lateral:0)
+        let pole=Detection(label:"pole",confidence:0.9,box:box,capturedAt:0,distance:0.8,lateral:0)
         XCTAssertTrue(f.process([pole],now:0).isEmpty,"below the pole's own threshold")
         var g=NoticeFilter();var u=NoticeTuning();u.persistence=0;u.apply(to:&g);var rejected=pole;rejected.rejected="平面"
         XCTAssertTrue(g.process([rejected],now:0).isEmpty);XCTAssertEqual(g.process([pole],now:0).count,1)
