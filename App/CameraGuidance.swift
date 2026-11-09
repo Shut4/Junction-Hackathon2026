@@ -91,7 +91,7 @@ enum SceneBarStyle {
 struct CameraScreen:View {
     @EnvironmentObject var store:AppStore
     @Environment(\.dynamicTypeSize) private var textSize
-    private enum CameraFocus:Hashable { case navigation,surroundings,menu }
+    private enum CameraFocus:Hashable { case navigation,menu }
     @AccessibilityFocusState private var cameraFocus:CameraFocus?
     @State private var report=false
     @State private var stop=false
@@ -119,18 +119,7 @@ struct CameraScreen:View {
                         if store.navigating { store.switchGuidance(to:.map) } else { store.closeGuidance() }
                     }
                     Spacer()
-                    Button { store.speakSurroundingsNow() } label: {
-                        Image(systemName:"speaker.wave.2.fill").font(.title2).foregroundStyle(.white)
-                            .frame(width:60,height:60).background(.black.opacity(0.65),in:Circle())
-                    }
-                    .accessibilityLabel(surroundingsTitle(top:top))
-                    .accessibilityValue(items.count > 1 ? items.dropFirst().map(\.text).joined(separator:" "):"")
-                    .accessibilityHint("ダブルタップで周囲を読み上げます")
-                    .accessibilityAddTraits(.updatesFrequently)
-                    .accessibilityIdentifier("cameraSurroundings").accessibilityFocused($cameraFocus,equals:.surroundings)
-                    Spacer()
                     Menu {
-                        Button("周囲を読み上げ",systemImage:"speaker.wave.2") { store.speakSurroundingsNow() }
                         Button(details ? "詳細を隠す":"詳細を表示",systemImage:"info.circle") { details.toggle() }
                         Button("通行不可を登録",systemImage:"exclamationmark.triangle") { report=true }
                         Button("設定",systemImage:"gearshape") { settings=true }.accessibilityIdentifier("cameraSettings")
@@ -198,10 +187,6 @@ struct CameraScreen:View {
         .accessibilityElement(children:.ignore).accessibilityLabel(localized(title)).accessibilityValue(spoken ?? text)
         .accessibilityAddTraits([.isHeader,.updatesFrequently])
     }
-    private func surroundingsTitle(top:SceneItem?)->String {
-        if !store.camera.recognitionEnabled { return localized("目的地未設定のため画像認識は停止中") }
-        return top?.text ?? localized(store.camera.running ? "障害物なし":store.camera.status)
-    }
     private func detailsCard(_ items:[SceneItem])->some View {
         VStack(alignment:.leading,spacing:4) {
             SceneList(items:items,limit:6)
@@ -218,7 +203,7 @@ struct CameraScreen:View {
     }
     private var stoppedHint:some View {
         VStack(spacing:8) {
-            // Status is also available from the surroundings button.
+            // Status is available from the header and details menu.
             Image(systemName:"video.slash").font(.largeTitle)
             Text("カメラは画面を開くと自動で起動します。起動しない場合は地図へ戻り、もう一度カメラボタンを押してください").font(.subheadline)
         }.foregroundStyle(.white).multilineTextAlignment(.center).padding(.horizontal,24).accessibilityHidden(true)
