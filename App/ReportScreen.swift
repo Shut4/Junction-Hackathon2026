@@ -3,6 +3,11 @@ import SwiftUI
 struct ReportScreen:View {
     @EnvironmentObject var store:AppStore
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @State private var roadPicker=false
+    @AccessibilityFocusState private var accessibilityFocus:ReportFocus?
+    private enum ReportFocus:Hashable { case roads,register,review }
+    private var accessibleRoadSelection:Bool { AccessibilityLayout.voiceOver(voiceOver) }
     @State private var hazard=Hazard.other
     @State private var observed=Date()
     @State private var description=""
@@ -29,6 +34,13 @@ struct ReportScreen:View {
                 Text("地図上の道路をタップしてください。もう一度タップすると選択を解除できます。")
                     .font(.subheadline)
 
+                if accessibleRoadSelection {
+                    Button("道路を一覧から選ぶ",systemImage:"list.bullet") { roadPicker=true }
+                        .frame(minHeight:48)
+                        .accessibilityHint("現在地に近い道路を確認し、ダブルタップで区間ごとに選択・解除できます")
+                        .accessibilityIdentifier("accessibleRoadPicker")
+                        .accessibilityFocused($accessibilityFocus,equals:.roads)
+                }
                 ZStack(alignment:.topLeading) {
                     GuideMap(store:store,mode:.report,onBlockedReport:{ reportToDelete=$0 })
                         .frame(height:360)
@@ -45,6 +57,8 @@ struct ReportScreen:View {
                     .accessibilityElement(children:.combine)
                     .allowsHitTesting(false)
                 }
+
+                .accessibilityHidden(accessibleRoadSelection)
 
                 DisclosureGroup("詳しい操作方法",isExpanded:$showInstructions) {
                     Text("地図はドラッグで移動、ピンチで拡大できます。登録は道路区間全体が対象です。登録済みの道路をタップすると、削除の確認を表示します。")
@@ -81,7 +95,8 @@ struct ReportScreen:View {
             registrationBar { withAnimation { proxy.scrollTo("reportRoadCandidates",anchor:.center) } }
         }
         .toolbar { ToolbarItem(placement:.cancellationAction) { Button("戻る") { store.clearSelection();dismiss() } } }
-        .sheet(isPresented:$review) { reviewSheet }
+        .sheet(isPresented:$review,onDismiss:{ accessibilityFocus = .register }) { reviewSheet }
+        .sheet(isPresented:$roadPicker,onDismiss:{ accessibilityFocus = .roads }) { NavigationStack { AccessibleRoadPicker() } }
         .confirmationDialog("この通行禁止区域を削除しますか？",isPresented:deleteDialogIsPresented,titleVisibility:.visible) {
             Button("通行禁止区域を削除",role:.destructive) {
                 if let report=reportToDelete { store.removeReports(for:report.segmentID) }
@@ -174,6 +189,7 @@ struct ReportScreen:View {
             }
             PrimaryButton(title:"対象を確認して登録",symbol:"checkmark") { review=true }
                 .disabled(!canReview)
+                .accessibilityFocused($accessibilityFocus,equals:.register)
                 .accessibilityHint(canReview ? localized("選択した道路と入力内容の確認画面を開きます"):disabledReason)
         }
         .padding(.horizontal)
@@ -187,6 +203,9 @@ struct ReportScreen:View {
             ScrollView {
                 VStack(alignment:.leading,spacing:16) {
                     Text("区間全体を通行不可にします").font(.title.bold())
+                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityFocused($accessibilityFocus,equals:.review)
+                        .task { accessibilityFocus = .review }
                     Text(localized("通行不可にする道路：{0}区間",store.selected.count))
                         .font(.headline)
                         .accessibilityIdentifier("reportReviewSegmentCount")
@@ -220,4 +239,66 @@ struct ReportScreen:View {
     private func legend(symbol:String,color:Color,text:String)->some View {
         Label { Text(localized(text)).font(.caption.bold()) } icon: { Image(systemName:symbol).foregroundStyle(color) }
     }
+}
+
+/// A deliberate, searchable selection screen; native map roads never enter the VoiceOver focus order.
+private struct AccessibleRoadPicker:View {
+    @EnvironmentObject var store:AppStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var query=""
+    @State private var ordered:[WalkEdge]=[]
+    @State private var distances:[String:Double]=[:]
+    @State private var visibleCount=30
+    @State private var reportToDelete:Report?
+    private var filtered:[WalkEdge] { ordered.filter { query.isEmpty || store.edgeDescription($0).localizedCaseInsensitiveContains(query) || $0.id.localizedCaseInsensitiveContains(query) } }
+    var body:some View {
+        List {
+            Section {
+                Text(localized("選択 {0}区間",store.selected.count)).accessibilityAddTraits(.isHeader)
+                if distances.isEmpty { Text("位置情報がないため、道路データの順に表示しています") }
+                else { Text("現在地に近い順に表示しています。道路の位置と対象区間を確認してください。") }
+            }
+            ForEach(Array(filtered.prefix(visibleCount))) { edge in roadRow(edge) }
+            if filtered.isEmpty { Text("一致する道路がありません。検索語を変更してください。") }
+            if filtered.count>visibleCount { Button("次の30区間を表示") { visibleCount += 30 }.frame(minHeight:48) }
+        }
+        .navigationTitle("道路を選ぶ")
+        .searchable(text:$query,prompt:"道路名・区間IDを検索")
+        .onChange(of:query) { _,_ in visibleCount=30 }
+        .toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { dismiss() }.accessibilityIdentifier("finishAccessibleRoadSelection") } }
+        .task { loadRoads() }
+        .confirmationDialog("この通行禁止区域を削除しますか？",isPresented:Binding(get:{reportToDelete != nil},set:{if !$0 {reportToDelete=nil}}),titleVisibility:.visible) {
+            Button("通行禁止区域を削除",role:.destructive) { if let report=reportToDelete { store.removeReports(for:report.segmentID) };reportToDelete=nil }
+            Button("キャンセル",role:.cancel) { reportToDelete=nil }
+        }
+    }
+    private func roadRow(_ edge:WalkEdge)->some View {
+                Button {
+                    if let report=store.reports.first(where:{$0.segmentID==edge.id}) { reportToDelete=report }
+                    else { store.confirmTappedRoad(edge.id) }
+                } label: {
+                    VStack(alignment:.leading,spacing:6) {
+                        Label(edge.name,systemImage:store.selected.contains(edge.id) ? "checkmark.circle.fill":"circle")
+                        Text(store.edgeDescription(edge)).font(.subheadline)
+                        if let distance=distances[edge.id] { Text(localized("現在地から約{0} m",Int(distance.rounded()))).font(.subheadline) }
+                    }
+                }
+                .accessibilityLabel(store.edgeDescription(edge))
+                .accessibilityValue(localized(store.blocked.contains(edge.id) ? "通行不可登録あり":store.selected.contains(edge.id) ? "選択中":"未選択"))
+                .accessibilityHint(store.blocked.contains(edge.id) ? "ダブルタップで登録解除の確認を開きます":"ダブルタップで選択・解除します")
+                .accessibilityIdentifier("accessibleRoad."+edge.id)
+    }
+    private func loadRoads() {
+            if let point=store.location.sample?.coordinate {
+                var ranked:[(edge:WalkEdge,distance:Double)]=[]
+                for edge in store.edges { ranked.append((edge,Geometry.project(point,onto:edge.shape).distance)) }
+                ranked.sort { left,right in
+                    if left.distance == right.distance { return left.edge.id < right.edge.id }
+                    return left.distance < right.distance
+                }
+                ordered=ranked.map { $0.edge }
+                for item in ranked { distances[item.edge.id]=item.distance }
+            } else { ordered=store.edges }
+        }
+
 }

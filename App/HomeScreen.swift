@@ -17,6 +17,10 @@ struct HomeScreen:View {
     @State private var searchOpen=false
     @FocusState private var searchFocused:Bool
     @Environment(\.dynamicTypeSize) private var textSize
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @AccessibilityFocusState private var accessibilityFocus:HomeFocus?
+    private enum HomeFocus:Hashable { case search,destination,settings,report,start }
+
     private var reportRemovalDialogIsPresented:Binding<Bool> {
         Binding(
             get: { store.pendingReportRemoval != nil },
@@ -27,7 +31,7 @@ struct HomeScreen:View {
         GeometryReader { geometry in
             ZStack(alignment:.top) {
                 GuideMap(store:store,mode:.explore,onDestination:{ store.inspectDroppedPin($0) },onTap:{ searchFocused=false;if query.isEmpty { searchOpen=false };store.inspected=nil },insets:UIEdgeInsets(top:geometry.safeAreaInsets.top+(searchOpen ? 0:118),left:0,bottom:searchOpen ? 0:panelHeight+geometry.safeAreaInsets.bottom,right:0))
-                    .ignoresSafeArea().accessibilityIdentifier("homeMap")
+                    .ignoresSafeArea().accessibilityHidden(AccessibilityLayout.voiceOver(voiceOver)).accessibilityIdentifier("homeMap")
                 VStack(spacing:10) {
                     searchBar.padding(.horizontal,12)
                     if searchOpen { searchResults.padding(.horizontal,12) } else { savedChips }
@@ -44,13 +48,14 @@ struct HomeScreen:View {
         }
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .toolbar(.hidden,for:.navigationBar)
-        .onChange(of:store.targetName) { _,_ in destinationPanelCollapsed=false }
+        .onChange(of:store.targetName) { _,_ in destinationPanelCollapsed=false;accessibilityFocus = .destination }
+        .onChange(of:pendingMode) { _,mode in if mode == nil && !store.guidanceActive { accessibilityFocus = .start } }
         .onChange(of:searchFocused) { _,focused in if focused { searchOpen=true } }
         .task(id:query) { guard searchOpen,query != search.resultsQuery else { return };search.cancel();search.results=[];try? await Task.sleep(for:.milliseconds(300));guard !Task.isCancelled,query != search.resultsQuery else { return };search.suggest(query,network:store.network) }
-        .sheet(isPresented:$destinations) { NavigationStack { DestinationPickerScreen() } }
-        .sheet(isPresented:$settings) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
-        .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
-        .fullScreenCover(isPresented:$store.guidanceActive) { GuidanceContainer().environmentObject(store) }
+        .sheet(isPresented:$destinations,onDismiss:{ accessibilityFocus=store.hasDestination ? .destination:.search }) { NavigationStack { DestinationPickerScreen() } }
+        .sheet(isPresented:$settings,onDismiss:{ accessibilityFocus = .settings }) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
+        .sheet(isPresented:$report,onDismiss:{ accessibilityFocus = .report }) { NavigationStack { ReportScreen() } }
+        .fullScreenCover(isPresented:$store.guidanceActive,onDismiss:{ accessibilityFocus = .destination }) { GuidanceContainer().environmentObject(store) }
         .confirmationDialog("目的地の入口・受入状況と経路を同行者と確認してください",isPresented:Binding(get:{pendingMode != nil},set:{ if !$0 { pendingMode=nil } }),titleVisibility:.visible,presenting:pendingMode) { mode in
             Button(localized(mode == .map ? "確認してナビを開始":"確認して全面カメラで案内開始")) { store.startGuidance(mode) }
             Button("取消",role:.cancel) {}
@@ -71,7 +76,7 @@ struct HomeScreen:View {
         HStack(spacing:10) {
             if searchOpen { Button("検索を閉じる",systemImage:"chevron.left") { closeSearch() }.labelStyle(.iconOnly).font(.title3.weight(.semibold)).frame(minWidth:44,minHeight:44) }
             else { Image(systemName:"magnifyingglass").font(.title3).foregroundStyle(.secondary).frame(width:28).accessibilityHidden(true) }
-            TextField("目的地を入力",text:$query).focused($searchFocused).submitLabel(.search).onSubmit { performSearch() }.font(.title3).accessibilityIdentifier("destinationQuery")
+            TextField("目的地を入力",text:$query).focused($searchFocused).submitLabel(.search).onSubmit { performSearch() }.font(.title3).accessibilityIdentifier("destinationQuery").accessibilityFocused($accessibilityFocus,equals:.search)
             if searchOpen || !query.isEmpty {
                 Button(localized(query.isEmpty ? "検索を閉じる":"入力を消去"),systemImage:"xmark.circle.fill") {
                     if query.isEmpty { closeSearch() }
@@ -79,7 +84,7 @@ struct HomeScreen:View {
                 }
                 .labelStyle(.iconOnly).foregroundStyle(.secondary).frame(minWidth:44,minHeight:44).accessibilityIdentifier("searchAction")
             }
-            if !searchOpen { Button("設定",systemImage:"gearshape.fill") { settings=true }.labelStyle(.iconOnly).font(.title3).foregroundStyle(.white).frame(width:44,height:44).background(Circle().fill(Color.blue)) }
+            if !searchOpen { Button("設定",systemImage:"gearshape.fill") { settings=true }.accessibilityFocused($accessibilityFocus,equals:.settings).labelStyle(.iconOnly).font(.title3).foregroundStyle(.white).frame(width:44,height:44).background(Circle().fill(Color.blue)) }
         }
         .padding(.leading,14).padding(.trailing,6).padding(.vertical,6)
         .background(Capsule().fill(Color(.systemBackground)).shadow(color:.black.opacity(0.18),radius:8,y:3))
@@ -90,6 +95,7 @@ struct HomeScreen:View {
                 ForEach(store.destinations) { d in
                     Button { store.inspected=nil;store.chooseSavedDestination(d);query=localized(d.name) } label: { Label(localized(d.name).replacingOccurrences(of:localized("・実験接続点"),with:""),systemImage:"figure.walk").font(.subheadline.weight(.medium)).padding(.horizontal,14).padding(.vertical,9).background(Capsule().fill(store.destinationID == d.id ? Color.blue.opacity(0.18):Color(.systemBackground)).shadow(color:.black.opacity(0.12),radius:4,y:2)) }
                         .buttonStyle(.plain).accessibilityLabel(localized("{0}を目的地にする",localized(d.name)))
+                        .accessibilityValue(localized(store.destinationID == d.id ? "選択中":"未選択"))
                 }
             }.padding(.horizontal,14).padding(.vertical,4)
         }.frame(maxWidth:.infinity).accessibilityIdentifier("savedChipsScroll")
@@ -102,7 +108,7 @@ struct HomeScreen:View {
             } else {
                 ForEach(Array(search.suggestions.prefix(8).enumerated()),id:\.element) { i,c in resultRow(title:c.title,subtitle:c.subtitle,symbol:"magnifyingglass",tint:.secondary) { searchFocused=false;Task { await search.find(c.title,network:store.network,completion:c);if search.results.count==1,let item=search.results.first { choose(item) } } }.accessibilityIdentifier("destinationSuggestion.\(i)") }
                 ForEach(store.destinations.filter { query.isEmpty || $0.name.localizedCaseInsensitiveContains(query) }) { d in
-                    resultRow(title:localized(d.name),subtitle:localized("保存済み・通信なしで選択可能"),symbol:"figure.walk.circle.fill",tint:.green) { store.chooseSavedDestination(d);query=localized(d.name);closeSearch() }.accessibilityLabel(localized(d.name))
+                    resultRow(title:localized(d.name),subtitle:localized("保存済み・通信なしで選択可能"),symbol:"figure.walk.circle.fill",tint:.green) { store.chooseSavedDestination(d);query=localized(d.name);closeSearch() }.accessibilityLabel(localized(d.name)).accessibilityIdentifier("savedSearch."+d.id)
                 }
                 if !query.isEmpty { resultRow(title:localized("「{0}」を検索",query),subtitle:"施設名・住所・「緯度, 経度」",symbol:"arrow.up.left.circle",tint:.blue) { performSearch() }.accessibilityIdentifier("destinationSearchButton") }
             }
@@ -126,7 +132,7 @@ struct HomeScreen:View {
             if store.developer { Label(localized(store.simulated ? "DEV・模擬位置":"DEV"),systemImage:"hammer.fill").font(.caption.bold()).padding(8).background(Capsule().fill(Color.orange.opacity(0.9))).foregroundStyle(.white) }
             Spacer()
             VStack(spacing:12) {
-                circleButton("通行不可を登録",symbol:"exclamationmark.triangle.fill",tint:.orange) { report=true }
+                circleButton("通行不可を登録",symbol:"exclamationmark.triangle.fill",tint:.orange) { report=true }.accessibilityFocused($accessibilityFocus,equals:.report)
                 circleButton("全面カメラで案内",symbol:"camera.fill",tint:.teal) { store.openCamera() }
                 circleButton("現在位置を表示",symbol:"location.fill",tint:.blue) { store.location.start();store.focus(.user) }
             }
@@ -138,7 +144,11 @@ struct HomeScreen:View {
     private func bottomPanel(maxHeight:CGFloat)->some View {
         VStack(spacing:0) {
             Button { withAnimation(.snappy) { expanded.toggle() } } label: { Capsule().fill(Color.secondary.opacity(0.45)).frame(width:40,height:5).frame(maxWidth:.infinity,minHeight:24) }
-                .accessibilityLabel(expanded ? "パネルを縮小":"パネルを展開")
+                .accessibilityLabel(localized(expanded ? "パネルを縮小":"パネルを展開"))
+                .accessibilityValue(localized(expanded ? "展開":"縮小"))
+                .accessibilityAdjustableAction { direction in
+                    if direction == .increment { expanded=true } else if direction == .decrement { expanded=false }
+                }
             ViewThatFits(in:.vertical) { panelContent;ScrollView { panelContent }.scrollBounceBehavior(.basedOnSize) }
                 .frame(maxHeight:maxHeight-24,alignment:.top)
         }
@@ -152,10 +162,14 @@ struct HomeScreen:View {
         let travel=maxHeight-compactHeight
         let translation=min(max(destinationPanelDrag,destinationPanelCollapsed ? -travel:0),destinationPanelCollapsed ? 0:travel)
         return VStack(spacing:0) {
-            Button { withAnimation(.spring(response:0.35,dampingFraction:0.85)) { destinationPanelCollapsed.toggle() } } label: {
+            Button { setDestinationPanelCollapsed(!destinationPanelCollapsed) } label: {
                 Capsule().fill(Color.secondary.opacity(0.45)).frame(width:40,height:5).frame(maxWidth:.infinity,minHeight:24).contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityValue(localized("{0}、{1}",store.targetName,localized(destinationPanelCollapsed ? "縮小":"展開")))
+            .accessibilityAdjustableAction { direction in
+                if direction == .increment { setDestinationPanelCollapsed(false) } else if direction == .decrement { setDestinationPanelCollapsed(true) }
+            }
             .accessibilityLabel(destinationPanelCollapsed ? "目的地パネルを展開":"目的地パネルを縮小")
             .accessibilityIdentifier("destinationPanelHandle")
             .simultaneousGesture(destinationPanelGesture(fullHeight:maxHeight,compactHeight:compactHeight,fromHandle:true))
@@ -164,6 +178,10 @@ struct HomeScreen:View {
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollDisabled(destinationPanelCollapsed)
                 .frame(maxHeight:.infinity,alignment:.top)
+                .accessibilityHidden(AccessibilityLayout.voiceOver(voiceOver) && destinationPanelCollapsed)
+                .overlay(alignment:.top) {
+                    if AccessibilityLayout.voiceOver(voiceOver) && destinationPanelCollapsed { collapsedDestinationSummary }
+                }
         }
         // Keep content layout and MapKit insets stable while the finger moves.
         // Only the settled height changes when the gesture ends.
@@ -203,12 +221,12 @@ struct HomeScreen:View {
                         Button("設定で報告の状態を確認") { settings=true }.buttonStyle(.bordered).accessibilityIdentifier("openStorageSettings")
                     }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.red.opacity(0.1),in:RoundedRectangle(cornerRadius:14))
                 }
-                Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                Text(localized(store.targetName)).font(.title2.bold()).accessibilityAddTraits(.isHeader).accessibilityFocused($accessibilityFocus,equals:.destination)
                 if !store.destinationMessage.isEmpty { Text(localized(store.destinationMessage)).font(.subheadline).foregroundStyle(.secondary) }
                 if let route=store.route {
                     RouteSummary(route:route)
                     HStack(spacing:10) {
-                        Button { pendingMode = .map } label: { Label("ナビ開始",systemImage:"location.north.line.fill").font(.headline).frame(maxWidth:.infinity,minHeight:50) }.buttonStyle(.borderedProminent).accessibilityIdentifier("startMapNavigation")
+                        Button { pendingMode = .map } label: { Label("ナビ開始",systemImage:"location.north.line.fill").font(.headline).frame(maxWidth:.infinity,minHeight:50) }.buttonStyle(.borderedProminent).accessibilityIdentifier("startMapNavigation").accessibilityFocused($accessibilityFocus,equals:.start)
                         Button { pendingMode = .camera } label: { Label("カメラ案内",systemImage:"camera.viewfinder").font(.headline).frame(maxWidth:.infinity,minHeight:50) }.buttonStyle(.borderedProminent).tint(.teal).accessibilityIdentifier("startCameraNavigation")
                     }
                 } else {
@@ -231,7 +249,23 @@ struct HomeScreen:View {
             }
         }.padding(12).frame(maxWidth:.infinity,alignment:.leading).background(Color.blue.opacity(0.08),in:RoundedRectangle(cornerRadius:16))
     }
-    func closeSearch() { searchOpen=false;searchFocused=false;search.cancel() }
+    private var collapsedDestinationSummary:some View {
+        VStack(alignment:.leading,spacing:8) {
+            Text(localized(store.targetName)).font(.headline)
+            Text("目的地パネルを展開すると、経路と案内の操作を確認できます").font(.subheadline)
+        }
+        .padding(.horizontal,16).padding(.bottom,12)
+        .frame(maxWidth:.infinity,maxHeight:.infinity,alignment:.topLeading)
+        .background(Color(.systemBackground))
+        .accessibilityElement(children:.combine)
+    }
+    private func setDestinationPanelCollapsed(_ value:Bool) {
+        if AccessibilityLayout.voiceOver(voiceOver) {
+            var transaction=Transaction();transaction.disablesAnimations=true
+            withTransaction(transaction) { destinationPanelCollapsed=value }
+        } else { withAnimation(.spring(response:0.35,dampingFraction:0.85)) { destinationPanelCollapsed=value } }
+    }
+    func closeSearch() { searchOpen=false;searchFocused=false;search.cancel();accessibilityFocus = .search }
     func performSearch() {
         searchOpen=true;searchFocused=false
         let parts=query.split(separator:",").map { $0.trimmingCharacters(in:.whitespaces) }
