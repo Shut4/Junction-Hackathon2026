@@ -48,8 +48,8 @@ struct ReportScreen:View {
                         .accessibilityIdentifier("reportRoadMap")
                     VStack(alignment:.leading,spacing:8) {
                         legend(symbol:"line.diagonal",color:.teal,text:"選択できる道路")
-                        legend(symbol:"checkmark.circle.fill",color:.red,text:"選択中（黄色の縁）")
-                        legend(symbol:"xmark.circle.fill",color:.orange,text:"登録済み（破線）")
+                        legend(symbol:"checkmark.circle.fill",color:.red,text:"選択中")
+                        legend(symbol:"xmark.circle.fill",color:.orange,text:"登録済み")
                     }
                     .padding(10)
                     .background(.regularMaterial,in:RoundedRectangle(cornerRadius:12))
