@@ -207,9 +207,15 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             activate(data,remember:false,focus:false)
             debugLog(.storage,.success,"Road network loaded",["count":networks.count,"active":data.id,"loadMs":Int(Date().timeIntervalSince(started)*1000)])
         } catch { networkError=error.localizedDescription;debugLog(.storage,.error,"Road network failed",["error":error.localizedDescription]) }
-        #if DEBUG
-        // Deterministic UI-test position without scrolling through DeveloperMode controls.
-        if ProcessInfo.processInfo.arguments.contains("--simulate-position") { switchSimulation(true) }
+        #if DEBUG && targetEnvironment(simulator)
+        // Automatic mock GPS is confined to isolated Simulator UI tests.
+        // Physical devices start with Core Location even if stale test arguments remain.
+        let launchArguments=ProcessInfo.processInfo.arguments
+        if launchArguments.contains("--ui-testing") && launchArguments.contains("--simulate-position") { switchSimulation(true) }
+        #elseif DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--simulate-position") {
+            debugLog(.developer,.warning,"Ignored simulator-only location launch argument")
+        }
         #endif
         location.$sample.sink { [weak self] _ in Task { @MainActor in self?.updatePosition() } }.store(in:&subscriptions)
         for publisher in [location.objectWillChange.eraseToAnyPublisher(),speech.objectWillChange.eraseToAnyPublisher(),camera.objectWillChange.eraseToAnyPublisher(),cane.objectWillChange.eraseToAnyPublisher()] {
