@@ -71,30 +71,21 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     /// Spoken cues for the camera arrow direction (user setting).
     @Published var speakDirection:Bool { didSet { UserDefaults.standard.set(speakDirection,forKey:"speakDirection");directionAnnouncer.reset() } }
     var directionAnnouncer=DirectionAnnouncer()
-    /// Spoken and haptic warnings for chest/head-height obstacles from the camera depth (user setting).
+    /// Haptic warnings for chest/head-height obstacles from the camera depth (user setting).
     @Published var headLevelWarnings:Bool { didSet { UserDefaults.standard.set(headLevelWarnings,forKey:"headLevelWarnings");headLevelAnnouncer.reset();invalidateCaneDetection() } }
     var headLevelAnnouncer=HeadLevelAnnouncer()
-    /// Hazard warning beeps and the navigation chime, switched separately (user settings). Hazard vibration stays on either way.
-    @Published var hazardSounds:Bool { didSet { UserDefaults.standard.set(hazardSounds,forKey:"hazardSounds");EarconPlayer.shared.hazardEnabled=hazardSounds } }
     /// Seconds between repeated 「直進です。」 while the route is straight ahead (0 = off). DeveloperMode setting.
     @Published var straightInterval:Double { didSet { UserDefaults.standard.set(straightInterval,forKey:"dev.straightInterval") } }
     private var lastStraight = -Double.infinity
-    /// Last critical hazard warning; 「直進です。」 is held back for `hazardQuiet` seconds after it so "stop" and "go straight" never follow each other.
-    private var lastHazard = -Double.infinity
-    private let hazardQuiet = 5.0
-    private func warnHazard(_ priority:SpeechPriority) {
-        AlertFeedback.hazard(priority)
-        if priority == .critical { lastHazard=ProcessInfo.processInfo.systemUptime }
-    }
-    private var hazardActive:Bool { ProcessInfo.processInfo.systemUptime-lastHazard < hazardQuiet }
-    /// DeveloperMode tuning of warning sounds and vibration, persisted like the other tuning values.
-    @Published var feedbackTuning:FeedbackTuning { didSet { save(feedbackTuning,"dev.feedbackTuning");EarconPlayer.shared.tuning=feedbackTuning } }
-    /// Navigation speech: words only (no sound effect, no vibration), so beeps and vibration always mean a hazard.
+    private func warnHazard(_ priority:SpeechPriority) { AlertFeedback.hazard(priority) }
+    /// DeveloperMode tuning of hazard vibration, persisted like the other tuning values.
+    @Published var feedbackTuning:FeedbackTuning { didSet { save(feedbackTuning,"dev.feedbackTuning");AlertFeedback.tuning=feedbackTuning } }
+    /// Navigation uses speech; hazard notifications use vibration.
     func sayNavigation(_ text:String,ttl:Double?=nil) {
         if text == DirectionBucket.ahead.phrase { lastStraight=ProcessInfo.processInfo.systemUptime }
         speech.say(text,ttl:ttl)
     }
-    /// Spoken cues about walkable ground (blocked path and which side is free, steps down, narrow passages) from depth.
+    /// Haptic cues about walkable ground (blocked path, steps down, narrow passages) from depth.
     @Published var walkableWarnings:Bool { didSet { UserDefaults.standard.set(walkableWarnings,forKey:"walkableWarnings");walkableAnnouncer.reset() } }
     var walkableAnnouncer=WalkableAnnouncer()
     /// Head-level, walkable and object items for the camera screen, filtered by the user's settings.
@@ -182,7 +173,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         arrowCameraHeight=defaults.object(forKey:"dev.arrowCameraHeight") as? Double ?? 1.3;arrowDistance=defaults.object(forKey:"dev.arrowDistance") as? Double ?? 4
         speakDirection=defaults.object(forKey:"speakDirection") as? Bool ?? true
         headLevelWarnings=defaults.object(forKey:"headLevelWarnings") as? Bool ?? true
-        hazardSounds=defaults.object(forKey:"hazardSounds") as? Bool ?? true;straightInterval=defaults.object(forKey:"dev.straightInterval") as? Double ?? 3
+        straightInterval=defaults.object(forKey:"dev.straightInterval") as? Double ?? 3
         feedbackTuning=Self.load(FeedbackTuning.self,"dev.feedbackTuning",default:FeedbackTuning())
         walkableWarnings=defaults.object(forKey:"walkableWarnings") as? Bool ?? true;speakSurroundings=defaults.bool(forKey:"speakSurroundings")
         headLevelConfig=Self.load(HeadLevelConfig.self,"dev.headLevelConfig",default:HeadLevelConfig());headLevelTiming=Self.load(HeadLevelTiming.self,"dev.headLevelTiming",default:HeadLevelTiming())
@@ -227,12 +218,11 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         Timer.publish(every:1,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.updatePosition() }.store(in:&subscriptions)
         camera.onNotice = { [weak self] n in
             guard let self else { return }
-            speech.say(n.text,priority:n.priority,capturedAt:n.capturedAt,kind:n.hazard ? .hazard:.surroundings)
-            // Only hazards beep (and vibrate when high/critical); landmarks and surroundings are speech only.
             if n.hazard { warnHazard(n.priority) }
+            else { speech.say(n.text,priority:n.priority,capturedAt:n.capturedAt,kind:.surroundings) }
         }
         camera.onMetric = { [weak self] event in self?.record(event) }
-        EarconPlayer.shared.hazardEnabled=hazardSounds;EarconPlayer.shared.tuning=feedbackTuning
+        AlertFeedback.tuning=feedbackTuning
         camera.engine.setCameraHeight(arrowCameraHeight);camera.engine.setHeadLevelConfig(headLevelConfig);headLevelAnnouncer.timing=headLevelTiming
         noticeTuning.apply(to:&camera.filter);camera.filter.minimumTier=speakSurroundings ? .context:.landmark
         camera.engine.setWalkableConfig(walkableConfig);camera.engine.setDepthCheck(depthCheck);walkableAnnouncer=WalkableAnnouncer(config:walkableConfig,timing:walkableTiming)
@@ -255,16 +245,14 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             } else { invalidateCaneDetection() }
             // Walkable-ground cues; the head-level warning below is more specific about the same obstacle.
             if walkableWarnings,let cue=walkableAnnouncer.update(result.walkable,headLevel:headLevelWarnings && result.hit != nil,now:now) {
-                speech.say(cue.text,priority:cue.priority,capturedAt:now,kind:.hazard);warnHazard(cue.priority)
+                warnHazard(cue.priority)
                 debugLog(.camera,.info,"Walkable cue",["priority":"\(cue.priority)","text":cue.text])
             }
             let hit=result.hit
             guard headLevelWarnings else { headLevelAnnouncer.reset();return }
-            // Very close head-height obstacle: keep buzzing, one chunk per depth frame, until it is gone.
-            if let hit,headLevelConfig.buzzerDistance > 0,hit.distance <= headLevelConfig.buzzerDistance { EarconPlayer.shared.play(.buzzer(seconds:0.25)) }
             guard let warning=headLevelAnnouncer.update(hit,now:now) else { return }
             let level:SpeechPriority=warning.stage == .danger ? .critical:.high
-            speech.say(warning.text,priority:level,capturedAt:now,kind:.hazard);warnHazard(level)
+            warnHazard(level)
             debugLog(.camera,.info,"Head-level obstacle",["stage":warning.stage == .danger ? "danger":"caution","distanceM":hit.map { String(format:"%.2f",$0.distance) },"lateralM":hit.map { String(format:"%.2f",$0.lateral) },"heightM":hit.map { String(format:"%.2f",$0.height) },"points":hit?.count])
         }
         speech.onMetric = { [weak self] event in self?.record(event) }
@@ -512,8 +500,6 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     func announceDirection() {
         guard speakDirection,navigating else { directionAnnouncer.reset();return }
         let angle=cameraAngle
-        // Retry the current cue once the immediate stop warning has cleared.
-        guard !hazardActive else { directionAnnouncer.reset();return }
         guard let text=directionAnnouncer.update(angle:angle,reason:localized("方向を確認中です。"),now:ProcessInfo.processInfo.systemUptime),!text.isEmpty else { return }
         // Short lifetime: a queued cue that is already stale must not be spoken after the user has turned.
         sayNavigation(text,ttl:3);debugLog(.navigation,.info,"Direction cue",["angle":angle.map { Int($0.rounded()) },"text":text])
@@ -571,7 +557,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let straight=bucket == nil || bucket == .ahead
         nextInstruction=straight ? DirectionBucket.ahead.phrase:bucket!.phrase
         let now=ProcessInfo.processInfo.systemUptime
-        if straight,!hazardActive,straightInterval > 0,now-lastStraight >= straightInterval { sayNavigation(DirectionBucket.ahead.phrase,ttl:straightInterval) }
+        if straight,straightInterval > 0,now-lastStraight >= straightInterval { sayNavigation(DirectionBucket.ahead.phrase,ttl:straightInterval) }
     }
     private func hold(_ text:String) { nextInstruction=text;if !text.isEmpty,lastSpoken != text { speech.invalidateRoute();speech.say(text);lastSpoken=text;debugLog(.navigation,.warning,"Guidance held",["reason":text]) } }
     func record(_ event:MetricEvent) { if metrics.count>=2000 { metrics.removeFirst();droppedMetrics += 1 };metrics.append(event) }
