@@ -146,7 +146,7 @@ struct CameraScreen:View {
         .sheet(isPresented:$report,onDismiss:{ cameraFocus = .menu }) { NavigationStack { ReportScreen() } }
         .sheet(isPresented:$settings,onDismiss:{ cameraFocus = .menu }) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .onChange(of:stop) { _,shown in if !shown { cameraFocus = .menu } }
-        .confirmationDialog("案内・カメラ・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
+        .alert("案内・カメラ・待機音声を停止します",isPresented:$stop) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     private func surroundingsTitle(top:SceneItem?)->String {
         if !store.camera.recognitionEnabled { return localized("目的地未設定のため画像認識は停止中") }
