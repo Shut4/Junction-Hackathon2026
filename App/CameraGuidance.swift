@@ -131,13 +131,14 @@ struct CameraScreen:View {
                         Button("周囲を読み上げ",systemImage:"speaker.wave.2") { store.speakSurroundingsNow() }
                         Button(details ? "詳細を隠す":"詳細を表示",systemImage:"info.circle") { details.toggle() }
                         Button("通行不可を登録",systemImage:"exclamationmark.triangle") { report=true }
-                        Button("設定",systemImage:"gearshape") { settings=true }
+                        Button("設定",systemImage:"gearshape") { settings=true }.accessibilityIdentifier("cameraSettings")
                         if store.navigating { Button("地図へ戻る",systemImage:"chevron.left") { store.closeGuidance() } }
                         Button("案内を停止",systemImage:"xmark.octagon",role:.destructive) { stop=true }
                     } label: { roundLabel(symbol:"line.3.horizontal",tint:tint) }.accessibilityLabel("メニュー").accessibilityIdentifier("cameraMenu").accessibilityFocused($cameraFocus,equals:.menu)
                 }.padding(.horizontal,24).padding(.bottom,8).accessibilityElement(children:.contain).accessibilityIdentifier("cameraControls")
             }
         }
+        .accessibilityHidden(settings || report || stop)
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .animation(.easeOut(duration:0.2),value:top?.priority)
         // Spoken direction cues for the arrow, only while this screen is shown.
