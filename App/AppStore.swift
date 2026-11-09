@@ -353,6 +353,15 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         // search. This keeps routing correct even if the published `blocked`
         // cache has not propagated through SwiftUI yet.
         let blockedForSearch=Set(reports.map(\.segmentID))
+        let router=Router(network:network)
+        let safeConnections=destinationConnections.filter { connection in
+            guard let target=selectedTarget else { return true }
+            return router.allowsConnector(from:connection.coordinate,to:target,blocked:blockedForSearch)
+        }
+        if selectedTarget != nil && !destinationConnections.isEmpty && safeConnections.isEmpty {
+            routeMessage=localized(RouteFailure.blockedDestination.message);nextInstruction=routeMessage!;notice=routeMessage
+            return
+        }
         if blockedForSearch != blocked { blocked=blockedForSearch }
         let operation=DebugLogger.operationID(),started=Date()
         let destinationKey=confirmedDestinationConnection?.edgeID ?? currentDestination?.nodeID ?? ""
@@ -365,9 +374,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
                 debugLog(.route,.cancelled,"Route search waiting for position",["state":positionState],operation:operation)
                 return
             }
-            let router=Router(network:network)
             if selectedTarget != nil {
-                let result=matchedEdge.map { router.bestRoute(from:sample.coordinate,on:$0,to:destinationConnections,blocked:blockedForSearch) } ?? router.bestOffRoadRoute(from:sample.coordinate,to:destinationConnections,blocked:blockedForSearch)
+                let result=matchedEdge.map { router.bestRoute(from:sample.coordinate,on:$0,to:safeConnections,blocked:blockedForSearch) } ?? router.bestOffRoadRoute(from:sample.coordinate,to:safeConnections,blocked:blockedForSearch)
                 switch result {
                 case .success(let found): useConnection(found.connection);route=found.route
                 case .failure(let reason): routeMessage=localized(reason.message)
@@ -380,9 +388,8 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
                 }
             } else { routeMessage=localized(RouteFailure.noRoute.message) }
         } else {
-            let router=Router(network:network)
             if selectedTarget != nil {
-                if let found=router.bestRoute(from:previewStart,to:destinationConnections,blocked:blockedForSearch) { useConnection(found.connection);route=found.route }
+                if let found=router.bestRoute(from:previewStart,to:safeConnections,blocked:blockedForSearch) { useConnection(found.connection);route=found.route }
                 else { routeMessage=localized(RouteFailure.noRoute.message) }
             } else if let destination=currentDestination {
                 route=router.route(from:previewStart,to:destination.nodeID,blocked:blockedForSearch)
@@ -391,7 +398,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         }
         if let found=route {
             let leaked=Set(found.steps.map(\.id)).intersection(blockedForSearch)
-            if !leaked.isEmpty {
+            if !leaked.isEmpty || !router.allows(found,blocked:blockedForSearch) {
                 route=nil
                 routeMessage=localized(RouteFailure.noRoute.message)
                 debugLog(.route,.error,"Blocked segments rejected from route",["edges":leaked.sorted().joined(separator:","),"blocked":blockedForSearch.count],operation:operation)
