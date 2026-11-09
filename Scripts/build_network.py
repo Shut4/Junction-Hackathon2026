@@ -1,34 +1,33 @@
 #!/usr/bin/env python3
 """Build a saved, ground-level OSM walking network for one supported region."""
-import argparse, urllib.request, urllib.parse, urllib.error, json, math, collections, pathlib, datetime, shutil
+import argparse, urllib.request, urllib.parse, urllib.error, json, math, collections, pathlib, datetime, shutil, hashlib
 
 ROOT=pathlib.Path(__file__).resolve().parent.parent
-REGIONS={
- 'kokura': {
-  'name':'小倉駅周辺','bounds':(33.8775,130.8710,33.8925,130.8900),'network_id':'kokura-ground-osm',
-  'destinations':[('kokura','小倉駅南側・実験接続点',33.8860,130.8821),('kyomachi','京町・実験接続点',33.8847,130.8810),('uomachi','魚町・実験接続点',33.8830,130.8806),('castle','小倉城付近・実験接続点',33.8846,130.8750),('riverwalk','紫川東岸・実験接続点',33.8815,130.8770)],
- },
- 'tobata': {
-  # 2023-01-01 administrative boundary bbox: 33.8695925–33.92948691 /
-  # 130.80574278–130.86934186. The extraction bbox adds roughly 150–180 m
-  # while keeping its east edge at Kokura's west edge to avoid an overlap area.
-  'name':'戸畑区全域','bounds':(33.8680,130.8040,33.9310,130.8710),'network_id':'tobata-ground-osm',
-  'destinations':[('tobata-station','戸畑駅周辺・実験接続点',33.8962318,130.8216472),('tobata-ward-office','戸畑区役所周辺・実験接続点',33.8947315,130.8288489),('kyukodai-mae','九工大前駅付近・実験接続点',33.9001,130.8406),('kit-main-gate','戸畑キャンパス正門付近・実験接続点',33.8947,130.8393),('kit-south','戸畑キャンパス南側・実験接続点',33.8918,130.8398)],
- },
-}
+from region_data import load_regions, validate_network, validate_raw, summarize_update, write_json
+REGIONS=load_regions(ROOT/'Data/regions.json')
 WALK={'footway','path','pedestrian','steps','corridor'}
 ROAD={'living_street','residential','service','unclassified','tertiary','tertiary_link','secondary','secondary_link','primary','primary_link','track'}
 
 parser=argparse.ArgumentParser()
 parser.add_argument('--region',choices=REGIONS,default='kokura')
+parser.add_argument('--check',action='store_true',help='validate all catalogued networks without modifying files')
+parser.add_argument('--output',type=pathlib.Path,help='write a validated candidate to this path before deployment')
 parser.add_argument('--fetch',action='store_true',help='archive existing files and fetch fresh OSM data')
-args=parser.parse_args();region=REGIONS[args.region];B=region['bounds']
+args=parser.parse_args()
+if args.check:
+ for key,definition in REGIONS.items():
+  path=ROOT/f'Data/{key}-network.json'
+  validate_network(json.loads(path.read_text()),definition)
+  print(f'{key}: valid')
+ raise SystemExit(0)
+region=REGIONS[args.region];B=tuple(region['bounds'][key] for key in ('south','west','north','east'))
 raw=ROOT/f'Data/raw/{args.region}-osm.json';query_path=ROOT/f'Data/raw/{args.region}-query.txt';output=ROOT/f'Data/{args.region}-network.json'
+metadata_path=ROOT/f'Data/raw/{args.region}-metadata.json'
 query='[out:json][timeout:60];way["highway"~"^('+'|'.join(sorted(WALK|ROAD))+')$"]('+','.join(map(str,B))+');out meta;>;out skel qt;'
 
 def archive_existing():
- stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H-%M-%SZ');archive=ROOT/'Data/archive';archive.mkdir(parents=True,exist_ok=True)
- for path in (raw,query_path,output):
+ stamp=datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H-%M-%S-%fZ');archive=ROOT/'Data/archive';archive.mkdir(parents=True,exist_ok=True)
+ for path in (raw,query_path,metadata_path,output):
   if path.exists():shutil.copy2(path,archive/f'{path.stem}-{stamp}{path.suffix}')
 
 if args.fetch:
@@ -41,12 +40,16 @@ if args.fetch:
    if not timestamp:raise ValueError('OSM基準時刻がありません')
    base_time=datetime.datetime.fromisoformat(timestamp.replace('Z','+00:00'));age=datetime.datetime.now(datetime.timezone.utc)-base_time
    if age>datetime.timedelta(days=14):raise ValueError(f'OSM基準時刻が古すぎます（{timestamp}）')
-   raw.write_bytes(body);break
+   validate_raw(response)
+   write_json(raw,response)
+   write_json(metadata_path,{'fetchedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'endpoint':endpoint,'osmTimestamp':timestamp,'rawSHA256':hashlib.sha256(raw.read_bytes()).hexdigest(),'license':region['license'],'bounds':region['bounds']})
+   query_path.write_text(query+'\n')
+   break
   except (urllib.error.URLError,TimeoutError,json.JSONDecodeError,ValueError) as error:last_error=error
  else:raise SystemExit(f'Overpass APIから取得できませんでした: {last_error}')
 if not raw.exists():raise SystemExit(f'{raw.relative_to(ROOT)} がありません。Overpass APIから取得する場合は --fetch を付けて実行してください。')
 
-d=json.loads(raw.read_text());nodes={str(e['id']):e for e in d['elements'] if e['type']=='node'};ways=[e for e in d['elements'] if e['type']=='way']
+d=json.loads(raw.read_text());validate_raw(d);nodes={str(e['id']):e for e in d['elements'] if e['type']=='node'};ways=[e for e in d['elements'] if e['type']=='way']
 def inside(n):return B[0]<=n['lat']<=B[2] and B[1]<=n['lon']<=B[3]
 def coord(n):return {'latitude':n['lat'],'longitude':n['lon']}
 def distance(a,b):
@@ -98,12 +101,30 @@ for edge in edges:
 active={edge[key] for edge in merged for key in ('from','to')}
 places=[{'id':node,'name':'接続点 '+node[-5:],'coordinate':coord(nodes[node])} for node in sorted(active)]
 destinations=[]
-for identifier,name,lat,lon in region['destinations']:
+for definition in region['destinations']:
+ identifier,name,lat,lon=(definition[k] for k in ('id','name','latitude','longitude'))
  node=min(active,key=lambda candidate:distance(nodes[candidate],{'lat':lat,'lon':lon}));candidate_distance=distance(nodes[node],{'lat':lat,'lon':lon})
  if candidate_distance>40:raise SystemExit(f'{name} に40m以内の道路接続点がありません（{candidate_distance:.1f}m、最寄り {nodes[node]["lat"]},{nodes[node]["lon"]}）。座標または範囲を確認してください。')
  destinations.append({'id':identifier,'name':name,'nodeID':node,'note':'OSMネットワーク上の実験接続点。施設入口・避難所ではありません。同行者による現地確認が必要です。'})
-network={'id':region['network_id'],'name':region['name'],'version':d['osm3s']['timestamp_osm_base'],'bounds':dict(zip(('south','west','north','east'),B)),'source':'© OpenStreetMap contributors / ODbL 1.0','acquiredAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'isSimulated':False,'nodes':places,'edges':merged,'destinations':destinations}
-output.write_text(json.dumps(network,ensure_ascii=False,indent=2));query_path.write_text(query+'\n')
+network={'id':region['networkID'],'name':region['name'],'version':d['osm3s']['timestamp_osm_base'],'bounds':dict(zip(('south','west','north','east'),B)),'source':'© OpenStreetMap contributors / ODbL 1.0','acquiredAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'isSimulated':False,'nodes':places,'edges':merged,'destinations':destinations}
+# Include the graph content in the version: conversion changes with the same OSM
+# timestamp must still trigger the existing report migration gate.
+fingerprint=hashlib.sha256(json.dumps([network[k] for k in ('id','bounds','nodes','edges','destinations')],ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+network['version'] += '+'+fingerprint[:16]
+raw_hash=hashlib.sha256(raw.read_bytes()).hexdigest()
+metadata=json.loads(metadata_path.read_text()) if metadata_path.exists() else {}
+verified_metadata=metadata if metadata.get('rawSHA256') == raw_hash else {}
+network['provenance']={'sourceURL':region['sourceURL'],'license':region['license'],'osmTimestamp':d['osm3s']['timestamp_osm_base'],'rawSHA256':raw_hash,'converterVersion':1,'fetchedAt':verified_metadata.get('fetchedAt'),'endpoint':verified_metadata.get('endpoint')}
+
+validate_network(network,region)
+if output.exists(): print(json.dumps(summarize_update(json.loads(output.read_text()),network),ensure_ascii=False))
+if args.output:
+ write_json(args.output,network)
+else:
+ if not args.fetch: archive_existing()
+ write_json(output,network);query_path.write_text(query+'\n')
 print('region:',args.region,'components:',len(components),'component_nodes:',component_sizes[:10],'discarded_edges:',edges_before_component_filter-len(edges),'nodes:',len(places),'segments:',len(merged))
 for destination,definition in zip(destinations,region['destinations']):
- node=nodes[destination['nodeID']];print(destination['name'],destination['nodeID'],f'{distance(node,{"lat":definition[2],"lon":definition[3]}):.1f}m',node['lat'],node['lon'])
+ node=nodes[destination['nodeID']]
+ gap=distance(node,{'lat':definition['latitude'],'lon':definition['longitude']})
+ print(destination['name'],destination['nodeID'],f'{gap:.1f}m',node['lat'],node['lon'])

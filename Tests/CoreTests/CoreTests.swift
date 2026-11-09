@@ -34,6 +34,21 @@ final class CoreTests:XCTestCase {
         XCTAssertEqual(candidate.edgeID,"osm:166677343:1781302633:1781302616")
         XCTAssertEqual(candidate.distance,22.6,accuracy:0.5)
     }
+    func testRegionCatalogLoadsBundledNetworksAndRejectsMissingOrMismatchedData() throws {
+        let root=URL(fileURLWithPath:#filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent().appendingPathComponent("Data")
+        let manifest=try Data(contentsOf:root.appendingPathComponent("regions.json"))
+        let networks=try NetworkCatalog.load(manifest:manifest) { try Data(contentsOf:root.appendingPathComponent($0+".json")) }
+        XCTAssertEqual(networks.map(\.id),["kokura-ground-osm","tobata-ground-osm"])
+        XCTAssertThrowsError(try NetworkCatalog.load(manifest:manifest) { _ in throw CoreError.invalidNetwork })
+        XCTAssertThrowsError(try NetworkCatalog.load(manifest:manifest) { _ in try JSONEncoder().encode(networks[1]) })
+        let definitions=try XCTUnwrap(JSONSerialization.jsonObject(with:manifest) as? [[String:Any]])
+        let duplicate=try JSONSerialization.data(withJSONObject:[definitions[0],definitions[0]])
+        XCTAssertThrowsError(try NetworkCatalog.load(manifest:duplicate) { _ in try JSONEncoder().encode(networks[0]) })
+        var invalid=networks[0];invalid.bounds.south = .nan
+        XCTAssertThrowsError(try invalid.validate())
+        invalid=networks[0];invalid.nodes[0].coordinate.latitude = .nan
+        XCTAssertThrowsError(try invalid.validate())
+    }
     func testSpeechPriorityDuplicatesRouteInvalidationAndStop() {
         var q=SpeechQueue();let now=Date()
         XCTAssertTrue(q.enqueue("old route",obstacle:false,now:now))
