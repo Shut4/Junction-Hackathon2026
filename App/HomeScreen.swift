@@ -9,7 +9,8 @@ struct HomeScreen:View {
     @State private var pendingMode:GuidanceMode?
     @State private var expanded=false
     @State private var destinationPanelCollapsed=false
-    @GestureState private var destinationPanelDrag:CGFloat=0
+    @State private var destinationPanelContentAtTop=true
+    @GestureState(resetTransaction:Transaction(animation:.spring(response:0.35,dampingFraction:0.85))) private var destinationPanelDrag:CGFloat=0
     @State private var panelHeight:CGFloat=180
     @StateObject private var search=DestinationSearch()
     @State private var query=""
@@ -38,7 +39,7 @@ struct HomeScreen:View {
                             destinationPanel(maxHeight:min(geometry.size.height*(textSize.isAccessibilitySize ? 0.72:0.58),max(220,geometry.size.height-300))).padding(.horizontal,12)
                         } else { bottomPanel(maxHeight:geometry.size.height*(expanded || textSize.isAccessibilitySize ? 0.62:0.42)).padding(.horizontal,12) }
                     }
-                }.padding(.top,4)
+                }.padding(.top,4).clipped()
             }
         }
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
@@ -148,7 +149,8 @@ struct HomeScreen:View {
     private func destinationPanel(maxHeight:CGFloat)->some View {
         let compactHeight=min(180,maxHeight*0.45)
         let restingHeight=destinationPanelCollapsed ? compactHeight:maxHeight
-        let height=min(max(restingHeight-destinationPanelDrag,compactHeight),maxHeight)
+        let travel=maxHeight-compactHeight
+        let translation=min(max(destinationPanelDrag,destinationPanelCollapsed ? -travel:0),destinationPanelCollapsed ? 0:travel)
         return VStack(spacing:0) {
             Button { withAnimation(.spring(response:0.35,dampingFraction:0.85)) { destinationPanelCollapsed.toggle() } } label: {
                 Capsule().fill(Color.secondary.opacity(0.45)).frame(width:40,height:5).frame(maxWidth:.infinity,minHeight:24).contentShape(Rectangle())
@@ -156,23 +158,35 @@ struct HomeScreen:View {
             .buttonStyle(.plain)
             .accessibilityLabel(destinationPanelCollapsed ? "目的地パネルを展開":"目的地パネルを縮小")
             .accessibilityIdentifier("destinationPanelHandle")
+            .simultaneousGesture(destinationPanelGesture(fullHeight:maxHeight,compactHeight:compactHeight,fromHandle:true))
             ScrollView { panelContent }
+                .onScrollGeometryChange(for:Bool.self) { $0.contentOffset.y <= -$0.contentInsets.top+1 } action: { _,atTop in destinationPanelContentAtTop=atTop }
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollDisabled(destinationPanelCollapsed)
                 .frame(maxHeight:.infinity,alignment:.top)
         }
-        .frame(height:height)
+        // Keep content layout and MapKit insets stable while the finger moves.
+        // Only the settled height changes when the gesture ends.
+        .frame(height:maxHeight)
         .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))
+        .offset(y:translation)
+        .frame(height:restingHeight,alignment:.top)
         .contentShape(RoundedRectangle(cornerRadius:24))
         .simultaneousGesture(destinationPanelGesture(fullHeight:maxHeight,compactHeight:compactHeight))
         .onGeometryChange(for:CGFloat.self) { $0.size.height } action: { panelHeight=$0 }
         .padding(.bottom,4)
+        .accessibilityElement(children:.contain)
         .accessibilityIdentifier("destinationPanel")
     }
-    private func destinationPanelGesture(fullHeight:CGFloat,compactHeight:CGFloat)->some Gesture {
+    private func destinationPanelGesture(fullHeight:CGFloat,compactHeight:CGFloat,fromHandle:Bool=false)->some Gesture {
         DragGesture(minimumDistance:10)
-            .updating($destinationPanelDrag) { value,state,_ in state=value.translation.height }
+            .updating($destinationPanelDrag) { value,state,transaction in
+                guard abs(value.translation.height)>abs(value.translation.width),fromHandle || destinationPanelCollapsed || (destinationPanelContentAtTop && value.translation.height>0) else { return }
+                transaction.animation=nil
+                state=value.translation.height
+            }
             .onEnded { value in
+                guard abs(value.translation.height)>abs(value.translation.width),fromHandle || destinationPanelCollapsed || (destinationPanelContentAtTop && value.translation.height>0) else { return }
                 let restingHeight=destinationPanelCollapsed ? compactHeight:fullHeight
                 let projectedHeight=restingHeight-value.predictedEndTranslation.height
                 withAnimation(.spring(response:0.35,dampingFraction:0.85)) {

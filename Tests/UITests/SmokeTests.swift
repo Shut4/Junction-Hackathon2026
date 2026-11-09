@@ -221,6 +221,24 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.staticTexts["京町・実験接続点"].waitForExistence(timeout:5))
   attach(app,"Home-full-screen-map")
  }
+ @MainActor func testDestinationPanelRepeatedDragSettlesAndKeepsControlsUsable() throws {
+  let app=launchMap(developer:true,simulated:true)
+  tapSavedDestination("小倉城付近・実験接続点を目的地にする",app:app)
+  let handle=app.buttons["destinationPanelHandle"]
+  XCTAssertTrue(handle.waitForExistence(timeout:10))
+  let expandedY=handle.frame.minY
+  for _ in 0..<3 {
+   handle.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5)).press(forDuration:0.05,thenDragTo:handle.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:8)))
+   XCTAssertTrue(app.buttons["目的地パネルを展開"].waitForExistence(timeout:5))
+   XCTAssertGreaterThan(handle.frame.minY,expandedY+40)
+   handle.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:0.5)).press(forDuration:0.05,thenDragTo:handle.coordinate(withNormalizedOffset:CGVector(dx:0.5,dy:-8)))
+   XCTAssertTrue(app.buttons["目的地パネルを縮小"].waitForExistence(timeout:5))
+   XCTAssertEqual(handle.frame.minY,expandedY,accuracy:3)
+  }
+  XCTAssertTrue(app.buttons["startMapNavigation"].isHittable)
+  app.buttons["startMapNavigation"].tap()
+  XCTAssertTrue(app.buttons["確認してナビを開始"].waitForExistence(timeout:5))
+ }
  @MainActor func testDestinationPanelDragsDownAndBackUp() throws {
   let app=launchMap()
   app.buttons["京町・実験接続点を目的地にする"].tap()
