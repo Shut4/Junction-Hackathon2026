@@ -63,12 +63,13 @@ extension AppStore {
 struct PlaceCard:View {
     @EnvironmentObject var store:AppStore
     let place:InspectedPlace
+    @AccessibilityFocusState private var nameFocused:Bool
     var body:some View {
         VStack(alignment:.leading,spacing:12) {
             Capsule().fill(Color.secondary.opacity(0.45)).frame(width:40,height:5).frame(maxWidth:.infinity).accessibilityHidden(true)
             HStack(alignment:.top) {
                 VStack(alignment:.leading,spacing:4) {
-                    Text(place.name).font(.title2.bold()).accessibilityAddTraits(.isHeader).accessibilityIdentifier("placeName")
+                    Text(place.name).font(.title2.bold()).accessibilityAddTraits(.isHeader).accessibilityIdentifier("placeName").accessibilityFocused($nameFocused)
                     if let category=place.category { Text(category).font(.subheadline).foregroundStyle(.secondary) }
                     Text(detailLine).font(.subheadline).foregroundStyle(inBounds ? Color.green:Color.orange)
                 }
@@ -90,6 +91,8 @@ struct PlaceCard:View {
         .padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:24).fill(Color(.systemBackground)).shadow(color:.black.opacity(0.2),radius:10,y:-2))
         .accessibilityElement(children:.contain).accessibilityIdentifier("placeCard")
+        .task { nameFocused=true }
+        .onChange(of:place.coordinate) { _,_ in nameFocused=true }
     }
     private var inBounds:Bool { store.network?.bounds.contains(place.coordinate) ?? false }
     private var detailLine:String {

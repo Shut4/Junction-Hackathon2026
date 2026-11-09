@@ -773,3 +773,31 @@
 "XIAOのサービスが変更されました。再接続してください" = "The XIAO service changed. Please reconnect.";
 
 "通行不可にする道路：{0}区間" = "Road segments to block: {0}";
+
+"道路を一覧から選ぶ" = "Choose roads from a list";
+
+"現在地に近い道路を確認し、ダブルタップで区間ごとに選択・解除できます" = "Review nearby roads and double-tap to select or deselect each segment";
+
+"位置情報がないため、道路データの順に表示しています" = "Location is unavailable; roads are shown in data order";
+
+"現在地に近い順に表示しています。道路の位置と対象区間を確認してください。" = "Roads are ordered by distance from your location. Confirm the road and segment.";
+
+"現在地から約{0} m" = "About {0} m from your location";
+
+"ダブルタップで登録解除の確認を開きます" = "Double-tap to review removing this report";
+
+"ダブルタップで選択・解除します" = "Double-tap to select or deselect";
+
+"一致する道路がありません。検索語を変更してください。" = "No roads match. Change your search.";
+
+"次の30区間を表示" = "Show the next 30 segments";
+
+"道路名・区間IDを検索" = "Search road name or segment ID";
+
+"縮小" = "Collapsed";
+
+"展開" = "Expanded";
+
+"{0}、{1}" = "{0}, {1}";
+
+"目的地パネルを展開すると、経路と案内の操作を確認できます" = "Expand the destination panel to review the route and guidance controls";

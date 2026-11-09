@@ -15,6 +15,8 @@ extension RouteProgress {
 
 struct NavigationModeScreen:View {
     @EnvironmentObject var store:AppStore
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
+    @AccessibilityFocusState private var instructionFocused:Bool
     @State private var report=false
     @State private var stop=false
     @State private var bannerHeight:CGFloat=160
@@ -22,15 +24,16 @@ struct NavigationModeScreen:View {
     var body:some View {
         GeometryReader { geometry in
             ZStack {
-                GuideMap(store:store,mode:.navigation,insets:UIEdgeInsets(top:bannerHeight+geometry.safeAreaInsets.top,left:0,bottom:barHeight+geometry.safeAreaInsets.bottom,right:0)).ignoresSafeArea().accessibilityIdentifier("navigationMap")
+                GuideMap(store:store,mode:.navigation,insets:UIEdgeInsets(top:bannerHeight+geometry.safeAreaInsets.top,left:0,bottom:barHeight+geometry.safeAreaInsets.bottom,right:0)).ignoresSafeArea().accessibilityHidden(AccessibilityLayout.voiceOver(voiceOver)).accessibilityIdentifier("navigationMap")
                 VStack(spacing:10) {
-                    InstructionBanner().onGeometryChange(for:CGFloat.self) { $0.size.height } action: { bannerHeight=$0 }
+                    InstructionBanner().accessibilityFocused($instructionFocused).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { bannerHeight=$0 }
                     Spacer()
                     HStack { Spacer();Button("現在位置に戻る",systemImage:"location.north.circle.fill") { store.focus(.user) }.labelStyle(.iconOnly).font(.largeTitle).foregroundStyle(.blue).frame(width:60,height:60).background(Circle().fill(Color(.systemBackground)).shadow(radius:4)) }
                     bottomBar.onGeometryChange(for:CGFloat.self) { $0.size.height } action: { barHeight=$0 }
                 }.padding(.horizontal,12).padding(.vertical,6)
             }
         }
+        .task { instructionFocused=true }
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
         .confirmationDialog("案内・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
@@ -85,7 +88,7 @@ struct InstructionBanner:View {
         }
         .foregroundStyle(.white).padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:20).fill(Color(red:0.05,green:0.42,blue:0.28)).shadow(color:.black.opacity(0.25),radius:8,y:3))
-        .accessibilityElement(children:.contain).accessibilityIdentifier("instructionBanner")
+        .accessibilityElement(children:.combine).accessibilityAddTraits(.isHeader).accessibilityIdentifier("instructionBanner")
     }
 }
 

@@ -35,8 +35,9 @@ final class SmokeTests:XCTestCase {
   }
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
- @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm")->XCUIApplication {
+ @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false)->XCUIApplication {
   let app=XCUIApplication();app.launchArguments=["-AppleLanguages","(ja)","-AppleLocale","ja_JP","-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
+  if voiceOverLayout { app.launchArguments += ["--voiceover-layout"] }
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
   if simulated { app.launchArguments += ["--simulate-position"] }
@@ -66,6 +67,58 @@ final class SmokeTests:XCTestCase {
   app.buttons["全面カメラで案内"].tap()
   XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
   XCTAssertFalse(app.buttons["caneConnectionBadge"].exists)
+ }
+ @MainActor func testAccessibleLayoutSupportsNavigationAndRoadRegistrationWithoutMapFocus() throws {
+  let app=launchMap(developer:true,simulated:true,voiceOverLayout:true)
+  XCTAssertEqual(app.otherElements["homeMap"].children(matching:.any).count,0)
+  app.buttons["京町・実験接続点を目的地にする"].tap()
+  let handle=app.buttons["destinationPanelHandle"]
+  XCTAssertTrue(handle.waitForExistence(timeout:10))
+  handle.tap()
+  XCTAssertFalse(app.buttons["startMapNavigation"].exists,"縮小中のパネル内容はフォーカス対象から外す")
+  handle.tap()
+  let start=app.buttons["startMapNavigation"];XCTAssertTrue(start.waitForExistence(timeout:10));start.tap()
+  app.buttons["確認してナビを開始"].tap()
+  XCTAssertTrue(app.buttons["endNavigation"].waitForExistence(timeout:10))
+  XCTAssertEqual(app.otherElements["navigationMap"].children(matching:.any).count,0)
+  app.buttons["endNavigation"].tap();app.buttons["案内を終了"].tap()
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
+  app.buttons["通行不可を登録"].tap()
+  XCTAssertTrue(app.buttons["accessibleRoadPicker"].waitForExistence(timeout:5))
+  XCTAssertEqual(app.otherElements["reportRoadMap"].children(matching:.any).count,0)
+  app.buttons["accessibleRoadPicker"].tap()
+  let road=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","accessibleRoad.")).firstMatch
+  XCTAssertTrue(road.waitForExistence(timeout:10));XCTAssertEqual(road.value as? String,"未選択")
+  road.tap();XCTAssertEqual(road.value as? String,"選択中")
+  road.tap();XCTAssertEqual(road.value as? String,"未選択")
+  road.tap()
+  try app.performAccessibilityAudit(for:.sufficientElementDescription)
+  app.buttons["finishAccessibleRoadSelection"].tap()
+  app.buttons["対象を確認して登録"].tap()
+  XCTAssertEqual(app.staticTexts["reportReviewSegmentCount"].label,"通行不可にする道路：1区間")
+  app.buttons["戻って修正"].tap()
+  XCTAssertTrue(app.buttons["accessibleRoadPicker"].isHittable)
+  app.buttons["対象を確認して登録"].tap();app.buttons["この範囲を登録"].tap()
+  if app.alerts.firstMatch.waitForExistence(timeout:2) { app.alerts.buttons["閉じる"].tap() }
+  XCTAssertTrue(app.buttons["設定"].waitForExistence(timeout:5));app.buttons["設定"].tap()
+  XCTAssertTrue(app.buttons["完了"].waitForExistence(timeout:5))
+  let setting=app.switches["toggleSpeakDirection"];reach(setting,app:app)
+  let original=try XCTUnwrap(setting.value as? String)
+  setting.coordinate(withNormalizedOffset:CGVector(dx:0.9,dy:0.5)).tap()
+  let changed=XCTNSPredicateExpectation(predicate:NSPredicate(format:"value != %@",original),object:setting)
+  XCTAssertEqual(XCTWaiter.wait(for:[changed],timeout:5),.completed)
+  setting.coordinate(withNormalizedOffset:CGVector(dx:0.9,dy:0.5)).tap()
+  let restored=XCTNSPredicateExpectation(predicate:NSPredicate(format:"value == %@",original),object:setting)
+  XCTAssertEqual(XCTWaiter.wait(for:[restored],timeout:5),.completed)
+  app.buttons["完了"].tap()
+ }
+ @MainActor func testAccessibleSearchCanChooseLocalDestination() throws {
+  let app=launchMap(voiceOverLayout:true)
+  let query=app.textFields["destinationQuery"];query.tap();query.typeText("京町")
+  let destination=app.buttons["savedSearch.kyomachi"]
+  XCTAssertTrue(destination.waitForExistence(timeout:10));destination.tap()
+  XCTAssertTrue(app.buttons["destinationPanelHandle"].waitForExistence(timeout:10))
+  XCTAssertTrue(app.buttons["京町・実験接続点を目的地にする"].value as? String == "選択中")
  }
  @MainActor func testTobataDestinationAndRoutePreview() throws {
   let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
