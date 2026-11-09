@@ -1,35 +1,33 @@
-# 電源ボタン専用版
+# CaneVibePower：電源ボタン付き白杖
 
-`CaneVibePower.ino` 1ファイルで使用できます。`CaneControl.h`は不要です。添付のStep6で使っているD0ボタンを、電源ON/OFFだけに割り当てています。
+iPhoneからBluetoothで状態を受け取り、DRV2605LとLRAで振動を伝えるArduinoスケッチです。**`CaneVibePower.ino` 1ファイル**で使用できます。
 
-| 状態 | 操作 | 結果 |
-|---|---|---|
-| 動作中 | 1回押して離す | 振動とBLEを停止し、System OFFへ移行 |
-| System OFF中 | 1回押す | 再起動してBLE広告を再開 |
+## 用意するもの
 
-長押しの専用動作、振動通知のON/OFF切替、振動テストはボタンに割り当てていません。BLEと注意・危険に応じた振動の機能は元のコードを維持しています。
+- Seeed Studio XIAO nRF52840（Senseも使用可能）
+- DRV2605L、LRA、D0に接続する押しボタン
+- Arduino IDEとUSBケーブル
 
-## 接続と書き込み
+## 書き込み
 
-- ボタンは **XIAOのD0とGNDの間**。`INPUT_PULLUP`を使います。D0はnRF52840のP0.02であり、物理GPIO番号0ではありません。
-- テストスクリプトに合わせて `BUTTON_PIN=0` としています。実物のボタンがD0以外につながっている場合は、この値を実際の配線に合わせてください。
-- DRV2605Lは元どおりD4/SDA、D5/SCLを使います。
-- Arduino IDEの **Seeed nRF52 Boards → Seeed XIAO nRF52840 Sense** を選び、このフォルダの`CaneVibePower.ino`を開いて書き込みます。mbed版ではありません。
-- 必要なライブラリは元と同じAdafruit DRV2605 Library、Adafruit BusIO、およびボード付属のBluefruit/TinyUSBです。
-- 電源投入・リセット後はONで起動します。復帰のために押したボタンを離しても、再びOFFにならないようにしています。
-- OFF後の次の押下で起動したら、iOSアプリから白杖を再検索・接続してください。
+1. Arduino IDEのボードマネージャーで **Seeed nRF52 Boards** をインストールします。mbed版ではありません。
+2. ボードは **Seeed XIAO nRF52840** を選びます。Senseの場合は **Seeed XIAO nRF52840 Sense** を選びます。
+3. ライブラリマネージャーで **Adafruit DRV2605 Library** と **Adafruit BusIO** をインストールします。Bluefruit/TinyUSBはボードパッケージに付属します。
+4. このフォルダの `CaneVibePower.ino` を開き、XIAOをUSB接続してポートを選び、検証・書き込みを実行します。
+5. iPhoneアプリの「設定 → 白杖 Bluetooth」から **CaneVibe-01** を検索・接続し、振動テストを行います。
 
-## OFFの意味と検証範囲
+配線は、ボタンが **D0–GND**（内蔵プルアップ）、DRV2605LのI²Cが **D4/SDA・D5/SCL** です。LRAはDRV2605Lの **OUT+・OUT−** へ接続します。振動の出力設定は使用するLRAの仕様に合わせて確認してください。
 
-ここでのOFFはnRF52840の **System OFF（省電力停止）** です。電池を物理的に切り離す機能ではありません。DRV2605Lには振動停止とSTANDBYを指示します。USB・充電回路・接続機器全体の消費電流がゼロになる保証はありません。
+## 動作
 
-停止前にBLE広告を止めて接続を解除し、ボタンを離してからGPIO SENSEによる復帰を設定します。System OFFからの復帰はリセット起動です。参考：[Nordic nRF52840 POWER](https://docs.nordicsemi.com/r/bundle/ps_nrf52840/page/power.html)。
+| 操作・状態 | 結果 |
+|---|---|
+| 動作中にボタンを1回押して離す | 振動・BLEを止めてSystem OFFへ移行 |
+| System OFF中にボタンを押す | 再起動。アプリから再接続する |
+| 注意 | 300msの単発振動を2秒周期で繰り返す |
+| 危険 | 120msの振動を3連続、1秒周期で繰り返す |
+| 検出なし・検知不能・BLE切断・指示が1秒途絶 | 振動を停止 |
 
-Sense向けコンパイルと、ボタンの1回押し・離す待ち・復帰時の押下の無視・30msのチャタリング除去・時刻の周回のホストテストを実施しています。基板への書き込み、実機でのSystem OFF・ボタン復帰・消費電流は未確認です。USB接続中と電池駆動時は別々に動作確認してください。
+System OFFは省電力停止であり、電池の物理的な切り離しではありません。実機での電源復帰・消費電流・振動の確認は別途必要です。
 
-ホストテストはリポジトリルートから実行します。
-
-```sh
-clang++ -std=c++11 -Wall -Wextra -Werror Firmware/Tests/PowerButtonTests.cpp -o /tmp/cane-power-button-tests
-/tmp/cane-power-button-tests
-```
+通信仕様は[Bluetooth連携](../../Docs/BLUETOOTH.md)、制御ロジックのテストは[Firmwareの説明](../README.md)を参照してください。

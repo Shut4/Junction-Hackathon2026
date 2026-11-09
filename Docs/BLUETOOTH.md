@@ -29,7 +29,7 @@ Statusも10バイトです。offset 0=version=1、1=採用state、2=error flags�
 
 FWでは長さ・version・state・TTL・予約ビットを検証し、同一／古いsequenceを受理しないでください。接続ごとにsequence基準を初期化します。最終受理から1000ms経過、または切断時に危険振動を停止し、検知不能へ移行してください。iPhoneからの停止パケットが必ず届く前提にはしません。
 
-XIAO nRF52840 + DRV2605L（LRA/RTP）には、別途配布する対応FW（`CaneVibe.ino` または電源ボタン付きの `CaneVibePower.ino`）が必要です。Seeed nRF52 Boards版で使用します。このiOS変更にはファームウェア本体を含めていません。振動単体テストだけのスケッチではBLE通信できません。
+XIAO nRF52840 + DRV2605L（LRA/RTP）には、リポジトリ内の[電源ボタン付きファームウェア](../Firmware/CaneVibePower/README.md)を使用します。Seeed nRF52 Boards版が必要です。電源ボタンなしの `Firmware/CaneVibe/CaneVibe.ino` も同梱しています。振動単体テストだけのスケッチではBLE通信できません。
 
 このFWでは危険時は120ms振動を100msの停止を挟んで3回、その後440ms停止（1秒周期）、注意時は300ms振動／1700ms停止（2秒周期）を繰り返します。強度は変えず、単発と3連続のリズムで区別します。検出なし・検知不能・TTL切れ・切断時は停止します。元のGPIO直結案とは異なりGPIO3を駆動しないため、Statusのoffset 3は常に0です。RTP出力値や実際の振動を示す値ではありません。
 
