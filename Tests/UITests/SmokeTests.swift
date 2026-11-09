@@ -81,6 +81,8 @@ final class SmokeTests:XCTestCase {
   app.buttons["確認してナビを開始"].tap()
   XCTAssertTrue(app.buttons["endNavigation"].waitForExistence(timeout:10))
   XCTAssertEqual(app.otherElements["navigationMap"].children(matching:.any).count,0)
+  app.buttons["endNavigation"].tap();app.buttons["取消"].tap()
+  XCTAssertTrue(app.buttons["endNavigation"].isHittable)
   app.buttons["endNavigation"].tap();app.buttons["案内を終了"].tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
   app.buttons["通行不可を登録"].tap()
