@@ -773,3 +773,5 @@
 "XIAOのサービスが変更されました。再接続してください" = "The XIAO service changed. Please reconnect.";
 
 "通行不可にする道路：{0}区間" = "Road segments to block: {0}";
+
+"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄からも選べます。" = "Map of the supported area. Touch and hold to choose a destination, or use the search field.";

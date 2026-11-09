@@ -60,7 +60,7 @@ struct NavigationModeScreen:View {
     }
 }
 
-/// Next-maneuver banner shared by map and camera guidance.
+/// Next-maneuver banner for map guidance.
 struct InstructionBanner:View {
     @EnvironmentObject var store:AppStore
     var compact=false
@@ -77,11 +77,11 @@ struct InstructionBanner:View {
                     }
                     Spacer(minLength:0)
                 }.accessibilityElement(children:.combine)
-                Text(localized(store.nextInstruction)).font(.callout).opacity(0.95)
+                if store.offRoadDistance == nil { Text(localized(store.nextInstruction)).font(.callout).opacity(0.95) }
             } else {
                 Text(localized(store.navigating ? store.nextInstruction:store.route == nil ? "経路が未設定です。目的地を選び、経路を確認して開始してください":store.nextInstruction)).font(.title3.bold())
             }
-            if store.matchedEdge == nil && !store.positionState.isEmpty { Label(localized(store.positionState),systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
+            if store.matchedEdge == nil && store.offRoadDistance == nil && !store.positionState.isEmpty { Label(localized(store.positionState),systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
         }
         .foregroundStyle(.white).padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:20).fill(Color(red:0.05,green:0.42,blue:0.28)).shadow(color:.black.opacity(0.25),radius:8,y:3))
