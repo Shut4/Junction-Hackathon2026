@@ -806,3 +806,45 @@
 
 "目的地付近まで道路に沿って案内します。施設の入口は現地で確認してください。" = "Follow the road route to the destination area. Confirm the facility entrance on site.";
 "案内可能な道路上の終点です。目的地への入口・通路は案内できません。" = "This is the end of the mapped road route. Guidance to the destination entrance or path is unavailable.";
+
+"ナビ" = "Navigation";
+
+"案内前" = "Not started";
+
+"未設定" = "Not set";
+
+"確認中" = "Checking";
+
+"認識停止" = "Recognition off";
+
+"検出なし" = "None detected";
+
+"少し右へ" = "Slight right";
+
+"少し左へ" = "Slight left";
+
+"右へ" = "Right";
+
+"左へ" = "Left";
+
+"後ろへ" = "Turn around";
+
+"止まって" = "Stop";
+
+"頭上注意" = "Head clearance";
+
+"段差注意" = "Watch your step";
+
+"障害物注意" = "Obstacle ahead";
+
+"幅に注意" = "Narrow path";
+
+"端に注意" = "Edge ahead";
+
+"{0}に注意" = "{0} ahead";
+
+"ナビ、{0}" = "Navigation: {0}";
+
+"危険、{0}" = "Danger: {0}";
+
+"周囲、{0}" = "Surroundings: {0}";

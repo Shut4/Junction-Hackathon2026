@@ -201,6 +201,14 @@ final class CaptureEngine: NSObject,AVCaptureVideoDataOutputSampleBufferDelegate
     func start(recognitionEnabled:Bool=true) {
         sessionGeneration += 1;let generation=sessionGeneration
         self.recognitionEnabled=recognitionEnabled
+        #if DEBUG && targetEnvironment(simulator)
+        // Keep an explicitly selected detection preview when UI tests open camera
+        // guidance: the Simulator has no live rear camera to replace that frame.
+        if ProcessInfo.processInfo.arguments.contains("--ui-testing"),simulatedDetections,!detections.isEmpty {
+            status=localized("模擬検出")
+            return
+        }
+        #endif
         status=recognitionEnabled ? (modelStatus == "未導入" ? "カメラ映像のみ・認識モデル未導入":"カメラ起動中"):"目的地未設定のため画像認識は停止中"
         Task {
             let granted:Bool
