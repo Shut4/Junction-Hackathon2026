@@ -16,3 +16,13 @@ struct RouteSummary:View {
 struct SourceFooter:View {
     var body:some View { Link("道路データ © OpenStreetMap contributors · ODbL",destination:URL(string:"https://www.openstreetmap.org/copyright")!).font(.caption).frame(minHeight:44).accessibilityHint("道路データの出典と利用条件を開きます") }
 }
+
+/// The debug flag exercises the alternative layout, not the VoiceOver speech engine.
+enum AccessibilityLayout {
+    static func voiceOver(_ systemEnabled:Bool)->Bool {
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("--voiceover-layout") { return true }
+        #endif
+        return systemEnabled
+    }
+}

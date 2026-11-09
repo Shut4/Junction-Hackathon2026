@@ -50,6 +50,31 @@ public enum Geometry {
         if result.last != last { result.append(last) }
         return result
     }
+    /// Intersections in a local metre projection, including endpoint touches and overlaps.
+    static func intersections(_ a:Coordinate,_ b:Coordinate,_ c:Coordinate,_ d:Coordinate)->[Coordinate] {
+        let margin=0.000001
+        guard max(min(a.latitude,b.latitude),min(c.latitude,d.latitude)) <= min(max(a.latitude,b.latitude),max(c.latitude,d.latitude))+margin,
+              max(min(a.longitude,b.longitude),min(c.longitude,d.longitude)) <= min(max(a.longitude,b.longitude),max(c.longitude,d.longitude))+margin else { return [] }
+        let sy=111_195.0,sx=sy*cos(a.latitude * .pi/180)
+        let rx=(b.longitude-a.longitude)*sx,ry=(b.latitude-a.latitude)*sy
+        let cx=(c.longitude-a.longitude)*sx,cy=(c.latitude-a.latitude)*sy
+        let dx=(d.longitude-c.longitude)*sx,dy=(d.latitude-c.latitude)*sy
+        let length=rx*rx+ry*ry
+        if length<1e-12 { return project(a,onto:[c,d]).distance<0.01 ? [a]:[] }
+        let denominator=rx*dy-ry*dx
+        func point(_ t:Double)->Coordinate { Coordinate(a.latitude+(b.latitude-a.latitude)*t,a.longitude+(b.longitude-a.longitude)*t) }
+        if abs(denominator)>1e-10 {
+            let t=(cx*dy-cy*dx)/denominator,u=(cx*ry-cy*rx)/denominator
+            guard t >= -1e-9,t <= 1+1e-9,u >= -1e-9,u <= 1+1e-9 else { return [] }
+            return [point(min(1,max(0,t)))]
+        }
+        guard abs(cx*ry-cy*rx)/sqrt(length)<0.01 else { return [] }
+        let t0=(cx*rx+cy*ry)/length,t1=((cx+dx)*rx+(cy+dy)*ry)/length
+        let lower=max(0,min(t0,t1)),upper=min(1,max(t0,t1))
+        guard lower <= upper+1e-9 else { return [] }
+        return [point(min(1,max(0,lower))),point(min(1,max(0,(lower+upper)/2))),point(min(1,max(0,upper)))]
+    }
+
 }
 public struct MatchCandidate: Identifiable, Sendable { public var id: String; public var distance: Double }
 public struct RoadSelectionResult: Sendable { public var edgeIDs: [String]; public var candidates: [MatchCandidate]; public var ambiguous: Bool; public var message: String }

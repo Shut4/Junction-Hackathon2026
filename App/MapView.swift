@@ -9,8 +9,27 @@ final class GuidePin: MKPointAnnotation {
     var segmentID:String?
     init(kind:Kind,segmentID:String? = nil) { self.kind=kind;self.segmentID=segmentID;super.init() }
 }
+/// A plain UIKit boundary prevents MapKit's virtual road/POI accessibility
+/// elements from escaping SwiftUI's accessibilityHidden modifier.
+final class GuideMapContainer:UIView {
+    let map:MKMapView
+    var hidesMapElements=false
+    override var accessibilityElements:[Any]? {
+        get { hidesMapElements ? []:[map] }
+        set { }
+    }
+    init(map:MKMapView) {
+        self.map=map
+        super.init(frame:.zero)
+        isAccessibilityElement=false
+        addSubview(map);map.translatesAutoresizingMaskIntoConstraints=false
+        NSLayoutConstraint.activate([map.leadingAnchor.constraint(equalTo:leadingAnchor),map.trailingAnchor.constraint(equalTo:trailingAnchor),map.topAnchor.constraint(equalTo:topAnchor),map.bottomAnchor.constraint(equalTo:bottomAnchor)])
+    }
+    required init?(coder:NSCoder) { fatalError("init(coder:) is not supported") }
+}
 struct GuideMap: UIViewRepresentable {
     @ObservedObject var store: AppStore
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
     var mode:GuideMapMode = .explore
     var onDestination: ((Coordinate)->Void)? = nil
     var onBlockedReport: ((Report)->Void)? = nil
@@ -18,7 +37,7 @@ struct GuideMap: UIViewRepresentable {
     /// Keeps Apple's legal label, compass and focused content clear of floating panels.
     var insets=UIEdgeInsets.zero
     func makeCoordinator() -> Coordinator { Coordinator(store:store) }
-    func makeUIView(context:Context)->MKMapView {
+    func makeUIView(context:Context)->GuideMapContainer {
         let map=MKMapView();map.delegate=context.coordinator;map.showsUserLocation=true;map.showsTraffic=false;map.showsScale=mode != .explore
         map.pointOfInterestFilter = mode == .explore ? .includingAll:.excludingAll;map.isPitchEnabled=false;map.isRotateEnabled=mode == .navigation
         map.preferredConfiguration=MKStandardMapConfiguration(emphasisStyle:mode == .report ? .muted:.default)
@@ -31,15 +50,31 @@ struct GuideMap: UIViewRepresentable {
         let press=UILongPressGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.chooseDestination(_:)));press.isEnabled=mode == .explore;map.addGestureRecognizer(press)
         let tap=UITapGestureRecognizer(target:context.coordinator,action:#selector(Coordinator.tapped(_:)));tap.cancelsTouchesInView=false;tap.delegate=context.coordinator;map.addGestureRecognizer(tap)
         context.coordinator.mode=mode
+        configureAccessibility(map)
+        if mode == .navigation { context.coordinator.following=true }
+        let container=GuideMapContainer(map:map)
+        container.hidesMapElements=AccessibilityLayout.voiceOver(voiceOver)
+        return container
+    }
+    private func configureAccessibility(_ map:MKMapView) {
+        let accessibleLayout=AccessibilityLayout.voiceOver(voiceOver)
+        map.accessibilityElementsHidden=accessibleLayout
+        map.isAccessibilityElement=false
+        if accessibleLayout {
+            map.accessibilityLabel=nil;map.accessibilityHint=nil
+            map.accessibilityTraits.remove(.allowsDirectInteraction)
+            return
+        }
         map.accessibilityLabel=localized(mode == .report ? "通行不可登録の地図。青緑の線が選択できる道路です。道路をタップして選択します。":mode == .navigation ? "ナビの地図。青い線が経路です。":"対応地域の実地図。長押しで目的地を選択できます。目的地は検索欄からも選べます。")
         if mode == .report {
             map.accessibilityHint=localized("道路を選択すると、選択区間数と登録ボタンの状態が更新されます")
             map.accessibilityTraits.insert(.allowsDirectInteraction)
         }
-        if mode == .navigation { context.coordinator.following=true }
-        return map
     }
-    func updateUIView(_ map:MKMapView,context:Context) {
+    func updateUIView(_ container:GuideMapContainer,context:Context) {
+        let map=container.map
+        container.hidesMapElements=AccessibilityLayout.voiceOver(voiceOver)
+        configureAccessibility(map)
         let c=context.coordinator
         c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
         let insetsChanged=map.layoutMargins != insets
