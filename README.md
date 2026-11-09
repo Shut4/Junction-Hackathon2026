@@ -4,6 +4,12 @@
 
 アプリアイコンは `App/Assets.xcassets/AppIcon.appiconset/AppIcon.png` に配置。提供されたデザインの外側の白い余白を除き、背景を正方形の四辺まで広げた画像を使用する。Xcodeの `AppIcon` アセットとしてビルドする。
 
+## Gitで管理するファイル
+
+アプリ本体（`App/`・`Core/`）、ファームウェア（`Firmware/`）、道路データ（`Data/`）、開発スクリプト（`Scripts/`）、テスト（`Tests/`）、開発資料（`Docs/`）を管理します。
+
+`tmp/` は一時作業用、`output/` は資料・画像・PDFなどの生成物の保存先です。これらとPythonのキャッシュ・仮想環境はGitの管理対象外です。今回の整理ではローカルのファイルを残して追跡だけを解除しており、過去のコミットは書き換えていません。共有・保守が必要な資料やスクリプトは、内容を確認して `Docs/`・`Scripts/`・`Firmware/` などへ配置してください。
+
 ## このPCで実行
 
 1. `JunctionGuide.xcodeproj`をXcodeで開く。
