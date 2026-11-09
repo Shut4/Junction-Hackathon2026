@@ -19,7 +19,7 @@ final class WarningDistanceTests:XCTestCase {
             XCTAssertEqual(filter.process([detection],now:0).first?.priority,expected,"audio distance=\(distance)")
             XCTAssertEqual(SceneSummary.items(detections:[detection],walkable:nil,headLevel:nil).first?.priority,expected,"scene distance=\(distance)")
         }
-        XCTAssertEqual(NoticeFilter.hazardPriority(nil,critical:tuning.criticalDistance,announce:tuning.announceDistance),.high)
+        XCTAssertNil(NoticeFilter.hazardPriority(nil,critical:tuning.criticalDistance,announce:tuning.announceDistance))
     }
     func testGroundObstaclesAndDropsAreQuietBeyondEightyCentimetres() {
         for (distance,expected):(Float,SpeechPriority?) in [(0.5,.critical),(0.51,.high),(0.6,.high),(0.8,.high),(0.81,nil),(1,nil)] {

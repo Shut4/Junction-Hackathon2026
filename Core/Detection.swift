@@ -11,6 +11,10 @@ public struct Detection: Sendable { public var label: String; public var confide
     public var distance: Double?; public var lateral: Double?
     /// Set when depth shows the detection is implausible (e.g. a picture on a screen); such detections are never spoken or marked.
     public var rejected: String?
+    public var measuredDistance:Double? {
+        guard let distance,distance.isFinite,distance > 0 else { return nil }
+        return distance
+    }
     public init(label:String,confidence:Double,box:Box,capturedAt:TimeInterval,simulated:Bool=false,distance:Double?=nil,lateral:Double?=nil,rejected:String?=nil) { self.label=label;self.confidence=confidence;self.box=box;self.capturedAt=capturedAt;self.simulated=simulated;self.distance=distance;self.lateral=lateral;self.rejected=rejected }
     /// Side as heard by the walker: depth lateral when known, else the box centre in the portrait image.
     public var side: String {
@@ -120,9 +124,9 @@ public struct NoticeFilter: Sendable {
     public static let closeDistance = 0.5
     public var criticalDistance = NoticeFilter.closeDistance
     public var announceDistance = 0.8
-    /// Priority of a hazard by distance: critical within `critical`, high within `announce` (or unknown distance), nil beyond (not announced).
+    /// Only finite, positive measured distances establish hazard severity. Missing depth is not evidence of a nearby obstacle.
     public static func hazardPriority(_ distance: Double?, critical: Double, announce: Double) -> SpeechPriority? {
-        guard let distance else { return .high }
+        guard let distance,distance.isFinite,distance > 0 else { return nil }
         return distance <= critical ? .critical : distance <= announce ? .high : nil
     }
     public private(set) var notices = 0; public private(set) var suppressed = 0

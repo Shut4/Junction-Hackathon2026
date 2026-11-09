@@ -861,3 +861,6 @@
 "自動販売機・木・看板などの周辺情報も読み上げます。危険・注意は振動で通知し、自動では読み上げません。目印（点字ブロック・横断歩道・信号・ドアなど）よりナビ音声を優先します。VoiceOver使用中はVoiceOverの読み上げで伝えます。" = "Also describe surroundings such as vending machines, trees and signs. Hazards use vibration without automatic speech. Navigation takes priority over landmarks such as tactile paving, crosswalks, signals and doors. When VoiceOver is active, announcements use VoiceOver.";
 "振動・カメラ案内" = "Vibration and camera guidance";
 "振動を既定値に戻す" = "Reset vibration settings";
+
+"距離確認中" = "Checking distance";
+"距離を確認できません。" = "Distance is unavailable.";

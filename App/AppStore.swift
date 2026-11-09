@@ -159,7 +159,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         let defaults=UserDefaults.standard
         // Update previously saved default distances once; retain other tuning and custom distances.
         if defaults.integer(forKey:"dev.warningDistanceDefaultsRevision") < 1 {
-            for key in ["dev.headLevelConfig","dev.noticeTuning","dev.walkableTiming"] {
+            for key in ["dev.headLevelConfig","dev.noticeTuning","dev.walkableTiming","dev.walkableConfig"] {
                 if let data=defaults.data(forKey:key),let migrated=WarningDistanceDefaults.migrated(data,forKey:key) {
                     defaults.set(migrated,forKey:key)
                 }

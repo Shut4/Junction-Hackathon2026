@@ -160,10 +160,11 @@ struct CameraScreen:View {
         }
     }
     private func statusHeader(items:[SceneItem])->some View {
-        let hazard=items.first { $0.priority >= .high }
+        let hazard=items.first { $0.priority >= .high } ?? items.first { $0.distanceUnavailable }
         let inactive = !store.camera.recognitionEnabled || (!store.camera.running && !store.camera.simulatedDetections)
-        let hazardText=hazard.map { $0.brief.isEmpty ? localized("注意"):$0.brief } ?? localized(inactive ? "認識停止":"検出なし")
-        let hazardColor=hazard.map { $0.priority == .critical ? Color(red:0.7,green:0.10,blue:0.10):Color(red:0.62,green:0.26,blue:0.03) } ?? Color.black.opacity(0.75)
+        let waitingForDepth = store.headLevelWarnings && store.camera.walkable == nil && !store.camera.simulatedDetections
+        let hazardText=inactive ? localized("認識停止") : hazard.map { $0.brief.isEmpty ? localized("注意"):$0.brief } ?? localized(waitingForDepth ? "距離確認中":"検出なし")
+        let hazardColor=hazard.map { $0.distanceUnavailable ? Color.black.opacity(0.75) : $0.priority == .critical ? Color(red:0.7,green:0.10,blue:0.10):Color(red:0.62,green:0.26,blue:0.03) } ?? Color.black.opacity(0.75)
         return Group {
             if textSize.isAccessibilitySize {
                 VStack(spacing:8) { navigationStatus;hazardStatus(text:hazardText,spoken:hazard?.text,color:hazardColor) }
