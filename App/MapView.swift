@@ -139,7 +139,6 @@ struct GuideMap: UIViewRepresentable {
                 // Stop a previous current-location follow before fitting the full route.
                 map.setUserTrackingMode(.none,animated:false)
                 var coordinates=RouteTracker.shape(of:route)
-                coordinates += store.destinationConnector
                 if let target=store.destinationCoordinate { coordinates.append(target) }
                 guard !coordinates.isEmpty else { return }
                 let line=MKPolyline(coordinates:coordinates.map(\.clLocation),count:coordinates.count)
