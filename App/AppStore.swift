@@ -156,7 +156,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     private(set) var edgeIndex:[String:WalkEdge]=[:]
     private(set) var placeIndex:[String:Place]=[:]
     var edges: [WalkEdge] { network?.edges ?? [] }
-    var destinations: [Destination] { network?.destinations ?? [] }
+    var destinations: [Destination] { (network?.destinations ?? []).filter { !$0.name.contains("実験接続点") } }
     var currentDestination: Destination? { destinations.first { $0.id == destinationID } }
     var hasDestination:Bool { currentDestination != nil || confirmedDestinationConnection != nil }
     var destinationCoordinate:Coordinate? { selectedTarget ?? currentDestination.flatMap { place($0.nodeID)?.coordinate } }

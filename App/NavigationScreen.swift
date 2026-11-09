@@ -16,7 +16,8 @@ extension RouteProgress {
 struct NavigationModeScreen:View {
     @EnvironmentObject var store:AppStore
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOver
-    @AccessibilityFocusState private var instructionFocused:Bool
+    private enum NavigationFocus:Hashable { case instruction,end }
+    @AccessibilityFocusState private var navigationFocus:NavigationFocus?
     @State private var report=false
     @State private var stop=false
     @State private var bannerHeight:CGFloat=160
@@ -26,17 +27,19 @@ struct NavigationModeScreen:View {
             ZStack {
                 GuideMap(store:store,mode:.navigation,insets:UIEdgeInsets(top:bannerHeight+geometry.safeAreaInsets.top,left:0,bottom:barHeight+geometry.safeAreaInsets.bottom,right:0)).ignoresSafeArea().accessibilityHidden(AccessibilityLayout.voiceOver(voiceOver)).accessibilityIdentifier("navigationMap")
                 VStack(spacing:10) {
-                    InstructionBanner().accessibilityFocused($instructionFocused).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { bannerHeight=$0 }
+                    InstructionBanner().accessibilityFocused($navigationFocus,equals:.instruction).onGeometryChange(for:CGFloat.self) { $0.size.height } action: { bannerHeight=$0 }
                     Spacer()
                     HStack { Spacer();Button("現在位置に戻る",systemImage:"location.north.circle.fill") { store.focus(.user) }.labelStyle(.iconOnly).font(.largeTitle).foregroundStyle(.blue).frame(width:60,height:60).background(Circle().fill(Color(.systemBackground)).shadow(radius:4)) }
                     bottomBar.onGeometryChange(for:CGFloat.self) { $0.size.height } action: { barHeight=$0 }
                 }.padding(.horizontal,12).padding(.vertical,6)
             }
         }
-        .task { instructionFocused=true }
+        .accessibilityHidden(report || stop)
+        .task { navigationFocus = .instruction }
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
-        .sheet(isPresented:$report) { NavigationStack { ReportScreen() } }
-        .confirmationDialog("案内・待機音声を停止します",isPresented:$stop,titleVisibility:.visible) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
+        .sheet(isPresented:$report,onDismiss:{ navigationFocus = .instruction }) { NavigationStack { ReportScreen() } }
+        .onChange(of:stop) { _,shown in if !shown { navigationFocus = .end } }
+        .alert("案内・待機音声を停止します",isPresented:$stop) { Button("案内を終了",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
     private var bottomBar:some View {
         VStack(spacing:12) {
@@ -48,7 +51,7 @@ struct NavigationModeScreen:View {
                     }.accessibilityElement(children:.combine)
                 } else { Text(localized(store.navigating ? "位置を確認中":"案内停止中")).font(.title3.bold()) }
                 Spacer()
-                Button(localized(store.navigating ? "終了":"閉じる")) { if store.navigating { stop=true } else { store.closeGuidance() } }.font(.headline).buttonStyle(.borderedProminent).tint(.red).accessibilityIdentifier("endNavigation")
+                Button(localized(store.navigating ? "終了":"閉じる")) { if store.navigating { stop=true } else { store.closeGuidance() } }.font(.headline).buttonStyle(.borderedProminent).tint(.red).accessibilityIdentifier("endNavigation").accessibilityFocused($navigationFocus,equals:.end)
             }
             HStack(spacing:8) {
                 barButton("カメラ案内",symbol:"camera.viewfinder") { store.switchGuidance(to:.camera) }.accessibilityIdentifier("navSwitchCamera")
@@ -63,7 +66,7 @@ struct NavigationModeScreen:View {
     }
 }
 
-/// Next-maneuver banner shared by map and camera guidance.
+/// Next-maneuver banner for map guidance.
 struct InstructionBanner:View {
     @EnvironmentObject var store:AppStore
     var compact=false
@@ -80,11 +83,11 @@ struct InstructionBanner:View {
                     }
                     Spacer(minLength:0)
                 }.accessibilityElement(children:.combine)
-                Text(localized(store.nextInstruction)).font(.callout).opacity(0.95)
+                if store.offRoadDistance == nil { Text(localized(store.nextInstruction)).font(.callout).opacity(0.95) }
             } else {
                 Text(localized(store.navigating ? store.nextInstruction:store.route == nil ? "経路が未設定です。目的地を選び、経路を確認して開始してください":store.nextInstruction)).font(.title3.bold())
             }
-            if store.matchedEdge == nil && !store.positionState.isEmpty { Label(localized(store.positionState),systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
+            if store.matchedEdge == nil && store.offRoadDistance == nil && !store.positionState.isEmpty { Label(localized(store.positionState),systemImage:"location.slash").font(.subheadline.bold()).padding(.horizontal,10).padding(.vertical,6).background(Capsule().fill(Color.orange)) }
         }
         .foregroundStyle(.white).padding(16).frame(maxWidth:.infinity,alignment:.leading)
         .background(RoundedRectangle(cornerRadius:20).fill(Color(red:0.05,green:0.42,blue:0.28)).shadow(color:.black.opacity(0.25),radius:8,y:3))
