@@ -9,3 +9,13 @@ App/Models/
 *.mlpackage/
 Config/Local.xcconfig
 .swiftpm/
+
+# Local drafts, generated presentation materials, and temporary dependencies
+/tmp/
+/output/
+
+# Python caches and local environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
