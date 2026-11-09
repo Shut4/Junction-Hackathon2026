@@ -333,7 +333,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         destinationID="chosen-"+candidate.edgeID;confirmedDestinationConnection=candidate
         destinationMessage=candidate.distance <= 1
             ? localized("目的地付近まで道路に沿って案内します。施設の入口は現地で確認してください。")
-            : localized("目的地に最も近い道路上まで案内します。選択地点までは約{0} mです。この先の入口・通路は道路データがなく案内できません。",Int(candidate.distance.rounded()))
+            : ""
     }
     func chooseSavedDestination(_ destination:Destination) {
         stopNavigation();confirmedDestinationConnection=nil;selectedTarget=nil;destinationConnections=[];destinationID=destination.id;targetName=localized(destination.name);destinationMessage=localized(destination.note)
