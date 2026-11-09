@@ -245,7 +245,14 @@ final class SmokeTests:XCTestCase {
   XCTAssertFalse(app.buttons["対象を確認して登録"].isEnabled)
   selectRoadOnReportMap(app)
   let review=app.buttons["対象を確認して登録"];XCTAssertTrue(review.isEnabled);review.tap()
-  XCTAssertTrue(app.staticTexts["区間全体を通行不可にします"].waitForExistence(timeout:5));app.buttons["この範囲を登録"].tap()
+  XCTAssertTrue(app.staticTexts["区間全体を通行不可にします"].waitForExistence(timeout:5))
+  let count=app.staticTexts["reportReviewSegmentCount"]
+  XCTAssertEqual(count.label,"通行不可にする道路：1区間")
+  XCTAssertFalse(app.staticTexts["名称未登録の道路"].exists)
+  app.buttons["戻って修正"].tap()
+  XCTAssertTrue(review.waitForExistence(timeout:5));review.tap()
+  XCTAssertEqual(app.staticTexts["reportReviewSegmentCount"].label,"通行不可にする道路：1区間")
+  app.buttons["この範囲を登録"].tap()
   if app.alerts.firstMatch.waitForExistence(timeout:3) { app.alerts.buttons["閉じる"].tap() }
   app.terminate();app.launchArguments.removeAll { $0 == "--reset-test-data" };app.launch()
   app.buttons["設定"].tap();let saved=app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","removeReport.")).firstMatch
