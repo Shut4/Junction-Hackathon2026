@@ -44,7 +44,7 @@ struct TutorialScreen:View {
     private var cameraDeniedReason:String { localized("カメラの許可は障害物候補の検出と通知に必要です。iOS設定でこのアプリのカメラを許可して戻ってください。") }
     var body:some View {
         ScrollView { VStack(alignment:.leading,spacing:24) {
-            Text("避難ナビの使い方").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
+            Text("歩響ナビの使い方").font(.largeTitle.bold()).accessibilityAddTraits(.isHeader)
             Text("\(min(page,4)+1) / 5").accessibilityLabel(localized("チュートリアル全5ページ中{0}ページ",min(page,4)+1))
             Image(systemName:symbol).font(.system(size:64)).foregroundStyle(.blue).accessibilityHidden(true)
             Text(localized(title)).font(.title.bold()).accessibilityAddTraits(.isHeader)
