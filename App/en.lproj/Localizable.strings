@@ -368,6 +368,7 @@
 "カメラ起動中" = "Camera starting";
 "カメラが許可されていません" = "Camera access is not allowed";
 "カメラ映像のみ・認識モデル未導入" = "Camera preview only · detection model missing";
+"目的地未設定のため画像認識は停止中" = "Image recognition paused until a destination is set";
 "端末内で認識中" = "Detecting on device";
 "認識処理実行中" = "Detection running";
 "検出候補なし" = "No possible objects detected";
