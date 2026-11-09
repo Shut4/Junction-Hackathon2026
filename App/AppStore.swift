@@ -211,7 +211,10 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         // Automatic mock GPS is confined to isolated Simulator UI tests.
         // Physical devices start with Core Location even if stale test arguments remain.
         let launchArguments=ProcessInfo.processInfo.arguments
-        if launchArguments.contains("--ui-testing") && launchArguments.contains("--simulate-position") { switchSimulation(true) }
+        if launchArguments.contains("--ui-testing") {
+            if launchArguments.contains("--simulate-position") { switchSimulation(true) }
+            if launchArguments.contains("--simulate-pole") { simulateNotice() }
+        }
         #elseif DEBUG
         if ProcessInfo.processInfo.arguments.contains("--simulate-position") {
             debugLog(.developer,.warning,"Ignored simulator-only location launch argument")
@@ -224,7 +227,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         Timer.publish(every:1,on:.main,in:.common).autoconnect().sink { [weak self] _ in self?.updatePosition() }.store(in:&subscriptions)
         camera.onNotice = { [weak self] n in
             guard let self else { return }
-            speech.say(n.text,priority:n.priority,capturedAt:n.capturedAt)
+            speech.say(n.text,priority:n.priority,capturedAt:n.capturedAt,kind:n.hazard ? .hazard:.surroundings)
             // Only hazards beep (and vibrate when high/critical); landmarks and surroundings are speech only.
             if n.hazard { warnHazard(n.priority) }
         }
@@ -252,7 +255,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             } else { invalidateCaneDetection() }
             // Walkable-ground cues; the head-level warning below is more specific about the same obstacle.
             if walkableWarnings,let cue=walkableAnnouncer.update(result.walkable,headLevel:headLevelWarnings && result.hit != nil,now:now) {
-                speech.say(cue.text,priority:cue.priority,capturedAt:now);warnHazard(cue.priority)
+                speech.say(cue.text,priority:cue.priority,capturedAt:now,kind:.hazard);warnHazard(cue.priority)
                 debugLog(.camera,.info,"Walkable cue",["priority":"\(cue.priority)","text":cue.text])
             }
             let hit=result.hit
@@ -261,7 +264,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
             if let hit,headLevelConfig.buzzerDistance > 0,hit.distance <= headLevelConfig.buzzerDistance { EarconPlayer.shared.play(.buzzer(seconds:0.25)) }
             guard let warning=headLevelAnnouncer.update(hit,now:now) else { return }
             let level:SpeechPriority=warning.stage == .danger ? .critical:.high
-            speech.say(warning.text,priority:level,capturedAt:now);warnHazard(level)
+            speech.say(warning.text,priority:level,capturedAt:now,kind:.hazard);warnHazard(level)
             debugLog(.camera,.info,"Head-level obstacle",["stage":warning.stage == .danger ? "danger":"caution","distanceM":hit.map { String(format:"%.2f",$0.distance) },"lateralM":hit.map { String(format:"%.2f",$0.lateral) },"heightM":hit.map { String(format:"%.2f",$0.height) },"points":hit?.count])
         }
         speech.onMetric = { [weak self] event in self?.record(event) }

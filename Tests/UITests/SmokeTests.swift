@@ -35,12 +35,13 @@ final class SmokeTests:XCTestCase {
   }
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
- @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false)->XCUIApplication {
+ @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false,simulatedPole:Bool=false)->XCUIApplication {
   let app=XCUIApplication();app.launchArguments=["-AppleLanguages","(ja)","-AppleLocale","ja_JP","-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
   if voiceOverLayout { app.launchArguments += ["--voiceover-layout"] }
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
   if simulated { app.launchArguments += ["--simulate-position"] }
+  if simulatedPole { app.launchArguments += ["--simulate-pole"] }
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
@@ -122,6 +123,11 @@ final class SmokeTests:XCTestCase {
   let app=launchMap(voiceOverLayout:true)
   app.buttons["全面カメラで案内"].tap()
   XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
+  let navigation=app.descendants(matching:.any)["cameraNavigationStatus"]
+  let hazard=app.descendants(matching:.any)["cameraHazardStatus"]
+  XCTAssertTrue(navigation.exists);XCTAssertEqual(navigation.label,"ナビ");XCTAssertEqual(navigation.value as? String,"未設定")
+  XCTAssertTrue(hazard.exists);XCTAssertEqual(hazard.label,"危険");XCTAssertEqual(hazard.value as? String,"認識停止")
+  attach(app,"Camera-separated-navigation-and-hazard")
   let menu=app.buttons["cameraMenu"];XCTAssertTrue(menu.isHittable)
   try app.performAccessibilityAudit(for:.sufficientElementDescription)
   menu.tap();app.buttons["cameraSettings"].tap()
@@ -131,6 +137,21 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(menu.isHittable)
   app.buttons["cameraBack"].tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+ }
+ @MainActor func testCameraHeaderSeparatesNavigationAndHazard() throws {
+  let app=launchMap(developer:true,simulated:true,simulatedPole:true)
+  chooseCoordinate(app:app)
+  let start=app.buttons["startCameraNavigation"];XCTAssertTrue(start.waitForExistence(timeout:10));start.tap()
+  app.buttons["確認して全面カメラで案内開始"].tap()
+  let navigation=app.descendants(matching:.any)["cameraNavigationStatus"]
+  let hazard=app.descendants(matching:.any)["cameraHazardStatus"]
+  XCTAssertTrue(navigation.waitForExistence(timeout:10));XCTAssertEqual(navigation.label,"ナビ")
+  XCTAssertTrue(["直進","少し右へ","少し左へ","右へ","左へ","後ろへ"].contains(navigation.value as? String ?? ""))
+  XCTAssertTrue(hazard.exists);XCTAssertEqual(hazard.label,"危険")
+  XCTAssertTrue((hazard.value as? String ?? "").contains("ポール"))
+  let header=app.descendants(matching:.any)["cameraStatusHeader"]
+  XCTAssertLessThan(header.frame.height,app.windows.firstMatch.frame.height*0.25)
+  attach(app,"Camera-navigation-and-pole-warning")
  }
  @MainActor func testAccessibleSearchCanChooseLocalDestination() throws {
   let app=launchMap(voiceOverLayout:true)
@@ -419,6 +440,9 @@ final class SmokeTests:XCTestCase {
   let map=app.buttons["cameraBack"];XCTAssertTrue(map.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["カメラと通知を開始"].exists)
   for _ in 0..<8 where !map.isHittable { app.scrollViews["cameraControls"].swipeUp() }
   XCTAssertTrue(map.isHittable)
+  let header=app.descendants(matching:.any)["cameraStatusHeader"]
+  let controls=app.descendants(matching:.any)["cameraControls"]
+  XCTAssertTrue(header.exists);XCTAssertLessThan(header.frame.maxY,controls.frame.minY)
   attach(app,"Maximum-text-full-camera-controls");map.tap()
   XCTAssertTrue(app.buttons["設定"].waitForExistence(timeout:5))
  }
