@@ -116,6 +116,20 @@ final class SmokeTests:XCTestCase {
   XCTAssertEqual(XCTWaiter.wait(for:[restored],timeout:5),.completed)
   app.buttons["完了"].tap()
  }
+ @MainActor func testAccessibleCameraControlsAndModalReturn() throws {
+  let app=launchMap(voiceOverLayout:true)
+  app.buttons["全面カメラで案内"].tap()
+  XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
+  let menu=app.buttons["cameraMenu"];XCTAssertTrue(menu.isHittable)
+  try app.performAccessibilityAudit(for:.sufficientElementDescription)
+  menu.tap();app.buttons["設定"].tap()
+  XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));app.buttons["完了"].tap()
+  XCTAssertTrue(menu.waitForExistence(timeout:5));XCTAssertTrue(menu.isHittable)
+  menu.tap();app.buttons["案内を停止"].tap();app.buttons["取消"].tap()
+  XCTAssertTrue(menu.isHittable)
+  app.buttons["cameraBack"].tap()
+  XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+ }
  @MainActor func testAccessibleSearchCanChooseLocalDestination() throws {
   let app=launchMap(voiceOverLayout:true)
   chooseCoordinate(app:app)
