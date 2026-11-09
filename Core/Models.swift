@@ -56,6 +56,12 @@ public struct Report: Codable, Identifiable, Sendable {
     public init(segmentID: String, hazard: Hazard, observedAt: Date, explanation: String?) {
         id = UUID(); self.segmentID = segmentID; self.hazard = hazard; self.observedAt = observedAt; self.explanation = explanation
     }
+    /// One submission may include any set of roads in the active network.
+    /// Validate the whole batch before writing, so an invalid ID cannot cause a partial save.
+    public static func batch(segmentIDs:Set<String>,network:Network,hazard:Hazard,observedAt:Date,explanation:String) throws -> [Report] {
+        guard !segmentIDs.isEmpty,segmentIDs.isSubset(of:Set(network.edges.map(\.id))) else { throw CoreError.incompatibleReports }
+        return segmentIDs.sorted().map { Report(segmentID:$0,hazard:hazard,observedAt:observedAt,explanation:explanation.isEmpty ? nil:String(explanation.prefix(120))) }
+    }
     enum CodingKeys:String,CodingKey { case id,segmentID,hazard,observedAt,explanation }
     public func encode(to encoder:any Encoder) throws {
         var c=encoder.container(keyedBy:CodingKeys.self)
