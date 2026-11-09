@@ -8,6 +8,7 @@ import AVFoundation
     @Published var lastStartLatency: Double?
     private let synth = AVSpeechSynthesizer()
     private var queue = SpeechQueue()
+    private var guidancePolicy=GuidanceSpeechPolicy()
     private var active: SpeechJob?
     var onMetric:((MetricEvent)->Void)?
     override init() { super.init(); synth.delegate = self }
@@ -24,8 +25,15 @@ import AVFoundation
     func say(_ text: String, obstacle: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil) {
         say(text,priority:obstacle ? .high:.normal,route:!obstacle,capturedAt:capturedAt,ttl:ttl ?? (obstacle ? 2:nil))
     }
-    func say(_ text: String, priority: SpeechPriority, route: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil) {
-        if UIAccessibility.isVoiceOverRunning { announce(text,priority:priority);return }
+    func say(_ text: String, priority: SpeechPriority, route: Bool = false, capturedAt: Double? = nil, ttl: Double? = nil, kind:GuidanceSpeechKind?=nil) {
+        let category=kind ?? (route ? .navigation:priority >= .high ? .hazard:.system)
+        guard let text=guidancePolicy.message(text,kind:category,priority:priority,now:ProcessInfo.processInfo.systemUptime) else { return }
+        if category == .hazard && priority >= .high { queue.invalidateRoute();pending=queue.count }
+        if UIAccessibility.isVoiceOverRunning {
+            // Switching to VoiceOver also stops any queued synthesizer speech.
+            if active != nil || queue.count>0 { queue.stop();pending=0;synth.stopSpeaking(at:.immediate) }
+            announce(text,priority:priority);return
+        }
         guard active?.text != text else { return }
         guard queue.enqueue(text,priority:priority,route:route,capturedAt:capturedAt,ttl:ttl) else { debugLog(.speech,.debug,"Speech duplicate suppressed",["characters":text.count]);return };pending=queue.count
         // More urgent hazards cut off whatever is being said; equal priority waits its turn.
@@ -51,7 +59,7 @@ import AVFoundation
     }
     func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,didStart utterance:AVSpeechUtterance) {
         status=localized("発話中")
-        onMetric?(MetricEvent(kind:"speechStartCallback",frame:active?.detectionTime,speechStart:ProcessInfo.processInfo.systemUptime,simulated:utterance.speechString.hasPrefix(localized("模擬"))))
+        onMetric?(MetricEvent(kind:"speechStartCallback",frame:active?.detectionTime,speechStart:ProcessInfo.processInfo.systemUptime,simulated:utterance.speechString.contains(localized("模擬"))))
         if let time=active?.detectionTime { lastStartLatency=ProcessInfo.processInfo.systemUptime-time }
         debugLog(.speech,.info,"Speech started",["characters":utterance.speechString.count,"priority":active.map { "\($0.priority)" } ?? "none","pending":pending,"detectionLatencyMs":lastStartLatency.map { Int($0*1000) }])
         #if DEBUG
