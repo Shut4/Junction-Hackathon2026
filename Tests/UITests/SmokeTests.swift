@@ -129,13 +129,24 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(matched.waitForExistence(timeout:15),"戸畑の模擬位置を道路に照合できること")
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10),"目的地設定後に自動で経路確認へ進むこと")
  }
+ @MainActor func testSoocanaRouteStaysOnRoadToNearestDestinationPoint() throws {
+  let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
+  let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap()
+  XCTAssertTrue(app.keyboards.firstMatch.waitForExistence(timeout:5));query.typeText("33.8961473,130.8410268")
+  XCTAssertEqual(query.value as? String,"33.8961473,130.8410268")
+  let search=app.buttons["destinationSearchButton"];XCTAssertTrue(search.waitForExistence(timeout:5));search.tap()
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
+  let gap=app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","選択地点までは約20 m")).firstMatch
+  XCTAssertTrue(gap.waitForExistence(timeout:5),"目的地に最も近い道路まで案内し、87mの直線ショートカットを使わないこと")
+  attach(app,"Soocana-road-route-no-destination-dotted-line")
+ }
  @MainActor func testShinzutsumiParkCoordinateReachesRoutePreview() throws {
   let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
 
   let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap();query.typeText("33.89800372649751,130.84239911645375")
   let coordinateSearch=app.buttons["destinationSearchButton"];XCTAssertTrue(coordinateSearch.waitForExistence(timeout:5));coordinateSearch.tap()
   XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","選択地点までは約")).firstMatch.waitForExistence(timeout:5),"選択地点と自動選択した案内終点の差が表示されること")
-  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","入口・通路は未確認")).firstMatch.exists)
+  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","この先の入口・通路は道路データがなく案内できません。")).firstMatch.exists)
   XCTAssertFalse(app.staticTexts["案内の終点を確認"].exists)
   XCTAssertFalse(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","destinationConnection.")).firstMatch.exists)
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15),"新堤公園を目的地としてルート案内開始まで進めること")

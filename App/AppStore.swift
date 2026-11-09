@@ -161,7 +161,7 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     var hasDestination:Bool { currentDestination != nil || confirmedDestinationConnection != nil }
     var destinationCoordinate:Coordinate? { selectedTarget ?? currentDestination.flatMap { place($0.nodeID)?.coordinate } }
     var guideEndpointCoordinate:Coordinate? { confirmedDestinationConnection?.coordinate ?? currentDestination.flatMap { place($0.nodeID)?.coordinate } }
-    var destinationConnector:[Coordinate] { guard let selectedTarget,let endpoint=confirmedDestinationConnection?.coordinate,selectedTarget.distance(to:endpoint)>0.5 else { return [] };return [selectedTarget,endpoint] }
+    private var arrivalMessage:String { localized((confirmedDestinationConnection?.distance ?? 0)>6 ? "案内可能な道路上の終点です。目的地への入口・通路は案内できません。":"目的地に到着しました。") }
     var simulated: Bool { location.simulated }
     var activeStore:ReportStore { simulated ? simulatedPersistence:persistence }
     init() {
@@ -325,7 +325,9 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
     }
     private func useConnection(_ candidate:DestinationConnection) {
         destinationID="chosen-"+candidate.edgeID;confirmedDestinationConnection=candidate
-        destinationMessage=localized("道路上の案内終点まで案内します。選択地点までは約{0} mです。入口・通路は未確認です",Int(candidate.distance.rounded()))
+        destinationMessage=candidate.distance <= 1
+            ? localized("目的地付近まで道路に沿って案内します。施設の入口は現地で確認してください。")
+            : localized("目的地に最も近い道路上まで案内します。選択地点までは約{0} mです。この先の入口・通路は道路データがなく案内できません。",Int(candidate.distance.rounded()))
     }
     func chooseSavedDestination(_ destination:Destination) {
         stopNavigation();confirmedDestinationConnection=nil;selectedTarget=nil;destinationConnections=[];destinationID=destination.id;targetName=localized(destination.name);destinationMessage=localized(destination.note)
@@ -519,9 +521,9 @@ enum MapFocus:Equatable { case user,route,destination,network,coordinate(Coordin
         if let index=route.steps.enumerated().dropFirst(stepIndex).first(where:{$0.element.id==matchedEdge})?.offset,index<=stepIndex+1,index != stepIndex { stepIndex=index;debugLog(.navigation,.info,"Step advanced (matched)",["step":stepIndex,"of":route.steps.count]) }
         if sample.accuracy <= 8,sample.coordinate.distance(to:route.destinationCoordinate) <= 6,stepIndex >= max(0,route.steps.count-1) {
             if lastArrivalTimestamp != sample.timestamp { arrivalSamples += 1;lastArrivalTimestamp=sample.timestamp }
-            if arrivalSamples >= 3 { navigating=false;speech.invalidateRoute();stopSimulatedWalk();nextInstruction=localized("目的地に到着しました。");speech.say(nextInstruction);debugLog(.navigation,.success,"Arrived near destination connection");return }
+            if arrivalSamples >= 3 { navigating=false;speech.invalidateRoute();stopSimulatedWalk();nextInstruction=arrivalMessage;speech.say(nextInstruction);debugLog(.navigation,.success,"Arrived near destination connection");return }
         } else { arrivalSamples=0 }
-        if route.steps.isEmpty { hold(localized("目的地に到着しました。"));return }
+        if route.steps.isEmpty { hold(arrivalMessage);return }
         if stepIndex < route.steps.count-1,let end=place(route.steps[stepIndex].to), sample.accuracy <= 8,sample.coordinate.distance(to:end.coordinate) <= 6 { stepIndex += 1;debugLog(.navigation,.info,"Step advanced (junction reached)",["step":stepIndex,"of":route.steps.count]) }
         // No corner-by-corner announcements: while the route is straight ahead (or the heading is unknown) repeat 「直進です。」
         // every `straightInterval` seconds; when a turn is needed the camera direction cues (「右へ。」...) take over.
