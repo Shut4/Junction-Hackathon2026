@@ -343,6 +343,7 @@
 "観測時刻・説明" = "Observation time and description";
 "道路が選択されていません" = "No road is selected";
 "道路候補を1つ選んでください" = "Choose one road candidate";
+"道路候補を確認" = "Review road candidates";
 "保存状態を確認してください" = "Check storage status";
 "選択した道路と入力内容の確認画面を開きます" = "Opens a review of the selected roads and entered details.";
 "選択 {0}区間" = "{0} segments selected";

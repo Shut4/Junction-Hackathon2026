@@ -36,7 +36,7 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
  @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm")->XCUIApplication {
-  let app=XCUIApplication();app.launchArguments=["-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
+  let app=XCUIApplication();app.launchArguments=["-AppleLanguages","(ja)","-AppleLocale","ja_JP","-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
   if simulated { app.launchArguments += ["--simulate-position"] }
@@ -376,6 +376,17 @@ final class SmokeTests:XCTestCase {
   XCTAssertFalse(app.buttons["placeRoute"].isEnabled,"outside the stored network the route button is disabled")
   attach(app,"Place-card-search-result")
   XCTAssertFalse(app.buttons["placeSetDestination"].exists,"「目的地にする」 was removed; out-of-range places cannot become destinations")
+ }
+ @MainActor func testReportLegendDoesNotSwallowMapTap() throws {
+  let app=launchMap();app.buttons["通行不可を登録"].tap()
+  let message=app.staticTexts["reportTapFeedback"]
+  XCTAssertTrue(message.waitForExistence(timeout:5));let before=message.label
+  let map=app.otherElements["reportRoadMap"];reach(map,app:app)
+  map.coordinate(withNormalizedOffset:CGVector(dx:0.2,dy:0.07)).tap()
+  let changed=NSPredicate(format:"label != %@",before)
+  expectation(for:changed,evaluatedWith:message)
+  waitForExpectations(timeout:5)
+  attach(app,"Report-tap-through-legend")
  }
  @MainActor func testMapTapRoadSelectionIsDefault() throws {
   let app=launchMap();app.buttons["通行不可を登録"].tap()
