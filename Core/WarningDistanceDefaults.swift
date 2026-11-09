@@ -7,13 +7,13 @@ public enum WarningDistanceDefaults {
         switch key {
         case "dev.headLevelConfig":
             let d=HeadLevelConfig()
-            rules=["maxDistance":([2.5,2],Double(d.maxDistance)),"dangerDistance":([2,1],Double(d.dangerDistance)),"buzzerDistance":([1],Double(d.buzzerDistance))]
+            rules=["maxDistance":([2.5,2,1],Double(d.maxDistance)),"dangerDistance":([2,1,0.6],Double(d.dangerDistance)),"buzzerDistance":([1,0.5],Double(d.buzzerDistance))]
         case "dev.noticeTuning":
             let d=NoticeTuning()
-            rules=["criticalDistance":([2,1],d.criticalDistance),"announceDistance":([3,2],d.announceDistance)]
+            rules=["criticalDistance":([2,1,0.6],d.criticalDistance),"announceDistance":([3,2,1],d.announceDistance)]
         case "dev.walkableTiming":
             let d=WalkableTiming()
-            rules=["blockedDistance":([3,2],Double(d.blockedDistance)),"criticalDistance":([1.8,1],Double(d.criticalDistance)),"dropDistance":([3,2],Double(d.dropDistance))]
+            rules=["blockedDistance":([3,2,1],Double(d.blockedDistance)),"criticalDistance":([1.8,1,0.6],Double(d.criticalDistance)),"dropDistance":([3,2,1],Double(d.dropDistance))]
         default: return nil
         }
         guard var saved=(try? JSONSerialization.jsonObject(with:data)) as? [String:Any] else { return nil }

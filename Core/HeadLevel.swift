@@ -6,12 +6,12 @@ import simd
 public struct HeadLevelConfig: Sendable, Codable, Equatable {
     public var corridorHalfWidth: Float = 0.45
     public var minDistance: Float = 0.3
-    public var maxDistance: Float = 1.0
+    public var maxDistance: Float = 0.8
     public var minHeight: Float = 1.0
     public var maxHeight: Float = 2.0
-    public var dangerDistance: Float = 0.6
+    public var dangerDistance: Float = 0.5
     /// Within this distance (m) a continuous buzzer sounds until the obstacle is gone (0 = off).
-    public var buzzerDistance: Float = 0.5
+    public var buzzerDistance: Float = 0.4
     /// Hits needed in one frame so isolated depth noise is ignored.
     public var minPoints = 12
     public init() {}

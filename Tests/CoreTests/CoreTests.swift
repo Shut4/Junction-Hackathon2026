@@ -414,7 +414,7 @@ final class CoreTests:XCTestCase {
         let floor=(0..<60).map { SIMD3<Float>(Float($0%5)*0.1-0.2,-1.3,-1-Float($0)/30) }
         let clear=HeadLevelGeometry.evaluate(points:floor,gravity:upright,cameraHeight:1.3)
         XCTAssertNil(clear.hit);XCTAssertTrue(clear.floorMeasured);XCTAssertEqual(clear.floor,-1.3,accuracy:0.05)
-        // A sign board 0.8 m ahead (between the 0.6 m danger and 1 m announce distances) at 1.4–1.8 m above the floor.
+        // A sign board 0.8 m ahead (between the 0.5 m danger and 0.8 m announce distances) at 1.4–1.8 m above the floor.
         let board=(0..<20).map { SIMD3<Float>(Float($0%4)*0.1-0.15,0.1+Float($0)/50,-0.8) }
         let hit=try? XCTUnwrap(HeadLevelGeometry.evaluate(points:floor+board,gravity:upright,cameraHeight:1.3).hit)
         XCTAssertEqual(hit?.stage,.caution);XCTAssertEqual(hit?.distance ?? 0,0.8,accuracy:0.01)
@@ -428,9 +428,9 @@ final class CoreTests:XCTestCase {
         // Phone tilted 30° down: the same world point appears rotated in the device frame.
         let t=Float.pi/6,g=SIMD3<Float>(0,-cos(t),-sin(t))
         let rotate={ (w:SIMD3<Float>) in SIMD3<Float>(w.x,w.y*cos(t)-w.z*sin(t),w.y*sin(t)+w.z*cos(t)) }
-        let board=(0..<20).map { rotate(SIMD3<Float>(0,0.3,-0.8-Float($0)/100)) }
+        let board=(0..<20).map { rotate(SIMD3<Float>(0,0.3,-0.6-Float($0)/100)) }
         let hit=HeadLevelGeometry.evaluate(points:board,gravity:g,cameraHeight:1.3).hit
-        XCTAssertEqual(hit?.distance ?? 0,0.8,accuracy:0.05);XCTAssertEqual(hit?.height ?? 0,1.6,accuracy:0.05)
+        XCTAssertEqual(hit?.distance ?? 0,0.6,accuracy:0.05);XCTAssertEqual(hit?.height ?? 0,1.6,accuracy:0.05)
     }
     func testHeadLevelAnnouncerNeedsPersistenceAndEscalates() {
         var a=HeadLevelAnnouncer()
@@ -450,7 +450,7 @@ final class CoreTests:XCTestCase {
         stride(from:lateral.lowerBound,through:lateral.upperBound,by:0.1).flatMap { l in (0..<4).map { _ in WalkSample(forward:forward,lateral:l,up:up) } }
     }
     func testWalkableFindsBlockedPathAndPassableSide() {
-        // Obstacle in the path 0.8 m ahead (beyond the 0.6 m critical distance, 0.5 m tall) and a wall 0.55 m to the right; the left is open.
+        // Obstacle in the path 0.8 m ahead (beyond the 0.5 m critical distance, 0.5 m tall) and a wall 0.55 m to the right; the left is open.
         let samples=walkGround(except:{ $0 > -0.3 && $0 < 0.8 })+walkBlock(-0.25...0.25,at:0.8,up:-0.8)+walkBlock(0.55...0.75,at:1.2,up:-0.3)
         let p=WalkableGeometry.profile(samples,floor:-1.3)
         XCTAssertEqual(p.blockedAhead ?? 0,0.8,accuracy:0.01);XCTAssertEqual(p.passSide,.left);XCTAssertEqual(p.right?.kind,.obstacle)
@@ -581,7 +581,7 @@ final class CoreTests:XCTestCase {
         XCTAssertEqual(landmark?.priority,.normal);XCTAssertEqual(landmark?.hazard,false)
         t.tiers=["car":.hazard];var h=NoticeFilter();t.apply(to:&h);XCTAssertEqual(h.process([car],now:0).first?.priority,.high)
         XCTAssertEqual(SceneCatalog.classes["guardrail"]?.tier,.hazard);XCTAssertEqual(SceneCatalog.classes["elevator"]?.tier,.context);XCTAssertEqual(SceneCatalog.classes["train"]?.tier,.off)
-        XCTAssertEqual(HeadLevelConfig().buzzerDistance,0.5);XCTAssertEqual(Earcon.buzzer(seconds:0.25).samples(sampleRate:1000).left.count,250,"buzzer chunks have no gaps")
+        XCTAssertEqual(HeadLevelConfig().buzzerDistance,0.4);XCTAssertEqual(Earcon.buzzer(seconds:0.25).samples(sampleRate:1000).left.count,250,"buzzer chunks have no gaps")
     }
 
     func testDepthRejectsPicturesAndFloatingGroundObjects() {

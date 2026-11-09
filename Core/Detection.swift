@@ -74,7 +74,7 @@ public struct NoticeTuning: Sendable, Codable, Equatable {
     public var hazardCooldown = 1.0, landmarkCooldown = 2.5, contextCooldown = 6.0
     public var hazardRepeat = 10.0, criticalDistance = NoticeFilter.closeDistance
     /// Hazards are announced only within this distance (m); farther ones are ignored. Without depth they are announced as "high".
-    public var announceDistance = 1.0
+    public var announceDistance = 0.8
     /// Per-label tier overrides (label → tier); labels not listed keep their `SceneCatalog` tier.
     public var tiers: [String: SceneTier] = [:]
     /// Per-label confidence thresholds; labels not listed use `confidence`.
@@ -117,9 +117,9 @@ public struct NoticeFilter: Sendable {
     /// Hazards still in view are repeated after this many seconds; other tiers are said once per appearance.
     public var hazardRepeat = 10.0
     /// Hazards closer than this (m, from depth) are raised to critical and said as 「目の前」.
-    public static let closeDistance = 0.6
+    public static let closeDistance = 0.5
     public var criticalDistance = NoticeFilter.closeDistance
-    public var announceDistance = 1.0
+    public var announceDistance = 0.8
     /// Priority of a hazard by distance: critical within `critical`, high within `announce` (or unknown distance), nil beyond (not announced).
     public static func hazardPriority(_ distance: Double?, critical: Double, announce: Double) -> SpeechPriority? {
         guard let distance else { return .high }
