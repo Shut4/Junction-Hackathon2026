@@ -1,7 +1,11 @@
 #!/usr/bin/env python3
-import pathlib, hashlib, plistlib
+import pathlib, hashlib, plistlib, json
+from region_data import load_regions, validate_network
 r=pathlib.Path(__file__).resolve().parent.parent
-files=sorted([*r.glob('App/*.swift'),*r.glob('Core/*.swift'),*r.glob('Data/*-network.json'),r/'App/PrivacyInfo.xcprivacy',r/'App/Assets.xcassets'])
+regions=load_regions(r/'Data/regions.json')
+network_files=[r/f'Data/{key}-network.json' for key in regions]
+for key,path in zip(regions,network_files): validate_network(json.loads(path.read_text()),regions[key])
+files=sorted([*r.glob('App/*.swift'),*r.glob('Core/*.swift'),*network_files,r/'Data/regions.json',r/'App/PrivacyInfo.xcprivacy',r/'App/Assets.xcassets'])
 # The model name lives only in App/Info.plist (JGDetectionModel).
 model=r/'App/Models'/(plistlib.loads((r/'App/Info.plist').read_bytes())['JGDetectionModel']+'.mlmodelc')
 if model.exists(): files.append(model)

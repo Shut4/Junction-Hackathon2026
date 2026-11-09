@@ -40,13 +40,36 @@ public struct Network: Codable, Sendable {
     public var nodes: [Place]; public var edges: [WalkEdge]; public var destinations: [Destination]
     public func validate() throws {
         let ids = Set(nodes.map(\.id)), es = Set(edges.map(\.id))
-        guard !nodes.isEmpty, ids.count == nodes.count, es.count == edges.count else { throw CoreError.invalidNetwork }
+        guard !id.isEmpty,!name.isEmpty,!version.isEmpty,!source.isEmpty,!acquiredAt.isEmpty,
+              bounds.south.isFinite,bounds.north.isFinite,bounds.west.isFinite,bounds.east.isFinite,
+              -90 <= bounds.south,bounds.south < bounds.north,bounds.north <= 90,
+              -180 <= bounds.west,bounds.west < bounds.east,bounds.east <= 180,
+              !nodes.isEmpty,!edges.isEmpty,ids.count == nodes.count,es.count == edges.count,
+              nodes.allSatisfy({ !$0.id.isEmpty && $0.coordinate.latitude.isFinite && $0.coordinate.longitude.isFinite && bounds.contains($0.coordinate) }) else { throw CoreError.invalidNetwork }
         guard edges.allSatisfy({ ids.contains($0.from) && ids.contains($0.to) && $0.shape.count >= 2 && $0.distance > 0 && $0.distance.isFinite && ["both", "forward", "backward"].contains($0.direction) && $0.shape.allSatisfy({ $0.latitude.isFinite && $0.longitude.isFinite && abs($0.latitude) <= 90 && abs($0.longitude) <= 180 }) }), destinations.allSatisfy({ ids.contains($0.nodeID) }) else { throw CoreError.invalidNetwork }
     }
     public func place(_ id: String) -> Place? { nodes.first { $0.id == id } }
     public func edge(_ id: String) -> WalkEdge? { edges.first { $0.id == id } }
 }
+public struct RegionDefinition:Decodable,Sendable {
+    public var key:String;public var name:String;public var networkID:String;public var bounds:Bounds
+}
 public enum NetworkCatalog {
+    /// Catalog order determines the default region and precedence on shared boundaries.
+    public static func load(manifest:Data,networkData:(String) throws -> Data) throws -> [Network] {
+        let definitions=try JSONDecoder().decode([RegionDefinition].self,from:manifest)
+        guard !definitions.isEmpty,Set(definitions.map(\.key)).count == definitions.count,
+              Set(definitions.map(\.networkID)).count == definitions.count else { throw CoreError.invalidNetwork }
+        return try definitions.map { definition in
+            guard definition.key.range(of:"^[a-z][a-z0-9-]*$",options:.regularExpression) != nil else { throw CoreError.invalidNetwork }
+            let network=try JSONDecoder().decode(Network.self,from:networkData(definition.key+"-network"))
+            try network.validate()
+            let b=definition.bounds,n=network.bounds
+            guard network.id == definition.networkID,network.name == definition.name,!network.isSimulated,
+                  b.south == n.south,b.west == n.west,b.north == n.north,b.east == n.east else { throw CoreError.invalidNetwork }
+            return network
+        }
+    }
     public static func containing(_ coordinate: Coordinate, in networks: [Network]) -> Network? { networks.first { $0.bounds.contains(coordinate) } }
     public static func canRoute(from start: Coordinate, to destination: Coordinate, in network: Network) -> Bool { network.bounds.contains(start) && network.bounds.contains(destination) }
 }

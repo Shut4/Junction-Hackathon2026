@@ -1,5 +1,7 @@
 # 小倉・戸畑の道路データ
 
+地域追加・更新の作業手順は [地域別道路データの管理](REGIONS.md) を参照。
+
 - データ: `Data/kokura-network.json`、`Data/tobata-network.json`
 - 出典: © OpenStreetMap contributors / ODbL 1.0
 - 原本: `Data/raw/kokura-osm.json`、`Data/raw/tobata-osm.json`

@@ -1,0 +1,92 @@
+[
+  {
+    "key": "kokura",
+    "name": "小倉駅周辺",
+    "networkID": "kokura-ground-osm",
+    "bounds": {
+      "south": 33.8775,
+      "west": 130.871,
+      "north": 33.8925,
+      "east": 130.89
+    },
+    "sourceURL": "https://www.openstreetmap.org/copyright",
+    "license": "ODbL-1.0",
+    "destinations": [
+      {
+        "id": "kokura",
+        "name": "小倉駅南側・実験接続点",
+        "latitude": 33.886,
+        "longitude": 130.8821
+      },
+      {
+        "id": "kyomachi",
+        "name": "京町・実験接続点",
+        "latitude": 33.8847,
+        "longitude": 130.881
+      },
+      {
+        "id": "uomachi",
+        "name": "魚町・実験接続点",
+        "latitude": 33.883,
+        "longitude": 130.8806
+      },
+      {
+        "id": "castle",
+        "name": "小倉城付近・実験接続点",
+        "latitude": 33.8846,
+        "longitude": 130.875
+      },
+      {
+        "id": "riverwalk",
+        "name": "紫川東岸・実験接続点",
+        "latitude": 33.8815,
+        "longitude": 130.877
+      }
+    ]
+  },
+  {
+    "key": "tobata",
+    "name": "戸畑区全域",
+    "networkID": "tobata-ground-osm",
+    "bounds": {
+      "south": 33.868,
+      "west": 130.804,
+      "north": 33.931,
+      "east": 130.871
+    },
+    "sourceURL": "https://www.openstreetmap.org/copyright",
+    "license": "ODbL-1.0",
+    "destinations": [
+      {
+        "id": "tobata-station",
+        "name": "戸畑駅周辺・実験接続点",
+        "latitude": 33.8962318,
+        "longitude": 130.8216472
+      },
+      {
+        "id": "tobata-ward-office",
+        "name": "戸畑区役所周辺・実験接続点",
+        "latitude": 33.8947315,
+        "longitude": 130.8288489
+      },
+      {
+        "id": "kyukodai-mae",
+        "name": "九工大前駅付近・実験接続点",
+        "latitude": 33.9001,
+        "longitude": 130.8406
+      },
+      {
+        "id": "kit-main-gate",
+        "name": "戸畑キャンパス正門付近・実験接続点",
+        "latitude": 33.8947,
+        "longitude": 130.8393
+      },
+      {
+        "id": "kit-south",
+        "name": "戸畑キャンパス南側・実験接続点",
+        "latitude": 33.8918,
+        "longitude": 130.8398
+      }
+    ]
+  }
+]
