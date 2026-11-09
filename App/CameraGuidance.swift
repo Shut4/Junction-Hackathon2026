@@ -90,7 +90,8 @@ enum SceneBarStyle {
 
 struct CameraScreen:View {
     @EnvironmentObject var store:AppStore
-    private enum CameraFocus:Hashable { case surroundings,menu }
+    @Environment(\.dynamicTypeSize) private var textSize
+    private enum CameraFocus:Hashable { case navigation,menu }
     @AccessibilityFocusState private var cameraFocus:CameraFocus?
     @State private var report=false
     @State private var stop=false
@@ -109,6 +110,7 @@ struct CameraScreen:View {
             }
             if !store.camera.running && !(store.navigating && store.showARArrow) { stoppedHint }
             VStack(spacing:0) {
+                statusHeader(items:items).padding(.horizontal,12).padding(.top,6)
                 if details { detailsCard(items).padding(.horizontal,12).padding(.top,8) }
                 Spacer(minLength:8)
                 if store.navigating && store.showARArrow { ARDirectionIndicator() }
@@ -117,18 +119,7 @@ struct CameraScreen:View {
                         if store.navigating { store.switchGuidance(to:.map) } else { store.closeGuidance() }
                     }
                     Spacer()
-                    Button { store.speakSurroundingsNow() } label: {
-                        Image(systemName:"speaker.wave.2.fill").font(.title2).foregroundStyle(.white)
-                            .frame(width:60,height:60).background(.black.opacity(0.65),in:Circle())
-                    }
-                    .accessibilityLabel(surroundingsTitle(top:top))
-                    .accessibilityValue(items.count > 1 ? items.dropFirst().map(\.text).joined(separator:" "):"")
-                    .accessibilityHint("ダブルタップで周囲を読み上げます")
-                    .accessibilityAddTraits(.updatesFrequently)
-                    .accessibilityIdentifier("cameraSurroundings").accessibilityFocused($cameraFocus,equals:.surroundings)
-                    Spacer()
                     Menu {
-                        Button("周囲を読み上げ",systemImage:"speaker.wave.2") { store.speakSurroundingsNow() }
                         Button(details ? "詳細を隠す":"詳細を表示",systemImage:"info.circle") { details.toggle() }
                         Button("通行不可を登録",systemImage:"exclamationmark.triangle") { report=true }
                         Button("設定",systemImage:"gearshape") { settings=true }.accessibilityIdentifier("cameraSettings")
@@ -142,15 +133,63 @@ struct CameraScreen:View {
         .overlay(alignment:.top) { CaneConnectionToast(bluetooth:store.cane) }
         .animation(.easeOut(duration:0.2),value:top?.priority)
         // Spoken direction cues for the arrow, only while this screen is shown.
-        .task { cameraFocus = .surroundings;store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
+        .task { cameraFocus = .navigation;store.directionAnnouncer.reset();while !Task.isCancelled { store.announceDirection();try? await Task.sleep(for:.milliseconds(500)) } }
         .sheet(isPresented:$report,onDismiss:{ cameraFocus = .menu }) { NavigationStack { ReportScreen() } }
         .sheet(isPresented:$settings,onDismiss:{ cameraFocus = .menu }) { NavigationStack { SettingsScreen().toolbar { ToolbarItem(placement:.confirmationAction) { Button("完了") { settings=false } } } } }
         .onChange(of:stop) { _,shown in if !shown { cameraFocus = .menu } }
         .alert("案内・カメラ・待機音声を停止します",isPresented:$stop) { Button("停止",role:.destructive) { store.stopNavigation();store.closeGuidance() };Button("取消",role:.cancel) {} }
     }
-    private func surroundingsTitle(top:SceneItem?)->String {
-        if !store.camera.recognitionEnabled { return localized("目的地未設定のため画像認識は停止中") }
-        return top?.text ?? localized(store.camera.running ? "障害物なし":store.camera.status)
+    private var navigationText:String {
+        guard store.navigating else {
+            if store.routeSearchFailed { return localized("経路なし") }
+            if store.waitingForRoutePosition { return localized("位置確認中") }
+            return localized(store.hasDestination ? "案内前":"未設定")
+        }
+        guard let angle=store.cameraAngle else { return localized("確認中") }
+        return DirectionBucket.of(angle).shortText
+    }
+    private var navigationSymbol:String {
+        guard store.navigating,let angle=store.cameraAngle else { return "location.fill" }
+        switch DirectionBucket.of(angle) {
+        case .ahead:return "arrow.up"
+        case .slightLeft:return "arrow.up.left"
+        case .left:return "arrow.left"
+        case .behind:return "arrow.down"
+        case .right:return "arrow.right"
+        case .slightRight:return "arrow.up.right"
+        }
+    }
+    private func statusHeader(items:[SceneItem])->some View {
+        let hazard=items.first { $0.priority >= .high }
+        let inactive = !store.camera.recognitionEnabled || (!store.camera.running && !store.camera.simulatedDetections)
+        let hazardText=hazard.map { $0.brief.isEmpty ? localized("注意"):$0.brief } ?? localized(inactive ? "認識停止":"検出なし")
+        let hazardColor=hazard.map { $0.priority == .critical ? Color(red:0.7,green:0.10,blue:0.10):Color(red:0.62,green:0.26,blue:0.03) } ?? Color.black.opacity(0.75)
+        return Group {
+            if textSize.isAccessibilitySize {
+                VStack(spacing:8) { navigationStatus;hazardStatus(text:hazardText,spoken:hazard?.text,color:hazardColor) }
+            } else {
+                HStack(spacing:8) { navigationStatus;hazardStatus(text:hazardText,spoken:hazard?.text,color:hazardColor) }
+            }
+        }.accessibilityElement(children:.contain).accessibilityIdentifier("cameraStatusHeader")
+    }
+    private var navigationStatus:some View {
+        statusCard(title:"ナビ",text:navigationText,spoken:store.routeSearchFailed ? store.routeMessage:nil,symbol:navigationSymbol,color:Color(red:0.05,green:0.32,blue:0.65))
+            .accessibilityIdentifier("cameraNavigationStatus").accessibilityFocused($cameraFocus,equals:.navigation)
+    }
+    private func hazardStatus(text:String,spoken:String?,color:Color)->some View {
+        statusCard(title:"危険",text:text,spoken:spoken,symbol:"exclamationmark.triangle.fill",color:color)
+            .accessibilityIdentifier("cameraHazardStatus")
+    }
+    private func statusCard(title:String,text:String,spoken:String?=nil,symbol:String,color:Color)->some View {
+        VStack(alignment:.leading,spacing:4) {
+            Label(localized(title),systemImage:symbol).font(.caption.bold())
+            Text(text).font(.title3.bold()).lineLimit(1).minimumScaleFactor(0.65)
+        }
+        .foregroundStyle(.white).padding(.horizontal,12).padding(.vertical,10)
+        .frame(maxWidth:.infinity,minHeight:68,alignment:.leading)
+        .background(color,in:RoundedRectangle(cornerRadius:16))
+        .accessibilityElement(children:.ignore).accessibilityLabel(localized(title)).accessibilityValue(spoken ?? text)
+        .accessibilityAddTraits([.isHeader,.updatesFrequently])
     }
     private func detailsCard(_ items:[SceneItem])->some View {
         VStack(alignment:.leading,spacing:4) {
@@ -168,7 +207,7 @@ struct CameraScreen:View {
     }
     private var stoppedHint:some View {
         VStack(spacing:8) {
-            // Status is also available from the surroundings button.
+            // Status is available from the header and details menu.
             Image(systemName:"video.slash").font(.largeTitle)
             Text("カメラは画面を開くと自動で起動します。起動しない場合は地図へ戻り、もう一度カメラボタンを押してください").font(.subheadline)
         }.foregroundStyle(.white).multilineTextAlignment(.center).padding(.horizontal,24).accessibilityHidden(true)

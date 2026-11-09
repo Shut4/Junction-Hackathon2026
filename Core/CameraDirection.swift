@@ -18,6 +18,17 @@ public enum DirectionBucket: String, Sendable, CaseIterable {
         let nudged = [angle - margin, angle + margin].map { of($0) }
         return nudged.contains(current) ? current : raw
     }
+    /// Short visible instruction; speech keeps its complete sentence.
+    public var shortText:String {
+        switch self {
+        case .ahead:return coreLocalized("直進")
+        case .slightRight:return coreLocalized("少し右へ")
+        case .right:return coreLocalized("右へ")
+        case .behind:return coreLocalized("後ろへ")
+        case .left:return coreLocalized("左へ")
+        case .slightLeft:return coreLocalized("少し左へ")
+        }
+    }
     public var phrase: String {
         switch self {
         case .ahead: return coreLocalized("直進です。")

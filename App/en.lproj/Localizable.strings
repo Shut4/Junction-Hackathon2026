@@ -332,8 +332,7 @@
 "道路を選ぶ" = "Choose roads";
 "内容を確認" = "Review details";
 "地図上の道路をタップしてください。もう一度タップすると選択を解除できます。" = "Tap a road on the map. Tap it again to deselect it.";
-"選択中（黄色の縁）" = "Selected (yellow outline)";
-"登録済み（破線）" = "Already reported (dashed)";
+"登録済み" = "Already reported";
 "詳しい操作方法" = "Detailed instructions";
 "地図はドラッグで移動、ピンチで拡大できます。登録は道路区間全体が対象です。登録済みの道路をタップすると、削除の確認を表示します。" = "Drag to move the map and pinch to zoom. A report applies to the entire road segment. Tapping a reported road asks whether to remove its report.";
 "選択解除" = "Clear selection";
@@ -803,7 +802,62 @@
 
 "目的地パネルを展開すると、経路と案内の操作を確認できます" = "Expand the destination panel to review the route and guidance controls";
 
-"目的地に最も近い道路上まで案内します。選択地点までは約{0} mです。この先の入口・通路は道路データがなく案内できません。" = "Guidance follows roads to the road closest to your destination. The selected place is about {0} m away. The remaining entrance or path is not in the road data and cannot be guided.";
 
 "目的地付近まで道路に沿って案内します。施設の入口は現地で確認してください。" = "Follow the road route to the destination area. Confirm the facility entrance on site.";
 "案内可能な道路上の終点です。目的地への入口・通路は案内できません。" = "This is the end of the mapped road route. Guidance to the destination entrance or path is unavailable.";
+
+"ナビ" = "Navigation";
+
+"案内前" = "Not started";
+
+"未設定" = "Not set";
+
+"確認中" = "Checking";
+
+"認識停止" = "Recognition off";
+
+"検出なし" = "None detected";
+
+"少し右へ" = "Slight right";
+
+"少し左へ" = "Slight left";
+
+"右へ" = "Right";
+
+"左へ" = "Left";
+
+"後ろへ" = "Turn around";
+
+"止まって" = "Stop";
+
+"頭上注意" = "Head clearance";
+
+"段差注意" = "Watch your step";
+
+"障害物注意" = "Obstacle ahead";
+
+"幅に注意" = "Narrow path";
+
+"端に注意" = "Edge ahead";
+
+"{0}に注意" = "{0} ahead";
+
+"ナビ、{0}" = "Navigation: {0}";
+
+"危険、{0}" = "Danger: {0}";
+
+"周囲、{0}" = "Surroundings: {0}";
+
+"注意、{0}" = "Caution: {0}";
+"方向を確認中です。" = "Checking direction.";
+
+"足元を確認してください。" = "Check your footing.";
+
+"経路なし" = "No route";
+"位置確認中" = "Locating";
+"経路が見つかりません。地図で経路を確認してください。" = "No route found. Check the route on the map.";
+
+"カメラ案内中、白杖が届かない胸・頭の高さ（約1〜2m）で前方1m以内の物を、2つのカメラの深度から検出し、振動で知らせます。暗い場所・ガラス・模様のない壁では検出できないことがあります。" = "During camera guidance, depth detects objects within 1 m at chest or head height (about 1–2 m above the ground) beyond the cane's reach and alerts you by vibration. Detection may fail in darkness, on glass, or on featureless walls.";
+"自動販売機・木・看板などの周辺情報も読み上げます。危険・注意は振動で通知し、自動では読み上げません。目印（点字ブロック・横断歩道・信号・ドアなど）よりナビ音声を優先します。VoiceOver使用中はVoiceOverの読み上げで伝えます。" = "Also describe surroundings such as vending machines, trees and signs. Hazards use vibration without automatic speech. Navigation takes priority over landmarks such as tactile paving, crosswalks, signals and doors. When VoiceOver is active, announcements use VoiceOver.";
+"振動・カメラ案内" = "Vibration and camera guidance";
+"振動を既定値に戻す" = "Reset vibration settings";

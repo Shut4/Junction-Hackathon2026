@@ -35,12 +35,14 @@ final class SmokeTests:XCTestCase {
   }
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:10))
  }
- @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false)->XCUIApplication {
+ @MainActor func launchMap(maximumText:Bool=false,developer:Bool=false,simulated:Bool=false,networkID:String="kokura-ground-osm",voiceOverLayout:Bool=false,simulatedPole:Bool=false,backgroundRouteFailure:Bool=false)->XCUIApplication {
   let app=XCUIApplication();app.launchArguments=["-AppleLanguages","(ja)","-AppleLocale","ja_JP","-tutorialComplete","YES","-selectedNetworkID",networkID,"--ui-testing","--reset-test-data"]
   if voiceOverLayout { app.launchArguments += ["--voiceover-layout"] }
   if maximumText { app.launchArguments += ["-UIPreferredContentSizeCategoryName","UICTContentSizeCategoryAccessibilityXXXL"] }
   if developer { app.launchArguments += ["--developer-mode"] }
   if simulated { app.launchArguments += ["--simulate-position"] }
+  if simulatedPole { app.launchArguments += ["--simulate-pole"] }
+  if backgroundRouteFailure { app.launchArguments += ["--background-route-failure"] }
   app.resetAuthorizationStatus(for:.location);app.resetAuthorizationStatus(for:.camera)
   app.launch();completeRequiredPermissions(app);return app
  }
@@ -122,15 +124,57 @@ final class SmokeTests:XCTestCase {
   let app=launchMap(voiceOverLayout:true)
   app.buttons["全面カメラで案内"].tap()
   XCTAssertTrue(app.buttons["cameraBack"].waitForExistence(timeout:5))
+  let navigation=app.descendants(matching:.any)["cameraNavigationStatus"]
+  let hazard=app.descendants(matching:.any)["cameraHazardStatus"]
+  XCTAssertTrue(navigation.exists);XCTAssertEqual(navigation.label,"ナビ");XCTAssertEqual(navigation.value as? String,"未設定")
+  XCTAssertTrue(hazard.exists);XCTAssertEqual(hazard.label,"危険");XCTAssertEqual(hazard.value as? String,"認識停止")
+  attach(app,"Camera-separated-navigation-and-hazard")
   let menu=app.buttons["cameraMenu"];XCTAssertTrue(menu.isHittable)
   try app.performAccessibilityAudit(for:.sufficientElementDescription)
-  menu.tap();app.buttons["cameraSettings"].tap()
-  XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));app.buttons["完了"].tap()
+  XCTAssertFalse(app.buttons["cameraSurroundings"].exists)
+  menu.tap();XCTAssertFalse(app.buttons["周囲を読み上げ"].exists);app.buttons["cameraSettings"].tap()
+  XCTAssertTrue(app.navigationBars["設定"].waitForExistence(timeout:5));XCTAssertFalse(app.switches["toggleHazardSounds"].exists);app.buttons["完了"].tap()
   XCTAssertTrue(menu.waitForExistence(timeout:5));XCTAssertTrue(menu.isHittable)
   menu.tap();app.buttons["案内を停止"].tap();app.buttons["取消"].tap()
   XCTAssertTrue(menu.isHittable)
   app.buttons["cameraBack"].tap()
   XCTAssertTrue(app.textFields["destinationQuery"].waitForExistence(timeout:5))
+ }
+ @MainActor func testBackgroundRouteFailureDoesNotCoverCameraAndExplicitRetryStillExplains() throws {
+  let app=launchMap(backgroundRouteFailure:true)
+  app.buttons["全面カメラで案内"].tap()
+  let navigation=app.descendants(matching:.any)["cameraNavigationStatus"]
+  XCTAssertTrue(navigation.waitForExistence(timeout:10))
+  let failed=NSPredicate(format:"value CONTAINS %@","目的地まで到達できる経路がありません")
+  expectation(for:failed,evaluatedWith:navigation);waitForExpectations(timeout:10)
+  XCTAssertFalse(app.alerts.firstMatch.exists)
+  XCTAssertTrue(app.buttons["cameraMenu"].isHittable)
+  attach(app,"Camera-background-no-route-without-modal")
+  app.buttons["cameraBack"].tap()
+  let retry=app.buttons["通行不可を避ける経路を確認"]
+  reach(retry,app:app);XCTAssertTrue(retry.isHittable);retry.tap()
+  XCTAssertTrue(app.alerts["状態"].waitForExistence(timeout:5))
+  XCTAssertTrue(app.alerts.staticTexts["目的地まで到達できる経路がありません。別の目的地を選ぶか、道路網の接続と通行不可の登録状況を確認してください。"].exists)
+  app.alerts.buttons["閉じる"].tap()
+  let clear=app.buttons["目的地の選択を解除"];reach(clear,app:app);clear.tap()
+  app.buttons["全面カメラで案内"].tap()
+  XCTAssertTrue(navigation.waitForExistence(timeout:5));XCTAssertEqual(navigation.value as? String,"未設定")
+  XCTAssertFalse(app.alerts.firstMatch.exists)
+ }
+ @MainActor func testCameraHeaderSeparatesNavigationAndHazard() throws {
+  let app=launchMap(developer:true,simulated:true,simulatedPole:true)
+  chooseCoordinate(app:app)
+  let start=app.buttons["startCameraNavigation"];XCTAssertTrue(start.waitForExistence(timeout:10));start.tap()
+  app.buttons["確認して全面カメラで案内開始"].tap()
+  let navigation=app.descendants(matching:.any)["cameraNavigationStatus"]
+  let hazard=app.descendants(matching:.any)["cameraHazardStatus"]
+  XCTAssertTrue(navigation.waitForExistence(timeout:10));XCTAssertEqual(navigation.label,"ナビ")
+  XCTAssertTrue(["直進","少し右へ","少し左へ","右へ","左へ","後ろへ"].contains(navigation.value as? String ?? ""))
+  XCTAssertTrue(hazard.exists);XCTAssertEqual(hazard.label,"危険")
+  XCTAssertTrue((hazard.value as? String ?? "").contains("ポール"))
+  let header=app.descendants(matching:.any)["cameraStatusHeader"]
+  XCTAssertLessThan(header.frame.height,app.windows.firstMatch.frame.height*0.25)
+  attach(app,"Camera-navigation-and-pole-warning")
  }
  @MainActor func testAccessibleSearchCanChooseLocalDestination() throws {
   let app=launchMap(voiceOverLayout:true)
@@ -147,6 +191,37 @@ final class SmokeTests:XCTestCase {
   XCTAssertTrue(matched.waitForExistence(timeout:15),"戸畑の模擬位置を道路に照合できること")
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:10),"目的地設定後に自動で経路確認へ進むこと")
  }
+ @MainActor func testRoutePreviewKeepsManualZoomAcrossPanelChanges() throws {
+  let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
+  chooseCoordinate("33.8961473,130.8410268",app:app)
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
+  let map=app.otherElements["homeMap"]
+  func distance()->Double { Double(map.value as? String ?? "") ?? .nan }
+  let overview=distance();XCTAssertTrue(overview.isFinite)
+  let point=map.coordinate(withNormalizedOffset:CGVector(dx:0.35,dy:0.25))
+  point.doubleTap()
+  let zoomed=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in distance()<overview*0.8 },object:nil)
+  XCTAssertEqual(XCTWaiter.wait(for:[zoomed],timeout:5),.completed)
+  let doubleTapDistance=distance()
+  let handle=app.buttons["destinationPanelHandle"];handle.tap()
+  XCTAssertTrue(app.buttons["目的地パネルを展開"].waitForExistence(timeout:5))
+  map.pinch(withScale:1.5,velocity:1)
+  let pinched=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in distance()<doubleTapDistance*0.9 },object:nil)
+  XCTAssertEqual(XCTWaiter.wait(for:[pinched],timeout:5),.completed)
+  let zoomDistance=distance()
+  handle.tap()
+  XCTAssertTrue(app.buttons["目的地パネルを縮小"].waitForExistence(timeout:5))
+  // Detect any delayed refit, including updates from the simulated position.
+  let reverted=XCTNSPredicateExpectation(predicate:NSPredicate { _,_ in distance()>zoomDistance*1.1 },object:nil)
+  reverted.isInverted=true
+  XCTAssertEqual(XCTWaiter.wait(for:[reverted],timeout:2),.completed)
+  XCTAssertLessThan(distance(),overview*0.8)
+  attach(app,"Route-preview-manual-zoom-retained")
+  // A new explicit destination request must restore automatic overview fitting.
+  chooseCoordinate("33.89800372649751,130.84239911645375",app:app)
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
+  XCTAssertGreaterThan(distance(),zoomDistance*1.2,"新しい目的地では全体表示を再開する")
+ }
  @MainActor func testSoocanaRouteStaysOnRoadToNearestDestinationPoint() throws {
   let app=launchMap(developer:true,simulated:true,networkID:"tobata-ground-osm")
   let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap()
@@ -154,8 +229,7 @@ final class SmokeTests:XCTestCase {
   XCTAssertEqual(query.value as? String,"33.8961473,130.8410268")
   let search=app.buttons["destinationSearchButton"];XCTAssertTrue(search.waitForExistence(timeout:5));search.tap()
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
-  let gap=app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","選択地点までは約20 m")).firstMatch
-  XCTAssertTrue(gap.waitForExistence(timeout:5),"目的地に最も近い道路まで案内し、87mの直線ショートカットを使わないこと")
+  XCTAssertFalse(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","目的地に最も近い道路上まで案内します")).firstMatch.exists)
   attach(app,"Soocana-road-route-no-destination-dotted-line")
  }
  @MainActor func testShinzutsumiParkCoordinateReachesRoutePreview() throws {
@@ -163,8 +237,8 @@ final class SmokeTests:XCTestCase {
 
   let query=app.textFields["destinationQuery"];XCTAssertTrue(query.waitForExistence(timeout:10));query.tap();query.typeText("33.89800372649751,130.84239911645375")
   let coordinateSearch=app.buttons["destinationSearchButton"];XCTAssertTrue(coordinateSearch.waitForExistence(timeout:5));coordinateSearch.tap()
-  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","選択地点までは約")).firstMatch.waitForExistence(timeout:5),"選択地点と自動選択した案内終点の差が表示されること")
-  XCTAssertTrue(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","この先の入口・通路は道路データがなく案内できません。")).firstMatch.exists)
+  XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15))
+  XCTAssertFalse(app.staticTexts.containing(NSPredicate(format:"label CONTAINS %@","この先の入口・通路は道路データがなく案内できません。")).firstMatch.exists)
   XCTAssertFalse(app.staticTexts["案内の終点を確認"].exists)
   XCTAssertFalse(app.buttons.matching(NSPredicate(format:"identifier BEGINSWITH %@","destinationConnection.")).firstMatch.exists)
   XCTAssertTrue(app.buttons["startMapNavigation"].waitForExistence(timeout:15),"新堤公園を目的地としてルート案内開始まで進めること")
@@ -389,29 +463,32 @@ final class SmokeTests:XCTestCase {
   let map=app.buttons["cameraBack"];XCTAssertTrue(map.waitForExistence(timeout:5));XCTAssertFalse(app.buttons["カメラと通知を開始"].exists)
   for _ in 0..<8 where !map.isHittable { app.scrollViews["cameraControls"].swipeUp() }
   XCTAssertTrue(map.isHittable)
+  let header=app.descendants(matching:.any)["cameraStatusHeader"]
+  let controls=app.descendants(matching:.any)["cameraControls"]
+  XCTAssertTrue(header.exists);XCTAssertLessThan(header.frame.maxY,controls.frame.minY)
   attach(app,"Maximum-text-full-camera-controls");map.tap()
   XCTAssertTrue(app.buttons["設定"].waitForExistence(timeout:5))
  }
  @MainActor func testCameraDoesNotRecognizeWithoutDestinationAtLaunchOrAfterClearing() throws {
   let app=launchMap()
   let camera=app.buttons["全面カメラで案内"]
-  let recognitionDisabled=app.buttons["cameraSurroundings"]
+  let recognitionDisabled=app.descendants(matching:.any)["cameraHazardStatus"]
   XCTAssertTrue(camera.waitForExistence(timeout:10));camera.tap()
-  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.label,"目的地未設定のため画像認識は停止中","起動直後の目的地未設定状態では画像認識を開始しないこと")
+  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.value as? String,"認識停止","起動直後の目的地未設定状態では画像認識を開始しないこと")
   app.buttons["cameraBack"].tap()
 
   chooseCoordinate(app:app)
   let clear=app.buttons["目的地の選択を解除"]
   reach(clear,app:app);XCTAssertTrue(clear.isHittable);clear.tap()
   camera.tap()
-  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.label,"目的地未設定のため画像認識は停止中","目的地を解除した後も画像認識を開始しないこと")
+  XCTAssertTrue(recognitionDisabled.waitForExistence(timeout:5));XCTAssertEqual(recognitionDisabled.value as? String,"認識停止","目的地を解除した後も画像認識を開始しないこと")
  }
  @MainActor func testCameraRecognitionRemainsEnabledWithDestination() throws {
   let app=launchMap()
   chooseCoordinate(app:app)
   app.buttons["全面カメラで案内"].tap()
-  XCTAssertTrue(app.buttons["cameraSurroundings"].waitForExistence(timeout:5))
-  XCTAssertNotEqual(app.buttons["cameraSurroundings"].label,"目的地未設定のため画像認識は停止中")
+  XCTAssertTrue(app.descendants(matching:.any)["cameraNavigationStatus"].waitForExistence(timeout:5))
+  XCTAssertEqual(app.descendants(matching:.any)["cameraNavigationStatus"].value as? String,"案内前")
   XCTAssertFalse(app.descendants(matching:.any)["sceneBar"].exists)
   attach(app,"Camera-without-warning-banner")
   XCTAssertFalse(app.descendants(matching:.any)["cameraRecognitionDisabled"].exists)

@@ -4,7 +4,7 @@ import MapKit
 enum GuideMapMode { case explore,report,navigation }
 
 final class GuidePin: MKPointAnnotation {
-    enum Kind { case target,endpoint,blocked,simulated,dropped }
+    enum Kind { case target,blocked,simulated,dropped }
     var kind:Kind
     var segmentID:String?
     init(kind:Kind,segmentID:String? = nil) { self.kind=kind;self.segmentID=segmentID;super.init() }
@@ -14,9 +14,31 @@ final class GuidePin: MKPointAnnotation {
 final class GuideMapContainer:UIView {
     let map:MKMapView
     var hidesMapElements=false
+    var onUserInteraction:(()->Void)?
     override var accessibilityElements:[Any]? {
         get { hidesMapElements ? []:[map] }
         set { }
+    }
+    // Expose the actual MapKit camera to UI regression tests without adding UI.
+    override var accessibilityValue:String? {
+        get {
+            #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("--ui-testing"),!hidesMapElements {
+                return String(map.camera.centerCoordinateDistance)
+            }
+            #endif
+            return super.accessibilityValue
+        }
+        set { super.accessibilityValue=newValue }
+    }
+    override func hitTest(_ point:CGPoint,with event:UIEvent?)->UIView? {
+        let hit=super.hitTest(point,with:event)
+        // Observe real touches before MapKit consumes its private recognizers.
+        // This leaves native pinch, double-tap and pan handling unchanged.
+        if hit != nil,event?.type == .touches {
+            onUserInteraction?()
+        }
+        return hit
     }
     init(map:MKMapView) {
         self.map=map
@@ -53,6 +75,7 @@ struct GuideMap: UIViewRepresentable {
         configureAccessibility(map)
         if mode == .navigation { context.coordinator.following=true }
         let container=GuideMapContainer(map:map)
+        container.onUserInteraction = { [weak coordinator=context.coordinator] in coordinator?.routeOverviewActive=false }
         container.hidesMapElements=AccessibilityLayout.voiceOver(voiceOver)
         return container
     }
@@ -77,8 +100,10 @@ struct GuideMap: UIViewRepresentable {
         configureAccessibility(map)
         let c=context.coordinator
         c.store=store;c.onDestination=onDestination;c.onBlockedReport=onBlockedReport;c.onTap=onTap;c.mode=mode
-        let insetsChanged=map.layoutMargins != insets
-        if insetsChanged { map.layoutMargins=insets }
+        // MapKit may adjust its margins while zooming. Compare requested layout
+        // values, rather than treating those internal changes as panel changes.
+        let insetsChanged=c.requestedInsets != insets
+        if insetsChanged { c.requestedInsets=insets;map.layoutMargins=insets }
         guard let network=store.network else { return }
         // The static road-network layer is built once per mode; only small dynamic layers are replaced.
         let baseKey="\(mode)|\(network.id)|\(network.version)"
@@ -102,17 +127,21 @@ struct GuideMap: UIViewRepresentable {
             }
             if mode != .report { for edge in blocked { c.dynamicPins.append(pin(edge.shape[edge.shape.count/2],kind:.blocked,title:localized("× 通行不可登録"),subtitle:localized("{0}・タップして削除",edge.name),segmentID:edge.id,map:map)) } }
             if let target=store.destinationCoordinate { c.dynamicPins.append(pin(target,kind:.target,title:store.targetName,subtitle:localized("選択した目的地・受入状況未確認"),map:map)) }
-            if let endpoint=store.confirmedDestinationConnection?.coordinate { c.dynamicPins.append(pin(endpoint,kind:.endpoint,title:localized("道路上の案内終点"),subtitle:localized("ここまでが保存済み道路による案内です"),map:map)) }
             if let dropped=store.inspected,dropped.droppedPin { c.dynamicPins.append(pin(dropped.coordinate,kind:.dropped,title:dropped.name,subtitle:"ドロップしたピン",map:map)) }
         }
         if store.simulated,let sample=store.location.sample {
             if let existing=c.simulatedPin { existing.coordinate=sample.coordinate.clLocation }
             else { c.simulatedPin=pin(sample.coordinate,kind:.simulated,title:localized("模擬位置"),subtitle:localized("実位置ではありません"),map:map) }
         } else if let existing=c.simulatedPin { map.removeAnnotation(existing);c.simulatedPin=nil }
-        if c.focusToken != store.mapFocusToken { c.focusToken=store.mapFocusToken;if let target=store.mapFocus { c.apply(target,map:map,insets:insets) } }
+        let focusChanged=c.focusToken != store.mapFocusToken
+        if focusChanged {
+            c.focusToken=store.mapFocusToken
+            c.routeOverviewActive=false
+            if let target=store.mapFocus { c.apply(target,map:map,insets:insets) }
+        }
         // The destination panel changes height after a route is calculated.
         // Fit again with its measured height so neither endpoint is hidden behind it.
-        if insetsChanged,mode == .explore,case .route?=store.mapFocus {
+        if insetsChanged,!focusChanged,c.routeOverviewActive,mode == .explore,case .route?=store.mapFocus {
             c.apply(.route,map:map,insets:insets,animated:false)
         }
         if mode == .navigation && c.following { c.follow(map:map) }
@@ -122,6 +151,8 @@ struct GuideMap: UIViewRepresentable {
     @MainActor final class Coordinator:NSObject,MKMapViewDelegate,UIGestureRecognizerDelegate {
         var store:AppStore;var baseKey="";var dynamicKey="";var dynamicOverlays:[any MKOverlay]=[];var dynamicPins:[GuidePin]=[];var onDestination:((Coordinate)->Void)?;var onBlockedReport:((Report)->Void)?;var onTap:(()->Void)?
         var mode:GuideMapMode = .explore;var focusToken=0;var simulatedPin:GuidePin?;var following=false;var lastFollowed:Date?
+        var requestedInsets:UIEdgeInsets?
+        var routeOverviewActive=false
         init(store:AppStore) { self.store=store }
         func apply(_ focus:MapFocus,map:MKMapView,insets:UIEdgeInsets,animated:Bool=true) {
             // MapKit already includes layoutMargins when fitting overlays.
@@ -135,6 +166,8 @@ struct GuideMap: UIViewRepresentable {
                 else if let s=store.location.sample { map.setCenter(s.coordinate.clLocation,animated:true) }
             case .route:
                 guard mode != .navigation,let route=store.route else { return }
+                routeOverviewActive=true
+                deselectFacilityMarkers(in:map)
                 // Stop a previous current-location follow before fitting the full route.
                 map.setUserTrackingMode(.none,animated:false)
                 var coordinates=RouteTracker.shape(of:route)
@@ -147,11 +180,19 @@ struct GuideMap: UIViewRepresentable {
                 rect=rect.insetBy(dx:-max(0,(minimum-rect.width)/2),dy:-max(0,(minimum-rect.height)/2))
                 map.setVisibleMapRect(rect,edgePadding:padding,animated:animated)
             case .destination:
+                deselectFacilityMarkers(in:map)
                 if let t=store.destinationCoordinate { map.setRegion(MKCoordinateRegion(center:t.clLocation,latitudinalMeters:700,longitudinalMeters:700),animated:true) }
             case .coordinate(let c):
                 map.setRegion(MKCoordinateRegion(center:c.clLocation,latitudinalMeters:600,longitudinalMeters:600),animated:true)
             case .network:
                 if let b=store.network?.bounds { let r=MKPolyline(coordinates:[Coordinate(b.south,b.west).clLocation,Coordinate(b.north,b.east).clLocation],count:2).boundingMapRect;map.setVisibleMapRect(r,edgePadding:padding,animated:true) }
+            }
+        }
+        private func deselectFacilityMarkers(in map:MKMapView) {
+            // The selected native POI has an expanded logo marker. Once confirmed,
+            // retain its ordinary map label and show only our destination pin.
+            for annotation in map.selectedAnnotations where annotation is MKMapFeatureAnnotation {
+                map.deselectAnnotation(annotation,animated:false)
             }
         }
         /// Navigation camera: heading-up around the (real or simulated) position.
@@ -226,8 +267,8 @@ struct GuideMap: UIViewRepresentable {
             else if let pin=annotation as? GuidePin,pin.kind == .blocked,let id=pin.segmentID { store.pendingReportRemoval=store.reports.first(where: { $0.segmentID == id }) }
         }
         func mapView(_ mapView:MKMapView,didDeselect annotation:any MKAnnotation) {
-            guard mode == .explore,mapView.selectedAnnotations.isEmpty else { return }
-            Task { @MainActor [weak self] in try? await Task.sleep(for:.milliseconds(300));if mapView.selectedAnnotations.isEmpty,self?.store.inspected?.droppedPin == false { self?.store.inspected=nil } }
+            guard mode == .explore,mapView.selectedAnnotations.isEmpty,let inspectedID=store.inspected?.id else { return }
+            Task { @MainActor [weak self] in try? await Task.sleep(for:.milliseconds(300));if mapView.selectedAnnotations.isEmpty,self?.store.inspected?.id == inspectedID,self?.store.inspected?.droppedPin == false { self?.store.inspected=nil } }
         }
         func mapView(_ mapView:MKMapView,viewFor annotation:any MKAnnotation)->MKAnnotationView? {
             guard let pin=annotation as? GuidePin else { return nil }
@@ -235,7 +276,6 @@ struct GuideMap: UIViewRepresentable {
             view.annotation=pin;view.canShowCallout=mode != .explore || pin.kind == .blocked
             switch pin.kind {
             case .target: view.markerTintColor = .systemRed;view.glyphImage=UIImage(systemName:"mappin");view.displayPriority = .required
-            case .endpoint: view.markerTintColor = .systemBlue;view.glyphImage=UIImage(systemName:"figure.walk.arrival");view.displayPriority = .required
             case .blocked: view.markerTintColor = .systemOrange;view.glyphImage=UIImage(systemName:"xmark");view.displayPriority = .defaultHigh
             case .simulated: view.markerTintColor = .systemPurple;view.glyphImage=UIImage(systemName:"location.fill");view.displayPriority = .required
             case .dropped: view.markerTintColor = .systemRed;view.glyphImage=UIImage(systemName:"mappin");view.displayPriority = .required

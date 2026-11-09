@@ -51,7 +51,7 @@ extension AppStore {
             try? await Task.sleep(for:.milliseconds(700));guard !Task.isCancelled,developer else { return };let now=ProcessInfo.processInfo.systemUptime
             let notices=simulationFilter.process([Detection(label:"pole",confidence:0.9,box:box,capturedAt:now,simulated:true)],now:now)
             simulatedNoticeCount=simulationFilter.notices
-            notices.forEach { record(MetricEvent(kind:"notice",frame:$0.capturedAt,decision:now,simulated:true));speech.say(localized("模擬検出。")+$0.text,obstacle:true,capturedAt:$0.capturedAt) }
+            notices.forEach { record(MetricEvent(kind:"notice",frame:$0.capturedAt,decision:now,simulated:true));AlertFeedback.hazard($0.priority) }
         }
     }
     func closeDeveloper() {

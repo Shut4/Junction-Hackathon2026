@@ -13,6 +13,28 @@ public enum SpeechPriority: Int, Sendable, Comparable, CaseIterable {
     /// Default lifetime in the queue: urgent messages go stale fastest.
     var defaultTTL: Double { switch self { case .critical: 2; case .high: 2.5; case .normal: 6; case .low: 4 } }
 }
+/// Message categories are carried explicitly so both VoiceOver and synthesized speech
+/// identify the source before speaking its instruction.
+public enum GuidanceSpeechKind:Sendable { case navigation,hazard,surroundings,system }
+public struct GuidanceSpeechPolicy:Sendable {
+    public init() {}
+    /// Camera hazards are conveyed by haptics, never by automatic speech.
+    /// Filtering here covers both VoiceOver announcements and synthesized speech.
+    public func message(_ text:String,kind:GuidanceSpeechKind,priority:SpeechPriority,now:Double)->String? {
+        guard !text.isEmpty else { return nil }
+        switch kind {
+        case .navigation:return coreLocalized("ナビ、{0}",text)
+        case .hazard:return nil
+        case .surroundings:return coreLocalized("周囲、{0}",text)
+        case .system:return text
+        }
+    }
+    /// Route instructions precede optional scene/landmark descriptions.
+    public func priority(for kind:GuidanceSpeechKind,requested:SpeechPriority)->SpeechPriority {
+        kind == .navigation ? max(.high,requested):requested
+    }
+}
+
 public struct SpeechJob: Sendable {
     public let text:String;public let priority:SpeechPriority;public let route:Bool;public let generation:Int;public let expires:Date;public let detectionTime:Double?
 }

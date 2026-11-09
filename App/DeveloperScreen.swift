@@ -105,9 +105,7 @@ struct DeveloperScreen:View {
             Text("頭上の障害物").font(.subheadline.bold())
             tune("緊急：この距離以内 dangerDistance",\.dangerDistance,0.5...3.0,0.1,"m")
             tune("知らせ始める距離 maxDistance",\.maxDistance,1.0...4.0,0.1,"m")
-            tune("ブザーが鳴り続ける距離（0で無効） buzzerDistance",\.buzzerDistance,0...2.0,0.1,"m")
-            dial("ブザーの高さ buzzerFrequency",$store.feedbackTuning.buzzerFrequency,300...2000,20,"Hz")
-            Text("緊急＝警告音3回＋強い振動・赤、高＝警告音2回＋警告の振動・橙、通常＝警告音1回・振動なし・青。頭上の障害物が buzzerDistance 以内にある間はブザーが鳴り続ける（危険の警告音がオフなら鳴らない）。歩ける範囲は farthest より先は見ないため、blockedDistance・dropDistance は farthest 以下で効きます。深度で距離がわからない物体は「高」。").font(.caption)
+            Text("緊急＝強い振動・赤、高＝警告の振動・橙。危険・注意の音声と警告音は出しません。歩ける範囲は farthest より先は見ないため、blockedDistance・dropDistance は farthest 以下で効きます。深度で距離がわからない物体は「高」。").font(.caption)
         }
         Section("誤検出の除外（深度・DepthCheck）") {
             Toggle("深度で誤検出を除外 enabled",isOn:$store.depthCheck.enabled)
@@ -138,30 +136,24 @@ struct DeveloperScreen:View {
             }
             Button("危険度を既定値に戻す") { store.noticeTuning.tiers=[:] }
             Button("クラスごとの信頼度閾値を既定値に戻す") { store.noticeTuning.classConfidence=[:] }
-            Text("危険＝警告音・振動・高頻度、目印＝音声のみ・中頻度、周辺＝設定で有効時のみ・低頻度、読まない＝読み上げ・目印表示なし。変更は読み上げ・画面の周囲一覧・目印にすぐ反映され、保存されます。").font(.caption)
+            Text("危険＝振動・高頻度、目印＝音声のみ・中頻度、周辺＝設定で有効時のみ・低頻度、読まない＝読み上げ・目印表示なし。変更は読み上げ・画面の周囲一覧・目印にすぐ反映され、保存されます。").font(.caption)
         }
-        Section("効果音・振動・カメラ案内") {
-            Toggle("危険の警告音 hazardSounds",isOn:$store.hazardSounds)
+        Section("振動・カメラ案内") {
             dial("「直進です。」の間隔 straightInterval（0で読まない）",$store.straightInterval,0...30,1,"秒")
             Toggle("頭の高さの障害物 headLevelWarnings",isOn:$store.headLevelWarnings)
             Toggle("歩ける範囲・段差 walkableWarnings",isOn:$store.walkableWarnings)
             Toggle("周辺の目印も読み上げ speakSurroundings",isOn:$store.speakSurroundings)
             Toggle("矢印の方向を読み上げ speakDirection",isOn:$store.speakDirection)
-            dial("緊急の音・振動の間隔 criticalInterval",$store.feedbackTuning.criticalInterval,0.2...1.5,0.05,"秒")
+            dial("緊急の振動の間隔 criticalInterval",$store.feedbackTuning.criticalInterval,0.2...1.5,0.05,"秒")
             Stepper("緊急の回数 criticalCount \(store.feedbackTuning.criticalCount)回",value:$store.feedbackTuning.criticalCount,in:1...6)
-            dial("警告音の高さ hazardFrequency",$store.feedbackTuning.hazardFrequency,400...2400,20,"Hz")
-            dial("警告音の長さ beepDuration",$store.feedbackTuning.beepDuration,0.03...0.25,0.01,"秒")
-            dial("高（2回）の間隔 highGap",$store.feedbackTuning.highGap,0.02...0.5,0.01,"秒")
-            dial("通常（1回）の高さ normalFrequency",$store.feedbackTuning.normalFrequency,400...2400,20,"Hz")
-            dialF("警告音の音量 hazardVolume",$store.feedbackTuning.hazardVolume,0.05...1,0.05,"")
             Toggle("緊急の振動 vibrateCritical",isOn:$store.feedbackTuning.vibrateCritical)
             Toggle("高の振動 vibrateHigh",isOn:$store.feedbackTuning.vibrateHigh)
             Toggle("通常の振動 vibrateNormal",isOn:$store.feedbackTuning.vibrateNormal)
             HStack {
                 Button("緊急") { AlertFeedback.hazard(.critical) };Button("高") { AlertFeedback.hazard(.high) };Button("通常") { AlertFeedback.hazard(.normal) }
             }.buttonStyle(.bordered)
-            Button("効果音・振動を既定値に戻す") { store.feedbackTuning=FeedbackTuning() }
-            Text("FeedbackTuning（Core/Earcon.swift）。上の3つのボタンで今の設定を試せます。警告音のオン／オフは設定画面と共通です。道案内は音声のみ（警告音・振動なし）。").font(.caption)
+            Button("振動を既定値に戻す") { store.feedbackTuning=FeedbackTuning() }
+            Text("FeedbackTuning（Core/Earcon.swift）。上の3つのボタンで今の設定を試せます。危険・注意は振動のみで通知します。道案内は音声のみ（警告音・振動なし）。").font(.caption)
         }
         Section("実験位置") {
             Toggle("模擬位置・模擬報告",isOn:Binding(get:{store.simulated},set:{store.switchSimulation($0)})).accessibilityIdentifier("toggleSimulation")
