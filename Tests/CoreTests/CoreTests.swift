@@ -59,6 +59,25 @@ final class CoreTests:XCTestCase {
         func edge(_ id:String,_ a:Int,_ b:Int,_ direction:String="both") -> WalkEdge { WalkEdge(id:id,name:id,from:nodes[a].id,to:nodes[b].id,shape:[nodes[a].coordinate,nodes[b].coordinate],distance:nodes[a].coordinate.distance(to:nodes[b].coordinate),direction:direction,conditions:"test",sourceID:"test",verification:"test",layer:"0",kind:"footway") }
         return Network(id:"test",name:"テスト地域",version:"1",bounds:Bounds(south:33.88,west:130.87,north:33.89,east:130.89),source:"test",acquiredAt:"test",isSimulated:true,nodes:nodes,edges:[edge("ab",0,1),edge("bc",1,2),edge("ad",0,3),edge("dc",3,2)],destinations:[Destination(id:"c",name:"C",nodeID:"c",note:"test")])
     }
+    func testDisconnectedReportBatchPersistsEverySegmentAndBlocksRouting() throws {
+        let n=fixture(),selection:Set<String>=["ab","dc"]
+        XCTAssertFalse(RoadMatcher(network:n).connected(selection))
+        let date=Date(timeIntervalSince1970:1000)
+        let batch=try Report.batch(segmentIDs:selection,network:n,hazard:.flood,observedAt:date,explanation:"same observation")
+        XCTAssertEqual(batch.map(\.segmentID),["ab","dc"])
+        XCTAssertTrue(batch.allSatisfy { $0.hazard == .flood && $0.observedAt == date && $0.explanation == "same observation" })
+        let directory=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at:directory) }
+        let store=ReportStore(url:directory.appendingPathComponent("reports.json"))
+        try store.save(batch,network:n)
+        let restored=try store.load(network:n)
+        XCTAssertEqual(Set(restored.map(\.segmentID)),selection)
+        XCTAssertNil(Router(network:n).route(from:"a",to:"c",blocked:Set(restored.map(\.segmentID))))
+        var remaining=selection;remaining.remove("ab")
+        XCTAssertEqual(try Report.batch(segmentIDs:remaining,network:n,hazard:.other,observedAt:date,explanation:"").map(\.segmentID),["dc"])
+        XCTAssertThrowsError(try Report.batch(segmentIDs:["ab","unknown"],network:n,hazard:.other,observedAt:date,explanation:""))
+        XCTAssertThrowsError(try Report.batch(segmentIDs:[],network:n,hazard:.other,observedAt:date,explanation:""))
+    }
     func testBlockedEdgeDetourAndAllClosed() throws {
         let n=fixture(),router=Router(network:n)
         let route=try XCTUnwrap(router.route(from:"a",to:"c",blocked:["ab"]))
